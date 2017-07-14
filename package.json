@@ -1,0 +1,101 @@
+{
+  "name": "vscode-azurelogin",
+  "displayName": "Azure Login",
+  "description": "A common Login and Subscription management extension for VS Code.",
+  "license": "SEE LICENSE IN LICENSE",
+  "icon": "images/azurelogin.png",
+  "repository": {
+    "url": "https://github.com/microsoft/vscode-azurelogin.git"
+  },
+  "homepage": "https://github.com/Microsoft/vscode-azurelogin/blob/master/README.md",  
+  "galleryBanner": {
+    "color": "#1289B9",
+    "theme": "dark"
+  },
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",  
+  "version": "0.0.1",
+  "publisher": "chrisdias",
+  "engines": {
+    "vscode": "^1.13.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "azure"
+  ],
+  "activationEvents": [
+    "onCommand:vscode-azurelogin.login",
+    "onCommand:vscode-azurelogin.logout",
+    "onCommand:vscode-azurelogin.showSubscriptions",
+    "onCommand:vscode-azurelogin.useSubscription"
+  ],
+  "main": "./out/src/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vscode-azurelogin.login",
+        "title": "Login",
+        "category": "Azure"
+      },
+      {
+        "command": "vscode-azurelogin.logout",
+        "title": "Logout",
+        "category": "Azure"
+      },
+      {
+        "command": "vscode-azurelogin.showSubcriptions",
+        "title": "Subscriptions",
+        "category": "Azure"
+      },
+      {
+        "command": "vscode-azurelogin.useSubscription",
+        "title": "Use Subscription",
+        "category": "Azure"
+      }
+    ]
+  },
+  "configuration": {
+    "type": "object",
+    "title": "Azure Login Configuration Options",
+    "properties": {
+      "azureLogin.azureSubId": {
+        "type": "string",
+        "default": "",
+        "description": "The ID of the Azure subscription that you'd like to manage resources within."
+      },
+      "azureLogin.azureServicePrincipalClientId": {
+        "type": "string",
+        "default": "",
+        "description": "The name of the service principal."
+      },
+      "azureLogin.azureServicePrincipalPassword": {
+        "type": "string",
+        "default": "",
+        "description": "The password of the service principal."
+      },
+      "azureLogin.azureServicePrincipalTenantId": {
+        "type": "string",
+        "default": "",
+        "description": "The ID of the tenant that the service principal."
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./",
+    "compile": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "node ./node_modules/vscode/bin/test"
+  },
+  "devDependencies": {
+    "typescript": "^2.0.3",
+    "vscode": "^1.0.0",
+    "mocha": "^2.3.3",
+    "@types/node": "^6.0.40",
+    "@types/mocha": "^2.2.32",
+    "vscode-extension-telemetry": "^0.0.6"    
+  },
+  "dependencies": {
+    "az-login": "^0.3.0"
+  }
+}

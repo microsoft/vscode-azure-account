@@ -7,16 +7,16 @@
   "repository": {
     "url": "https://github.com/microsoft/vscode-azurelogin.git"
   },
-  "homepage": "https://github.com/Microsoft/vscode-azurelogin/blob/master/README.md",  
+  "homepage": "https://github.com/Microsoft/vscode-azurelogin/blob/master/README.md",
   "galleryBanner": {
     "color": "#1289B9",
     "theme": "dark"
   },
-  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",  
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "version": "0.0.1",
   "publisher": "chrisdias",
   "engines": {
-    "vscode": "^1.13.0"
+    "vscode": "^1.15.0"
   },
   "categories": [
     "Other"
@@ -24,11 +24,9 @@
   "keywords": [
     "azure"
   ],
+  "enableProposedApi": true,
   "activationEvents": [
-    "onCommand:vscode-azurelogin.login",
-    "onCommand:vscode-azurelogin.logout",
-    "onCommand:vscode-azurelogin.showSubscriptions",
-    "onCommand:vscode-azurelogin.useSubscription"
+    "*"
   ],
   "main": "./out/src/extension",
   "contributes": {
@@ -44,42 +42,11 @@
         "category": "Azure"
       },
       {
-        "command": "vscode-azurelogin.showSubcriptions",
+        "command": "vscode-azurelogin.showSubscriptions",
         "title": "Subscriptions",
-        "category": "Azure"
-      },
-      {
-        "command": "vscode-azurelogin.useSubscription",
-        "title": "Use Subscription",
         "category": "Azure"
       }
     ]
-  },
-  "configuration": {
-    "type": "object",
-    "title": "Azure Login Configuration Options",
-    "properties": {
-      "azureLogin.azureSubId": {
-        "type": "string",
-        "default": "",
-        "description": "The ID of the Azure subscription that you'd like to manage resources within."
-      },
-      "azureLogin.azureServicePrincipalClientId": {
-        "type": "string",
-        "default": "",
-        "description": "The name of the service principal."
-      },
-      "azureLogin.azureServicePrincipalPassword": {
-        "type": "string",
-        "default": "",
-        "description": "The password of the service principal."
-      },
-      "azureLogin.azureServicePrincipalTenantId": {
-        "type": "string",
-        "default": "",
-        "description": "The ID of the tenant that the service principal."
-      }
-    }
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",
@@ -88,14 +55,20 @@
     "test": "node ./node_modules/vscode/bin/test"
   },
   "devDependencies": {
+    "@types/copy-paste": "^1.1.30",
+    "@types/mocha": "^2.2.32",
+    "@types/node": "^6.0.40",
+    "@types/opn": "^3.0.28",
+    "mocha": "^2.3.3",
     "typescript": "^2.0.3",
     "vscode": "^1.0.0",
-    "mocha": "^2.3.3",
-    "@types/node": "^6.0.40",
-    "@types/mocha": "^2.2.32",
-    "vscode-extension-telemetry": "^0.0.6"    
+    "vscode-extension-telemetry": "^0.0.6"
   },
   "dependencies": {
-    "az-login": "^0.3.0"
+    "adal-node": "^0.1.22",
+    "azure-arm-resource": "^2.0.0-preview",
+    "copy-paste": "^1.3.0",
+    "ms-rest-azure": "^2.2.3",
+    "opn": "^5.1.0"
   }
 }

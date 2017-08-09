@@ -1,9 +1,12 @@
-import { window, ExtensionContext, commands } from 'vscode';
+import { window, ExtensionContext, commands, credentials } from 'vscode';
 import { AzureLoginHelper } from './azurelogin';
 import { AzureLogin } from './azurelogin.api';
 import * as arm from 'azure-arm-resource';
 
 export function activate(context: ExtensionContext) {
+    if (!credentials) {
+        return; // Proposed API not available.
+    }
     const azureLogin = new AzureLoginHelper(context);
     const subscriptions = context.subscriptions;
     subscriptions.push(createStatusBarItem(azureLogin.api));

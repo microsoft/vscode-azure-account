@@ -47,6 +47,12 @@ interface TokenResponse {
     _authority: string;
 }
 
+class AzureLoginError extends Error {
+    constructor(message: string, public _reason: any) {
+        super(message);
+    }
+}
+
 export class AzureLoginHelper {
 
     private onAccountChanged = new EventEmitter<AzureAccount | undefined>();
@@ -86,13 +92,19 @@ export class AzureLoginHelper {
     }
 
     private async initialize() {
-        const refreshToken = await credentials.readSecret(credentialsService, credentialsAccount);
-        if (refreshToken) {
-            const tokenResponse = await this.tokenFromRefreshToken(refreshToken);
-            this.update(tokenResponse);
-        } else {
-            this.update(undefined);
+        try {
+            const refreshToken = await credentials.readSecret(credentialsService, credentialsAccount);
+            if (refreshToken) {
+                const tokenResponse = await this.tokenFromRefreshToken(refreshToken);
+                this.update(tokenResponse);
+                return;
+            }
+        } catch (err) {
+            if (!(err instanceof AzureLoginError)) {
+                throw err;
+            }
         }
+        this.update(undefined);
     }
 
     private async update(tokenResponse: TokenResponse | undefined) {
@@ -117,7 +129,7 @@ export class AzureLoginHelper {
             const context = new AuthenticationContext(authorityUrl, null, cache);
             context.acquireUserCode(resource, clientId, 'en-us', function (err: any, response: any) {
                 if (err) {
-                    reject(err);
+                    reject(new AzureLoginError('Aquiring user code failed', err));
                 } else {
                     resolve(response);
                 }
@@ -131,7 +143,7 @@ export class AzureLoginHelper {
             const context = new AuthenticationContext(authorityUrl, null, cache);
             context.acquireTokenWithDeviceCode(resource, clientId, deviceLogin, function (err: any, tokenResponse: any) {
                 if (err) {
-                    reject(err);
+                    reject(new AzureLoginError('Aquiring token with device code', err));
                 } else {
                     resolve(tokenResponse);
                 }
@@ -145,7 +157,7 @@ export class AzureLoginHelper {
             const context = new AuthenticationContext(authorityUrl, null, cache);
             context.acquireTokenWithRefreshToken(refreshToken, clientId, null, function (err: any, tokenResponse: any) {
                 if (err) {
-                    reject(err);
+                    reject(new AzureLoginError('Aquiring token with refresh token', err));
                 } else {
                     resolve(tokenResponse);
                 }

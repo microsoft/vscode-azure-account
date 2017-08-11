@@ -1,6 +1,6 @@
 import { window, ExtensionContext, commands, credentials } from 'vscode';
 import { AzureLoginHelper } from './azurelogin';
-import { AzureLogin } from './azurelogin.api';
+import { AzureLogin, AzureSession } from './azurelogin.api';
 import { SubscriptionClient, ResourceManagementClient, SubscriptionModels } from 'azure-arm-resource';
 
 export function activate(context: ExtensionContext) {
@@ -25,6 +25,13 @@ function createStatusBarItem(api: AzureLogin) {
     return statusBarItem;
 }
 
+interface SubscriptionItem {
+    label: string;
+    description: string;
+    session: AzureSession;
+    subscription: SubscriptionModels.Subscription;
+}
+
 function showSubscriptions(api: AzureLogin) {
     return async () => {
         if (!api.sessions.length) {
@@ -33,21 +40,22 @@ function showSubscriptions(api: AzureLogin) {
             const result = await window.showInformationMessage('Not logged in, log in first.', login, cancel);
             return result === login && commands.executeCommand('vscode-azurelogin.login');
         }
-        const subscriptions: SubscriptionModels.Subscription[] = [];
+        const subscriptionItems: SubscriptionItem[] = [];
         for (const session of api.sessions) {
             const credentials = session.credentials;
             const subscriptionClient = new SubscriptionClient(credentials);
-            subscriptions.push(...await subscriptionClient.subscriptions.list());
+            const subscriptions = await subscriptionClient.subscriptions.list();
+            subscriptionItems.push(...subscriptions.map(subscription => ({
+                label: subscription.displayName || '',
+                description: subscription.subscriptionId || '',
+                session,
+                subscription
+            })));
         }
-        const result = await window.showQuickPick(subscriptions.map(subscription => ({
-            label: subscription.displayName || '',
-            description: subscription.subscriptionId || '',
-            subscription
-        })));
+        const result = await window.showQuickPick(subscriptionItems);
         if (result) {
-            const { subscription } = result;
-            const session = api.sessions.find(session => session.tenantId === subscription.tenantId);
-            if (session && subscription.subscriptionId) {
+            const { session, subscription } = result;
+            if (subscription.subscriptionId) {
                 const resources = new ResourceManagementClient(session.credentials, subscription.subscriptionId);
                 const resourceGroups = await resources.resourceGroups.list();
                 await window.showQuickPick(resourceGroups.map(resourceGroup => ({

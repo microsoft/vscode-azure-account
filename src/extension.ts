@@ -16,12 +16,25 @@ export function activate(context: ExtensionContext) {
 
 function createStatusBarItem(api: AzureLogin) {
     const statusBarItem = window.createStatusBarItem();
-    api.onSessionsChanged(() => {
-        const tenant = api.sessions[0];
-        statusBarItem.text = tenant ? `Azure: ${tenant.userId}` : 'Azure: Logged out';
-    });
-    statusBarItem.text = 'Azure: Initializing...';
-    statusBarItem.show();
+    function updateStatusBar() {
+        switch (api.status) {
+            case 'LoggingIn':
+                statusBarItem.text = 'Azure: Logging in...';
+                statusBarItem.show();
+                break;
+            case 'LoggedIn':
+                statusBarItem.text = `Azure: ${api.sessions[0].userId}`;
+                statusBarItem.show();
+                break;
+            case 'LoggedOut':
+                statusBarItem.text = 'Azure: Logged out';
+                statusBarItem.show();
+                break;
+        }
+    }
+    api.onStatusChanged(updateStatusBar);
+    api.onSessionsChanged(updateStatusBar);
+    updateStatusBar();
     return statusBarItem;
 }
 
@@ -34,7 +47,7 @@ interface SubscriptionItem {
 
 function showSubscriptions(api: AzureLogin) {
     return async () => {
-        if (!api.sessions.length) {
+        if (api.status !== 'LoggedIn') {
             const login = { title: 'Login' };
             const cancel = { title: 'Cancel', isCloseAffordance: true };
             const result = await window.showInformationMessage('Not logged in, log in first.', login, cancel);

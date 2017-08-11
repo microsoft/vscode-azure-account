@@ -7,7 +7,11 @@ import { Event } from 'vscode';
 import { ServiceClientCredentials } from 'ms-rest';
 import { AzureEnvironment } from 'ms-rest-azure';
 
+export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
+
 export interface AzureLogin {
+	readonly status: AzureLoginStatus;
+	readonly onStatusChanged: Event<AzureLoginStatus>;
 	readonly sessions: AzureSession[];
 	readonly onSessionsChanged: Event<void>;
 }

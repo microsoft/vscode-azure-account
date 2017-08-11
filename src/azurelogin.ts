@@ -10,7 +10,7 @@ import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 
 import { window, commands, credentials, EventEmitter, MessageItem, ExtensionContext } from 'vscode';
-import { AzureLogin, AzureSession } from './azurelogin.api';
+import { AzureLogin, AzureSession, AzureLoginStatus } from './azurelogin.api';
 
 const defaultEnvironment = (<any>AzureEnvironment).Azure;
 const commonTenantId = 'common';
@@ -49,6 +49,10 @@ interface TokenResponse {
     _authority: string;
 }
 
+interface AzureLoginWriteable extends AzureLogin {
+    status: AzureLoginStatus;
+}
+
 class AzureLoginError extends Error {
     constructor(message: string, public _reason: any) {
         super(message);
@@ -57,6 +61,7 @@ class AzureLoginError extends Error {
 
 export class AzureLoginHelper {
 
+    private onStatusChanged = new EventEmitter<AzureLoginStatus>();
     private onSessionsChanged = new EventEmitter<void>();
     private tokenCache = new MemoryCache();
 
@@ -68,50 +73,74 @@ export class AzureLoginHelper {
             .catch(console.error);
     }
 
-    api: AzureLogin = {
+    api: AzureLoginWriteable = {
+        status: 'Initializing',
+        onStatusChanged: this.onStatusChanged.event,
         sessions: [],
         onSessionsChanged: this.onSessionsChanged.event
     };
 
     async login() {
-        const deviceLogin = await deviceLogin1();
-        const copyAndOpen: MessageItem = { title: 'Copy & Open' };
-        const close: MessageItem = { title: 'Close', isCloseAffordance: true };
-        const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen, close);
-        if (response === copyAndOpen) {
-            copypaste.copy(deviceLogin.userCode);
-            opn(deviceLogin.verificationUrl);
+        try {
+            this.beginLoggingIn();
+            const deviceLogin = await deviceLogin1();
+            const copyAndOpen: MessageItem = { title: 'Copy & Open' };
+            const close: MessageItem = { title: 'Close', isCloseAffordance: true };
+            const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen, close);
+            if (response === copyAndOpen) {
+                copypaste.copy(deviceLogin.userCode);
+                opn(deviceLogin.verificationUrl);
+            }
+            const tokenResponse = await deviceLogin2(deviceLogin);
+            const refreshToken = tokenResponse.refreshToken;
+            const tokenResponses = await tokensFromToken(tokenResponse);
+            await credentials.writeSecret(credentialsService, credentialsAccount, refreshToken);
+            await this.updateSessions(tokenResponses);
+        } finally {
+            this.updateStatus();
         }
-        const tokenResponse = await deviceLogin2(deviceLogin);
-        const refreshToken = tokenResponse.refreshToken;
-        const tokenResponses = await tokensFromToken(tokenResponse);
-        await credentials.writeSecret(credentialsService, credentialsAccount, refreshToken);
-        this.update(tokenResponses);
     }
 
     async logout() {
         await credentials.deleteSecret(credentialsService, credentialsAccount);
-        this.update([]);
+        await this.updateSessions([]);
+        this.updateStatus();
     }
 
     private async initialize() {
         try {
             const refreshToken = await credentials.readSecret(credentialsService, credentialsAccount);
             if (refreshToken) {
+                this.beginLoggingIn();
                 const tokenResponse = await tokenFromRefreshToken(refreshToken);
                 const tokenResponses = await tokensFromToken(tokenResponse);
-                this.update(tokenResponses);
-                return;
+                await this.updateSessions(tokenResponses);
             }
         } catch (err) {
             if (!(err instanceof AzureLoginError)) {
                 throw err;
             }
+        } finally {
+            this.updateStatus();
         }
-        this.update([]);
     }
 
-    private async update(tokenResponses: TokenResponse[]) {
+    private beginLoggingIn() {
+        if (this.api.status !== 'LoggedIn') {
+            this.api.status = 'LoggingIn';
+            this.onStatusChanged.fire(this.api.status);
+        }
+    }
+
+    private updateStatus() {
+        const status = this.api.sessions.length ? 'LoggedIn' : 'LoggedOut';
+        if (this.api.status !== status) {
+            this.api.status = status;
+            this.onStatusChanged.fire(this.api.status);
+        }
+    }
+
+    private async updateSessions(tokenResponses: TokenResponse[]) {
         await clearTokenCache(this.tokenCache);
         for (const tokenResponse of tokenResponses) {
             await addTokenToCache(this.tokenCache, tokenResponse);

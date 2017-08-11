@@ -1,7 +1,7 @@
 import { window, ExtensionContext, commands, credentials } from 'vscode';
 import { AzureLoginHelper } from './azurelogin';
 import { AzureLogin } from './azurelogin.api';
-import * as arm from 'azure-arm-resource';
+import { SubscriptionClient, ResourceManagementClient, SubscriptionModels } from 'azure-arm-resource';
 
 export function activate(context: ExtensionContext) {
     if (!credentials) {
@@ -16,8 +16,9 @@ export function activate(context: ExtensionContext) {
 
 function createStatusBarItem(api: AzureLogin) {
     const statusBarItem = window.createStatusBarItem();
-    api.onAccountChanged(account => {
-        statusBarItem.text = account ? `Azure: ${account.userId}` : 'Azure: Logged out';
+    api.onSessionsChanged(() => {
+        const tenant = api.sessions[0];
+        statusBarItem.text = tenant ? `Azure: ${tenant.userId}` : 'Azure: Logged out';
     });
     statusBarItem.text = 'Azure: Initializing...';
     statusBarItem.show();
@@ -26,15 +27,18 @@ function createStatusBarItem(api: AzureLogin) {
 
 function showSubscriptions(api: AzureLogin) {
     return async () => {
-        if (!api.account) {
+        if (!api.sessions.length) {
             const login = { title: 'Login' };
             const cancel = { title: 'Cancel', isCloseAffordance: true };
             const result = await window.showInformationMessage('Not logged in, log in first.', login, cancel);
             return result === login && commands.executeCommand('vscode-azurelogin.login');
         }
-        const credentials = api.account.credentials;
-        const subscriptionClient = new arm.SubscriptionClient(credentials);
-        const subscriptions = await subscriptionClient.subscriptions.list();
+        const subscriptions: SubscriptionModels.Subscription[] = [];
+        for (const session of api.sessions) {
+            const credentials = session.credentials;
+            const subscriptionClient = new SubscriptionClient(credentials);
+            subscriptions.push(...await subscriptionClient.subscriptions.list());
+        }
         const result = await window.showQuickPick(subscriptions.map(subscription => ({
             label: subscription.displayName || '',
             description: subscription.subscriptionId || '',
@@ -42,8 +46,9 @@ function showSubscriptions(api: AzureLogin) {
         })));
         if (result) {
             const { subscription } = result;
-            if (subscription.subscriptionId) {
-                const resources = new arm.ResourceManagementClient(credentials, subscription.subscriptionId);
+            const session = api.sessions.find(session => session.tenantId === subscription.tenantId);
+            if (session && subscription.subscriptionId) {
+                const resources = new ResourceManagementClient(session.credentials, subscription.subscriptionId);
                 const resourceGroups = await resources.resourceGroups.list();
                 await window.showQuickPick(resourceGroups.map(resourceGroup => ({
                     label: resourceGroup.name || '',

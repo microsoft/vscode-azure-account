@@ -2,6 +2,7 @@ import { window, ExtensionContext, commands, credentials } from 'vscode';
 import { AzureLoginHelper } from './azurelogin';
 import { AzureLogin, AzureSession } from './azurelogin.api';
 import { SubscriptionClient, ResourceManagementClient, SubscriptionModels } from 'azure-arm-resource';
+import * as opn from 'opn';
 
 export function activate(context: ExtensionContext) {
     if (!credentials) {
@@ -11,7 +12,12 @@ export function activate(context: ExtensionContext) {
     const subscriptions = context.subscriptions;
     subscriptions.push(createStatusBarItem(azureLogin.api));
     subscriptions.push(commands.registerCommand('vscode-azurelogin.showSubscriptions', showSubscriptions(azureLogin.api)));
+    subscriptions.push(commands.registerCommand('vscode-azurelogin.createAccount', createAccount));
     return azureLogin.api;
+}
+
+function createAccount() {
+    opn("https://azure.microsoft.com/en-us/free");
 }
 
 function createStatusBarItem(api: AzureLogin) {

@@ -45,6 +45,11 @@
         "command": "vscode-azurelogin.showSubscriptions",
         "title": "Subscriptions",
         "category": "Azure"
+      },
+      {
+        "command": "vscode-azurelogin.createAccount",
+        "title": "Create an Account",
+        "category": "Azure"
       }
     ]
   },

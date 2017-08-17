@@ -5,12 +5,12 @@ const CacheDriver = require('adal-node/lib/cache-driver');
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
 import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
-import { SubscriptionClient } from 'azure-arm-resource';
+import { SubscriptionClient, ResourceManagementClient, SubscriptionModels } from 'azure-arm-resource';
 import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 
-import { window, commands, credentials, EventEmitter, MessageItem, ExtensionContext } from 'vscode';
-import { AzureLogin, AzureSession, AzureLoginStatus } from './azurelogin.api';
+import { window, commands, credentials, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget } from 'vscode';
+import { AzureLogin, AzureSession, AzureLoginStatus, AzureResourceFilter } from './azurelogin.api';
 
 const defaultEnvironment = (<any>AzureEnvironment).Azure;
 const commonTenantId = 'common';
@@ -63,12 +63,19 @@ export class AzureLoginHelper {
 
     private onStatusChanged = new EventEmitter<AzureLoginStatus>();
     private onSessionsChanged = new EventEmitter<void>();
+    private onFiltersChanged = new EventEmitter<void>();
     private tokenCache = new MemoryCache();
+    private oldResourceFilter: string;
 
     constructor(context: ExtensionContext) {
         const subscriptions = context.subscriptions;
-        subscriptions.push(commands.registerCommand('vscode-azurelogin.login', () => this.login()));
-        subscriptions.push(commands.registerCommand('vscode-azurelogin.logout', () => this.logout()));
+        subscriptions.push(commands.registerCommand('vscode-azurelogin.login', () => this.login().catch(console.error)));
+        subscriptions.push(commands.registerCommand('vscode-azurelogin.logout', () => this.logout().catch(console.error)));
+        subscriptions.push(commands.registerCommand('vscode-azurelogin.askForLogin', () => this.askForLogin().catch(console.error)));
+        subscriptions.push(commands.registerCommand('vscode-azurelogin.addFilter', () => this.addFilter().catch(console.error)));
+        subscriptions.push(commands.registerCommand('vscode-azurelogin.removeFilter', () => this.removeFilter().catch(console.error)));
+        subscriptions.push(this.api.onSessionsChanged(() => this.updateFilters().catch(console.error)));
+        subscriptions.push(workspace.onDidChangeConfiguration(() => this.updateFilters(true).catch(console.error)));
         this.initialize()
             .catch(console.error);
     }
@@ -77,7 +84,9 @@ export class AzureLoginHelper {
         status: 'Initializing',
         onStatusChanged: this.onStatusChanged.event,
         sessions: [],
-        onSessionsChanged: this.onSessionsChanged.event
+        onSessionsChanged: this.onSessionsChanged.event,
+        filters: [],
+        onFiltersChanged: this.onFiltersChanged.event
     };
 
     async login() {
@@ -154,6 +163,193 @@ export class AzureLoginHelper {
         })));
         this.onSessionsChanged.fire();
     }
+
+    private async askForLogin() {
+        if (this.api.status === 'LoggedIn') {
+            return;
+        }
+        const login = { title: 'Login' };
+        const cancel = { title: 'Cancel', isCloseAffordance: true };
+        const result = await window.showInformationMessage('Not logged in, log in first.', login, cancel);
+        return result === login && commands.executeCommand('vscode-azurelogin.login');
+    }
+
+    private async addFilter() {
+        if (this.api.status !== 'LoggedIn') {
+            return commands.executeCommand('vscode-azurelogin.askForLogin');
+        }
+
+        const azureConfig = workspace.getConfiguration('azure');
+        const resourceFilter = azureConfig.get<string[]>('resourceFilter') || [];
+
+        const subscriptionItems: { session: AzureSession; subscription: SubscriptionModels.Subscription }[] = [];
+        for (const session of this.api.sessions) {
+            const credentials = session.credentials;
+            const client = new SubscriptionClient(credentials);
+            const subscriptions = await listAll(client.subscriptions, client.subscriptions.list());
+            subscriptionItems.push(...subscriptions.filter(subscription => resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`) === -1)
+                .map(subscription => ({
+                    session,
+                    subscription
+                })));
+        }
+        subscriptionItems.sort((a, b) => a.subscription.displayName!.localeCompare(b.subscription.displayName!));
+        const subscriptionResult = await window.showQuickPick(subscriptionItems.map(subscription => ({
+            label: subscription.subscription.displayName!,
+            description: subscription.subscription.subscriptionId!,
+            subscription
+        })));
+        if (!subscriptionResult) {
+            return;
+        }
+
+        const { session, subscription } = subscriptionResult.subscription;
+        const client = new ResourceManagementClient(session.credentials, subscription.subscriptionId!);
+        const resourceGroups = await listAll(client.resourceGroups, client.resourceGroups.list());
+        const resourceGroupFilters: AzureResourceFilter[] = [
+            {
+                ...subscriptionResult.subscription,
+                allResourceGroups: true,
+                resourceGroups
+            }
+        ];
+        resourceGroupFilters.push(...resourceGroups.filter(resourceGroup => resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}/${resourceGroup.name}`) === -1)
+            .map(resourceGroup => ({
+                session,
+                subscription,
+                allResourceGroups: false,
+                resourceGroups: [resourceGroup]
+            })));
+        resourceGroupFilters.sort((a, b) => (!a.allResourceGroups ? a.resourceGroups[0].name! : '').localeCompare(!b.allResourceGroups ? b.resourceGroups[0].name! : ''));
+        const resourceGroupResult = await window.showQuickPick(resourceGroupFilters.map(resourceGroup => (!resourceGroup.allResourceGroups ? {
+            label: resourceGroup.resourceGroups[0].name!,
+            description: resourceGroup.resourceGroups[0].location,
+            resourceGroup
+        } : {
+                label: 'Entire Subscription',
+                description: '',
+                resourceGroup
+            })));
+        if (!resourceGroupResult) {
+            return;
+        }
+
+        const resourceGroup = resourceGroupResult.resourceGroup;
+        if (!resourceGroup.allResourceGroups) {
+            resourceFilter.push(`${resourceGroup.session.tenantId}/${resourceGroup.subscription.subscriptionId}/${resourceGroup.resourceGroups[0].name}`);
+        } else {
+            resourceFilter.splice(0, resourceFilter.length, ...resourceFilter.filter(c => !c.startsWith(`${resourceGroup.session.tenantId}/${resourceGroup.subscription.subscriptionId}/`)));
+            resourceFilter.push(`${resourceGroup.session.tenantId}/${resourceGroup.subscription.subscriptionId}`);
+        }
+
+        const resourceFilterConfig = azureConfig.inspect<string[]>('resourceFilter');
+        let target = workspace.workspaceFolders ? ConfigurationTarget.Workspace : ConfigurationTarget.Global;
+        if (resourceFilterConfig) {
+            if (resourceFilterConfig.workspaceFolderValue) {
+                target = ConfigurationTarget.WorkspaceFolder;
+            } else if (resourceFilterConfig.workspaceValue) {
+                target = ConfigurationTarget.Workspace;
+            } else if (resourceFilterConfig.globalValue) {
+                target = ConfigurationTarget.Global;
+            }
+        }
+        await azureConfig.update('resourceFilter', resourceFilter, target);
+    }
+
+    private async removeFilter() {
+        if (this.api.status !== 'LoggedIn') {
+            return commands.executeCommand('vscode-azurelogin.askForLogin');
+        }
+
+        const azureConfig = workspace.getConfiguration('azure');
+        let resourceFilter = azureConfig.get<string[]>('resourceFilter') || [];
+
+        const filters = resourceFilter.length ? this.api.filters.reduce((list, filter) => {
+            if (filter.allResourceGroups) {
+                list.push(filter);
+            } else {
+                list.push(...filter.resourceGroups.map(resourceGroup => ({
+                    ...filter,
+                    resourceGroups: [resourceGroup]
+                })));
+            }
+            return list;
+        }, <AzureResourceFilter[]>[]) : [];
+        filters.sort((a, b) => (!a.allResourceGroups ? a.resourceGroups[0].name! : `/${a.subscription.displayName}`).localeCompare(!b.allResourceGroups ? b.resourceGroups[0].name! : `/${b.subscription.displayName}`));
+        const filterResult = await window.showQuickPick(filters.map(filter => (!filter.allResourceGroups ? {
+            label: filter.resourceGroups[0].name!,
+            description: filter.subscription.displayName!,
+            filter
+        } : {
+                label: filter.subscription.displayName!,
+                description: filter.subscription.subscriptionId!,
+                filter
+            })));
+        if (!filterResult) {
+            return;
+        }
+
+        const filter = filterResult.filter;
+        const remove = !filter.allResourceGroups ?
+            `${filter.session.tenantId}/${filter.subscription.subscriptionId}/${filter.resourceGroups[0].name}` :
+            `${filter.session.tenantId}/${filter.subscription.subscriptionId}`;
+        resourceFilter = resourceFilter.filter(e => e !== remove);
+
+        const resourceFilterConfig = azureConfig.inspect<string[]>('resourceFilter');
+        let target = workspace.workspaceFolders ? ConfigurationTarget.Workspace : ConfigurationTarget.Global;
+        if (resourceFilterConfig) {
+            if (resourceFilterConfig.workspaceFolderValue) {
+                target = ConfigurationTarget.WorkspaceFolder;
+            } else if (resourceFilterConfig.workspaceValue) {
+                target = ConfigurationTarget.Workspace;
+            } else if (resourceFilterConfig.globalValue) {
+                target = ConfigurationTarget.Global;
+            }
+        }
+        await azureConfig.update('resourceFilter', resourceFilter.length ? resourceFilter : undefined, target);
+    }
+
+    private async updateFilters(configChange = false) {
+        const azureConfig = workspace.getConfiguration('azure');
+        let resourceFilter = azureConfig.get<string[]>('resourceFilter');
+        if (configChange && JSON.stringify(resourceFilter) === this.oldResourceFilter) {
+            return;
+        }
+        this.oldResourceFilter = JSON.stringify(resourceFilter);
+        if (resourceFilter && !Array.isArray(resourceFilter)) {
+            resourceFilter = [];
+        }
+        const filters = resourceFilter && resourceFilter.map(s => typeof s === 'string' ? s.split('/') : [])
+            .filter(s => s.length === 2 || s.length === 3)
+            .map(([tenantId, subscriptionId, resourceGroup]) => ({ tenantId, subscriptionId, resourceGroup }));
+        const tenantIds = filters && filters.reduce<Record<string, Record<string, Record<string, boolean> | boolean>>>((result, filter) => {
+            const tenant = result[filter.tenantId] || (result[filter.tenantId] = {});
+            const resourceGroups = tenant[filter.subscriptionId] || (tenant[filter.subscriptionId] = (filter.resourceGroup ? {} : true));
+            if (typeof resourceGroups === 'object' && filter.resourceGroup) {
+                resourceGroups[filter.resourceGroup] = true;
+            }
+            return result;
+        }, {});
+
+        const newFilters: AzureResourceFilter[] = [];
+        const sessions = tenantIds ? this.api.sessions.filter(session => tenantIds[session.tenantId]) : this.api.sessions;
+        for (const session of sessions) {
+            const client = new SubscriptionClient(session.credentials);
+            const subscriptionIds = tenantIds && tenantIds[session.tenantId];
+            const subscriptions = await listAll(client.subscriptions, client.subscriptions.list());
+            const filteredSubscriptions = subscriptionIds ? subscriptions.filter(subscription => subscriptionIds[subscription.subscriptionId!]) : subscriptions;
+            for (const subscription of filteredSubscriptions) {
+                const client = new ResourceManagementClient(session.credentials, subscription.subscriptionId!);
+                const resourceGroupNames = subscriptionIds && subscriptionIds[subscription.subscriptionId!];
+                const allResourceGroups = !(resourceGroupNames && typeof resourceGroupNames === 'object');
+                const unfilteredResourceGroups = await listAll(client.resourceGroups, client.resourceGroups.list());
+                const resourceGroups = allResourceGroups ? unfilteredResourceGroups : unfilteredResourceGroups.filter(resourceGroup => (<Record<string, boolean>>resourceGroupNames!)[resourceGroup.name!]);
+                newFilters.push({ session, subscription, allResourceGroups, resourceGroups });
+            }
+        }
+        this.api.filters.splice(0, this.api.filters.length, ...newFilters);
+        this.onFiltersChanged.fire();
+    }
 }
 
 async function deviceLogin1(): Promise<DeviceLogin> {
@@ -203,8 +399,8 @@ async function tokensFromToken(firstTokenResponse: TokenResponse) {
     const tokenCache = new MemoryCache();
     await addTokenToCache(tokenCache, firstTokenResponse);
     const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache });
-    const subscriptionClient = new SubscriptionClient(credentials);
-    const tenants = await subscriptionClient.tenants.list();
+    const client = new SubscriptionClient(credentials);
+    const tenants = await listAll(client.tenants, client.tenants.list());
     for (const tenant of tenants) {
         if (tenant.tenantId !== firstTokenResponse.tenantId) {
             const tokenResponse = await tokenFromRefreshToken(firstTokenResponse.refreshToken, tenant.tenantId);
@@ -252,4 +448,16 @@ async function clearTokenCache(tokenCache: any) {
             }
         });
     });
+}
+
+export interface PartialList<T> extends Array<T> {
+    nextLink?: string;
+}
+
+export async function listAll<T>(client: { listNext(nextPageLink: string): Promise<PartialList<T>>; }, first: Promise<PartialList<T>>): Promise<T[]> {
+    const all: T[] = [];
+    for (let list = await first; list.length || list.nextLink; list = list.nextLink ? await client.listNext(list.nextLink) : []) {
+        all.push(...list);
+    }
+    return all;
 }

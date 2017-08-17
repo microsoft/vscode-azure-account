@@ -19,7 +19,7 @@ const clientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
 const authorityUrl = `${authorityHostUrl}${commonTenantId}`;
 const resource = defaultEnvironment.activeDirectoryResourceId;
 
-const credentialsService = 'Azure';
+const credentialsService = 'VSCode Public Azure';
 const credentialsAccount = 'Refresh Token';
 
 interface DeviceLogin {

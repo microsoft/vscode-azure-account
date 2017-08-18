@@ -1,49 +1,13 @@
-import { window, ExtensionContext, commands, credentials, QuickPickItem } from 'vscode';
-import { AzureLoginHelper, listAll } from './azurelogin';
-import { AzureLogin, AzureSession } from './azurelogin.api';
+import { window, ExtensionContext, commands, QuickPickItem, extensions } from 'vscode';
+import { AzureAccount, AzureSession } from './azure-account.api';
 import { SubscriptionClient, ResourceManagementClient, SubscriptionModels } from 'azure-arm-resource';
-import * as opn from 'opn';
 import WebSiteManagementClient = require('azure-arm-website');
 
 export function activate(context: ExtensionContext) {
-    if (!credentials) {
-        return; // Proposed API not available.
-    }
-    const azureLogin = new AzureLoginHelper(context);
+    const azureAccount = extensions.getExtension<AzureAccount>('vscode.azure-account')!.exports;
     const subscriptions = context.subscriptions;
-    subscriptions.push(createStatusBarItem(azureLogin.api));
-    subscriptions.push(commands.registerCommand('vscode-azurelogin.createAccount', createAccount));
-    subscriptions.push(commands.registerCommand('vscode-azurelogin.showSubscriptions', showSubscriptions(azureLogin.api)));
-    subscriptions.push(commands.registerCommand('vscode-azurelogin.showAppServices', showAppServices(azureLogin.api)));
-    return azureLogin.api;
-}
-
-function createAccount() {
-    opn("https://azure.microsoft.com/en-us/free");
-}
-
-function createStatusBarItem(api: AzureLogin) {
-    const statusBarItem = window.createStatusBarItem();
-    function updateStatusBar() {
-        switch (api.status) {
-            case 'LoggingIn':
-                statusBarItem.text = 'Azure: Logging in...';
-                statusBarItem.show();
-                break;
-            case 'LoggedIn':
-                statusBarItem.text = `Azure: ${api.sessions[0].userId}`;
-                statusBarItem.show();
-                break;
-            case 'LoggedOut':
-                statusBarItem.text = 'Azure: Logged out';
-                statusBarItem.show();
-                break;
-        }
-    }
-    api.onStatusChanged(updateStatusBar);
-    api.onSessionsChanged(updateStatusBar);
-    updateStatusBar();
-    return statusBarItem;
+    subscriptions.push(commands.registerCommand('vscode-azurelogin.showSubscriptions', showSubscriptions(azureAccount)));
+    subscriptions.push(commands.registerCommand('vscode-azurelogin.showAppServices', showAppServices(azureAccount)));
 }
 
 interface SubscriptionItem {
@@ -53,7 +17,7 @@ interface SubscriptionItem {
     subscription: SubscriptionModels.Subscription;
 }
 
-function showSubscriptions(api: AzureLogin) {
+function showSubscriptions(api: AzureAccount) {
     return async () => {
         if (api.status !== 'LoggedIn') {
             return commands.executeCommand('vscode-azurelogin.askForLogin');
@@ -88,7 +52,7 @@ function showSubscriptions(api: AzureLogin) {
     };
 }
 
-function showAppServices(api: AzureLogin) {
+function showAppServices(api: AzureAccount) {
     return async () => {
         if (api.status !== 'LoggedIn') {
             return commands.executeCommand('vscode-azurelogin.askForLogin');
@@ -124,4 +88,16 @@ function showAppServices(api: AzureLogin) {
 }
 
 export function deactivate() {
+}
+
+export interface PartialList<T> extends Array<T> {
+    nextLink?: string;
+}
+
+async function listAll<T>(client: { listNext(nextPageLink: string): Promise<PartialList<T>>; }, first: Promise<PartialList<T>>): Promise<T[]> {
+    const all: T[] = [];
+    for (let list = await first; list.length || list.nextLink; list = list.nextLink ? await client.listNext(list.nextLink) : []) {
+        all.push(...list);
+    }
+    return all;
 }

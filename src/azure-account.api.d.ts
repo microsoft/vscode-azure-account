@@ -10,13 +10,14 @@ import { SubscriptionModels, ResourceModels } from 'azure-arm-resource';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
-export interface AzureLogin {
+export interface AzureAccount {
 	readonly status: AzureLoginStatus;
 	readonly onStatusChanged: Event<AzureLoginStatus>;
 	readonly sessions: AzureSession[];
 	readonly onSessionsChanged: Event<void>;
 	readonly filters: AzureResourceFilter[];
 	readonly onFiltersChanged: Event<void>;
+	readonly credentials: Credentials;
 }
 
 export interface AzureSession {
@@ -31,4 +32,10 @@ export interface AzureResourceFilter {
 	readonly subscription: SubscriptionModels.Subscription;
 	readonly allResourceGroups: boolean;
 	readonly resourceGroups: ResourceModels.ResourceGroup[];
+}
+
+export interface Credentials {
+	readSecret(service: string, account: string): Thenable<string | undefined>;
+	writeSecret(service: string, account: string, secret: string): Thenable<void>;
+	deleteSecret(service: string, account: string): Thenable<boolean>;
 }

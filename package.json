@@ -32,31 +32,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "vscode-azurelogin.login",
-        "title": "Login",
-        "category": "Azure"
-      },
-      {
-        "command": "vscode-azurelogin.logout",
-        "title": "Logout",
-        "category": "Azure"
-      },
-      {
-        "command": "vscode-azurelogin.addFilter",
-        "title": "Add Resource Filter",
-        "category": "Azure"
-      },
-      {
-        "command": "vscode-azurelogin.removeFilter",
-        "title": "Remove Resource Filter",
-        "category": "Azure"
-      },
-      {
-        "command": "vscode-azurelogin.createAccount",
-        "title": "Create an Account",
-        "category": "Azure"
-      },
-      {
         "command": "vscode-azurelogin.showSubscriptions",
         "title": "Subscriptions",
         "category": "Azure Example"
@@ -66,18 +41,7 @@
         "title": "AppServices",
         "category": "Azure Example"
       }
-    ],
-    "configuration": {
-      "type": "object",
-      "title": "Azure configuration",
-      "properties": {
-        "azure.resourceFilter": {
-          "type": "array",
-          "default": null,
-          "description": "The resource filter, each element is either a subscription id or a subscription id and a resource group name separated by a slash."
-        }
-      }
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",
@@ -85,22 +49,17 @@
     "postinstall": "node ./node_modules/vscode/bin/install",
     "test": "node ./node_modules/vscode/bin/test"
   },
+  "extensionDependencies": [
+    "vscode.azure-account"
+  ],
   "devDependencies": {
-    "@types/copy-paste": "^1.1.30",
-    "@types/mocha": "^2.2.32",
     "@types/node": "^6.0.40",
-    "@types/opn": "^3.0.28",
-    "mocha": "^2.3.3",
     "typescript": "^2.0.3",
-    "vscode": "^1.0.0",
-    "vscode-extension-telemetry": "^0.0.6"
+    "vscode": "^1.0.0"
   },
   "dependencies": {
-    "adal-node": "^0.1.22",
     "azure-arm-resource": "^2.0.0-preview",
     "azure-arm-website": "^1.0.0-preview",
-    "copy-paste": "^1.3.0",
-    "ms-rest-azure": "^2.2.3",
-    "opn": "^5.1.0"
+    "ms-rest-azure": "^2.2.3"
   }
 }

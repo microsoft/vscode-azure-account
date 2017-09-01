@@ -17,7 +17,6 @@ export interface AzureAccount {
 	readonly onSessionsChanged: Event<void>;
 	readonly filters: AzureResourceFilter[];
 	readonly onFiltersChanged: Event<void>;
-	readonly credentials: Credentials;
 }
 
 export interface AzureSession {

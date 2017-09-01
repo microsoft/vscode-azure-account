@@ -95,7 +95,6 @@ export class AzureLoginHelper {
 		onSessionsChanged: this.onSessionsChanged.event,
 		filters: [],
 		onFiltersChanged: this.onFiltersChanged.event,
-		credentials
 	};
 
 	async login() {

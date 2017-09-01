@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, ExtensionContext, commands, credentials } from 'vscode';
+import { window, ExtensionContext, commands } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
 import { AzureAccount } from './azure-account.api';
 import * as opn from 'opn';
@@ -12,9 +12,6 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export function activate(context: ExtensionContext) {
-	if (!credentials) {
-		return; // Proposed API not available.
-	}
 	const azureLogin = new AzureLoginHelper(context);
 	const subscriptions = context.subscriptions;
 	subscriptions.push(createStatusBarItem(azureLogin.api));

@@ -23,7 +23,6 @@
   "keywords": [
     "azure"
   ],
-  "enableProposedApi": true,
   "activationEvents": [
     "onCommand:azure-account.login",
     "onCommand:azure-account.logout",
@@ -79,9 +78,10 @@
   },
   "devDependencies": {
     "@types/copy-paste": "1.1.30",
+    "@types/keytar": "4.0.1",
     "@types/node": "6.0.40",
-    "vscode": "^1.0.0",
-    "@types/opn": "3.0.28"
+    "@types/opn": "3.0.28",
+    "vscode": "^1.0.0"
   },
   "dependencies": {
     "adal-node": "^0.1.22",

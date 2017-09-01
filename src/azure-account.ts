@@ -14,11 +14,19 @@ import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
 import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
+import * as keytarType from 'keytar';
 
-import { window, commands, credentials, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration } from 'vscode';
+import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter } from './azure-account.api';
 
 const localize = nls.loadMessageBundle();
+
+let keytar: typeof keytarType;
+try {
+	keytar = require(`${env.appRoot}/node_modules/keytar`)
+} catch (e) {
+	// Not available.
+}
 
 const defaultEnvironment = (<any>AzureEnvironment).Azure;
 const commonTenantId = 'common';
@@ -111,7 +119,9 @@ export class AzureLoginHelper {
 			const tokenResponse = await deviceLogin2(deviceLogin);
 			const refreshToken = tokenResponse.refreshToken;
 			const tokenResponses = await tokensFromToken(tokenResponse);
-			await credentials.writeSecret(credentialsService, credentialsAccount, refreshToken);
+			if (keytar) {
+				await keytar.setPassword(credentialsService, credentialsAccount, refreshToken);
+			}
 			await this.updateSessions(tokenResponses);
 		} finally {
 			this.updateStatus();
@@ -119,14 +129,16 @@ export class AzureLoginHelper {
 	}
 
 	async logout() {
-		await credentials.deleteSecret(credentialsService, credentialsAccount);
+		if (keytar) {
+			await keytar.deletePassword(credentialsService, credentialsAccount);
+		}
 		await this.updateSessions([]);
 		this.updateStatus();
 	}
 
 	private async initialize() {
 		try {
-			const refreshToken = await credentials.readSecret(credentialsService, credentialsAccount);
+			const refreshToken = keytar && await keytar.getPassword(credentialsService, credentialsAccount);
 			if (refreshToken) {
 				this.beginLoggingIn();
 				const tokenResponse = await tokenFromRefreshToken(refreshToken);

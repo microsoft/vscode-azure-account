@@ -24,7 +24,6 @@
   "keywords": [
     "azure"
   ],
-  "enableProposedApi": true,
   "activationEvents": [
     "*"
   ],

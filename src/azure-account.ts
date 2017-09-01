@@ -16,7 +16,7 @@ import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
 
-import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env } from 'vscode';
+import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter } from './azure-account.api';
 
 const localize = nls.loadMessageBundle();
@@ -28,10 +28,12 @@ try {
 	// Not available.
 }
 
+const logVerbose = false;
 const defaultEnvironment = (<any>AzureEnvironment).Azure;
 const commonTenantId = 'common';
-const authorityHostUrl = defaultEnvironment.activeDirectoryEndpointUrl;
-const clientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
+const authorityHostUrl = defaultEnvironment.activeDirectoryEndpointUrl; // Testing: 'https://login.windows-ppe.net/'
+const clientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
+const validateAuthority = true;
 const authorityUrl = `${authorityHostUrl}${commonTenantId}`;
 const resource = defaultEnvironment.activeDirectoryResourceId;
 
@@ -94,6 +96,27 @@ export class AzureLoginHelper {
 		subscriptions.push(workspace.onDidChangeConfiguration(() => this.updateFilters(true).catch(console.error)));
 		this.initialize()
 			.catch(console.error);
+
+		if (logVerbose) {
+			const outputChannel = window.createOutputChannel('Azure Account');
+			subscriptions.push(outputChannel);
+			this.enableLogging(outputChannel);
+		}
+	}
+
+	private enableLogging(channel: OutputChannel) {
+		const log = adal.Logging;
+		log.setLoggingOptions({
+			level: log.LOGGING_LEVEL.VERBOSE,
+			log: (level: any, message: any, error: any) => {
+				if (message) {
+					channel.appendLine(message);
+				}
+				if (error) {
+					channel.appendLine(error);
+				}
+			}
+		});
 	}
 
 	api: AzureAccount = {
@@ -332,7 +355,7 @@ export class AzureLoginHelper {
 async function deviceLogin1(): Promise<DeviceLogin> {
 	return new Promise<DeviceLogin>((resolve, reject) => {
 		const cache = new MemoryCache();
-		const context = new AuthenticationContext(authorityUrl, null, cache);
+		const context = new AuthenticationContext(authorityUrl, validateAuthority, cache);
 		context.acquireUserCode(resource, clientId, 'en-us', function (err: any, response: any) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Aquiring user code failed"), err));
@@ -346,7 +369,7 @@ async function deviceLogin1(): Promise<DeviceLogin> {
 async function deviceLogin2(deviceLogin: DeviceLogin) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(authorityUrl, null, tokenCache);
+		const context = new AuthenticationContext(authorityUrl, validateAuthority, tokenCache);
 		context.acquireTokenWithDeviceCode(resource, clientId, deviceLogin, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Aquiring token with device code"), err));
@@ -360,7 +383,7 @@ async function deviceLogin2(deviceLogin: DeviceLogin) {
 async function tokenFromRefreshToken(refreshToken: string, tenantId = commonTenantId) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${authorityHostUrl}${tenantId}`, null, tokenCache);
+		const context = new AuthenticationContext(`${authorityHostUrl}${tenantId}`, validateAuthority, tokenCache);
 		context.acquireTokenWithRefreshToken(refreshToken, clientId, null, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Aquiring token with refresh token"), err));

@@ -6,17 +6,18 @@
 import { Event } from 'vscode';
 import { ServiceClientCredentials } from 'ms-rest';
 import { AzureEnvironment } from 'ms-rest-azure';
-import { SubscriptionModels, ResourceModels } from 'azure-arm-resource';
+import { SubscriptionModels } from 'azure-arm-resource';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
-export interface AzureLogin {
+export interface AzureAccount {
 	readonly status: AzureLoginStatus;
 	readonly onStatusChanged: Event<AzureLoginStatus>;
 	readonly sessions: AzureSession[];
 	readonly onSessionsChanged: Event<void>;
 	readonly filters: AzureResourceFilter[];
 	readonly onFiltersChanged: Event<void>;
+	readonly credentials: Credentials;
 }
 
 export interface AzureSession {
@@ -29,6 +30,10 @@ export interface AzureSession {
 export interface AzureResourceFilter {
 	readonly session: AzureSession;
 	readonly subscription: SubscriptionModels.Subscription;
-	readonly allResourceGroups: boolean;
-	readonly resourceGroups: ResourceModels.ResourceGroup[];
+}
+
+export interface Credentials {
+	readSecret(service: string, account: string): Thenable<string | undefined>;
+	writeSecret(service: string, account: string, secret: string): Thenable<void>;
+	deleteSecret(service: string, account: string): Thenable<boolean>;
 }

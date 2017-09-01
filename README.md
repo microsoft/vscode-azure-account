@@ -1,36 +1,6 @@
-# Azure Login README
+# Azure Login
 
-## Features
-
-### Login
-
-Calling the login method will result in an "authentication code" being automatically copied to the clipboard, and a browser being launched, which allows you to interactively authenticate with Azure. Once the login is complete, an Azure "service principal" is auto-created and persisted to disk, so that subsequent calls to login won't require re-authenticating. This allows your own apps to behave similarly to tools such as the Az CLI, without too much effort.
-
-If you'd like to specify an exact Azure identity you can set the following environment variables (or [extension settings](Extension Settings)), which provide interop with other Azure management tools such as Serverless and Terraform:
-
-* `azureSubId` / `ARM_SUBSRIPTION_ID`: The ID of the Azure subscription that you'd like to manage resources within
-* `azureServicePrincipalClientId` / `ARM_CLIENT_ID`: The name of the service principal
-* `azureServicePrincipalPassword` / `ARM_CLIENT_SECRET`: The password of the service principal
-* `azureServicePrincipalTenantId` / `ARM_TENANT_ID`: The ID of the tenant that the service principal was created in
-
-### Logout
-
-### Show Subscriptions
-
-### Use Subscription
-
-## Requirements
-
-## Extension Settings
-
-This extension contributes the following settings:
-
-* `azureLogin.azureSubId`: The ID of the Azure subscription that you'd like to manage resources within
-* `azureLogin.azureServicePrincipalClientId`: The name of the service principal
-* `azureLogin.azureServicePrincipalPassword`: The password of the service principal
-* `azureLogin.azureServicePrincipalTenantId`: The ID of the tenant that the service principal 
-
-## Known Issues
+Base extension supplying login and subscription filtering functionality for Azure extension.
 
 ## Contributing
 

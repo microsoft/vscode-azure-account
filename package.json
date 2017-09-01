@@ -1,6 +1,6 @@
 {
-  "name": "vscode-azurelogin",
-  "displayName": "Azure Login",
+  "name": "azure-account",
+  "displayName": "Azure Account",
   "description": "A common Login and Subscription management extension for VS Code.",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/azurelogin.png",
@@ -12,11 +12,10 @@
     "color": "#1289B9",
     "theme": "dark"
   },
-  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "version": "0.0.1",
-  "publisher": "chrisdias",
+  "version": "0.1.0",
+  "publisher": "ms-vscode",
   "engines": {
-    "vscode": "^1.15.0"
+    "vscode": "^1.16.0"
   },
   "categories": [
     "Other"
@@ -26,45 +25,39 @@
   ],
   "enableProposedApi": true,
   "activationEvents": [
-    "*"
+    "onCommand:azure-account.login",
+    "onCommand:azure-account.logout",
+    "onCommand:azure-account.addFilter",
+    "onCommand:azure-account.removeFilter",
+    "onCommand:azure-account.createAccount"
   ],
   "main": "./out/src/extension",
   "contributes": {
     "commands": [
       {
-        "command": "vscode-azurelogin.login",
-        "title": "Login",
-        "category": "Azure"
+        "command": "azure-account.login",
+        "title": "%azure-account.commands.login%",
+        "category": "%azure-account.commands.azure%"
       },
       {
-        "command": "vscode-azurelogin.logout",
-        "title": "Logout",
-        "category": "Azure"
+        "command": "azure-account.logout",
+        "title": "%azure-account.commands.logout%",
+        "category": "%azure-account.commands.azure%"
       },
       {
-        "command": "vscode-azurelogin.addFilter",
-        "title": "Add Resource Filter",
-        "category": "Azure"
+        "command": "azure-account.addFilter",
+        "title": "%azure-account.commands.addResourceFilter%",
+        "category": "%azure-account.commands.azure%"
       },
       {
-        "command": "vscode-azurelogin.removeFilter",
-        "title": "Remove Resource Filter",
-        "category": "Azure"
+        "command": "azure-account.removeFilter",
+        "title": "%azure-account.commands.removeResourceFilter%",
+        "category": "%azure-account.commands.azure%"
       },
       {
-        "command": "vscode-azurelogin.createAccount",
-        "title": "Create an Account",
-        "category": "Azure"
-      },
-      {
-        "command": "vscode-azurelogin.showSubscriptions",
-        "title": "Subscriptions",
-        "category": "Azure Example"
-      },
-      {
-        "command": "vscode-azurelogin.showAppServices",
-        "title": "AppServices",
-        "category": "Azure Example"
+        "command": "azure-account.createAccount",
+        "title": "%azure-account.commands.createAccount%",
+        "category": "%azure-account.commands.azure%"
       }
     ],
     "configuration": {
@@ -74,7 +67,7 @@
         "azure.resourceFilter": {
           "type": "array",
           "default": null,
-          "description": "The resource filter, each element is either a subscription id or a subscription id and a resource group name separated by a slash."
+          "description": "The resource filter, each element is a tenant id and a subscription id separated by a slash."
         }
       }
     }
@@ -82,25 +75,20 @@
   "scripts": {
     "vscode:prepublish": "tsc -p ./",
     "compile": "tsc -watch -p ./",
-    "postinstall": "node ./node_modules/vscode/bin/install",
-    "test": "node ./node_modules/vscode/bin/test"
+    "postinstall": "node ./node_modules/vscode/bin/install"
   },
   "devDependencies": {
-    "@types/copy-paste": "^1.1.30",
-    "@types/mocha": "^2.2.32",
-    "@types/node": "^6.0.40",
-    "@types/opn": "^3.0.28",
-    "mocha": "^2.3.3",
-    "typescript": "^2.0.3",
+    "@types/copy-paste": "1.1.30",
+    "@types/node": "6.0.40",
     "vscode": "^1.0.0",
-    "vscode-extension-telemetry": "^0.0.6"
+    "@types/opn": "3.0.28"
   },
   "dependencies": {
     "adal-node": "^0.1.22",
     "azure-arm-resource": "^2.0.0-preview",
-    "azure-arm-website": "^1.0.0-preview",
     "copy-paste": "^1.3.0",
     "ms-rest-azure": "^2.2.3",
+    "vscode-nls": "^2.0.2",
     "opn": "^5.1.0"
   }
 }

@@ -1,5 +1,5 @@
 # Change Log
-All notable changes to the "vscode-azurelogin" extension will be documented in this file.
+All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
-## [0.0.1]
+## [0.1.0]
 - Initial release

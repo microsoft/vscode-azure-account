@@ -5,9 +5,9 @@
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/azurelogin.png",
   "repository": {
-    "url": "https://github.com/microsoft/vscode-azurelogin.git"
+    "url": "https://github.com/microsoft/vscode-azure-account.git"
   },
-  "homepage": "https://github.com/Microsoft/vscode-azurelogin/blob/master/README.md",
+  "homepage": "https://github.com/Microsoft/vscode-azure-account/blob/master/README.md",
   "galleryBanner": {
     "color": "#1289B9",
     "theme": "dark"

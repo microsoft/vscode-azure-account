@@ -13,6 +13,7 @@ export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'Logg
 export interface AzureAccount {
 	readonly status: AzureLoginStatus;
 	readonly onStatusChanged: Event<AzureLoginStatus>;
+	readonly waitForLogin: () => Promise<boolean>;
 	readonly sessions: AzureSession[];
 	readonly onSessionsChanged: Event<void>;
 	readonly filters: AzureResourceFilter[];

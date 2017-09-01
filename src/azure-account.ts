@@ -122,6 +122,7 @@ export class AzureLoginHelper {
 	api: AzureAccount = {
 		status: 'Initializing',
 		onStatusChanged: this.onStatusChanged.event,
+		waitForLogin: () => this.waitForLogin(),
 		sessions: [],
 		onSessionsChanged: this.onSessionsChanged.event,
 		filters: [],
@@ -218,7 +219,7 @@ export class AzureLoginHelper {
 	}
 
 	private async addFilter() {
-		if (!(await this.waitForLogin())) {
+		if (!(await this.api.waitForLogin())) {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
@@ -238,7 +239,7 @@ export class AzureLoginHelper {
 	}
 
 	private async removeFilter() {
-		if (!(await this.waitForLogin())) {
+		if (!(await this.api.waitForLogin())) {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 

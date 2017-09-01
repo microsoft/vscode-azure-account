@@ -1,5 +1,5 @@
 {
-  "name": "vscode-azurelogin",
+  "name": "azure-account-sample",
   "displayName": "Azure Login",
   "description": "A common Login and Subscription management extension for VS Code.",
   "license": "SEE LICENSE IN LICENSE",
@@ -32,12 +32,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "vscode-azurelogin.showSubscriptions",
+        "command": "azure-account-sample.showSubscriptions",
         "title": "Subscriptions",
         "category": "Azure Example"
       },
       {
-        "command": "vscode-azurelogin.showAppServices",
+        "command": "azure-account-sample.showAppServices",
         "title": "AppServices",
         "category": "Azure Example"
       }
@@ -50,7 +50,7 @@
     "test": "node ./node_modules/vscode/bin/test"
   },
   "extensionDependencies": [
-    "vscode.azure-account"
+    "ms-vscode.azure-account"
   ],
   "devDependencies": {
     "@types/node": "^6.0.40",

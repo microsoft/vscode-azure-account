@@ -4,10 +4,10 @@ import { SubscriptionClient, ResourceManagementClient, SubscriptionModels } from
 import WebSiteManagementClient = require('azure-arm-website');
 
 export function activate(context: ExtensionContext) {
-    const azureAccount = extensions.getExtension<AzureAccount>('vscode.azure-account')!.exports;
+    const azureAccount = extensions.getExtension<AzureAccount>('ms-vscode.azure-account')!.exports;
     const subscriptions = context.subscriptions;
-    subscriptions.push(commands.registerCommand('vscode-azurelogin.showSubscriptions', showSubscriptions(azureAccount)));
-    subscriptions.push(commands.registerCommand('vscode-azurelogin.showAppServices', showAppServices(azureAccount)));
+    subscriptions.push(commands.registerCommand('azure-account-sample.showSubscriptions', showSubscriptions(azureAccount)));
+    subscriptions.push(commands.registerCommand('azure-account-sample.showAppServices', showAppServices(azureAccount)));
 }
 
 interface SubscriptionItem {
@@ -20,7 +20,7 @@ interface SubscriptionItem {
 function showSubscriptions(api: AzureAccount) {
     return async () => {
         if (api.status !== 'LoggedIn') {
-            return commands.executeCommand('vscode-azurelogin.askForLogin');
+            return commands.executeCommand('azure-account.askForLogin');
         }
         const subscriptionItems: SubscriptionItem[] = [];
         for (const session of api.sessions) {
@@ -55,31 +55,19 @@ function showSubscriptions(api: AzureAccount) {
 function showAppServices(api: AzureAccount) {
     return async () => {
         if (api.status !== 'LoggedIn') {
-            return commands.executeCommand('vscode-azurelogin.askForLogin');
+            return commands.executeCommand('azure-account.askForLogin');
         }
         const webAppsPromises: Promise<QuickPickItem[]>[] = [];
         for (const filter of api.filters) {
             const client = new WebSiteManagementClient(filter.session.credentials, filter.subscription.subscriptionId!);
-            if (!filter.allResourceGroups) {
-                for (const resourceGroup of filter.resourceGroups) {
-                    webAppsPromises.push(listAll(client.webApps, client.webApps.listByResourceGroup(resourceGroup.name!))
-                        .then(webApps => webApps.map(webApp => ({
-                            label: webApp.name || '',
-                            description: `${filter.subscription.displayName} > ${resourceGroup.name}`,
-                            webApp
-                        }))));
-                }
-            } else {
-                webAppsPromises.push(listAll(client.webApps, client.webApps.list())
-                    .then(webApps => webApps.map(webApp => {
-                        const resourceGroup = filter.resourceGroups.find(resourceGroup => webApp.id!.startsWith(resourceGroup.id!));
-                        return {
-                            label: webApp.name || '',
-                            description: `${filter.subscription.displayName} > ${resourceGroup ? resourceGroup.name : 'New Resource Group'}`,
-                            webApp
-                        };
-                    })));
-            }
+            webAppsPromises.push(listAll(client.webApps, client.webApps.list())
+                .then(webApps => webApps.map(webApp => {
+                    return {
+                        label: webApp.name || '',
+                        description: filter.subscription.displayName!,
+                        webApp
+                    };
+                })));
         }
         const webApps = (<QuickPickItem[]>[]).concat(...(await Promise.all(webAppsPromises)));
         webApps.sort((a, b) => a.label.localeCompare(b.label));

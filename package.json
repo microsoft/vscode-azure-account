@@ -26,6 +26,7 @@
   "activationEvents": [
     "onCommand:azure-account.login",
     "onCommand:azure-account.logout",
+    "onCommand:azure-account.selectSubscriptions",
     "onCommand:azure-account.addFilter",
     "onCommand:azure-account.removeFilter",
     "onCommand:azure-account.createAccount"
@@ -41,6 +42,11 @@
       {
         "command": "azure-account.logout",
         "title": "%azure-account.commands.logout%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.selectSubscriptions",
+        "title": "%azure-account.commands.selectSubscriptions%",
         "category": "%azure-account.commands.azure%"
       },
       {

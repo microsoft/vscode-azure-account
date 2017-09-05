@@ -27,8 +27,6 @@
     "onCommand:azure-account.login",
     "onCommand:azure-account.logout",
     "onCommand:azure-account.selectSubscriptions",
-    "onCommand:azure-account.addFilter",
-    "onCommand:azure-account.removeFilter",
     "onCommand:azure-account.createAccount"
   ],
   "main": "./out/src/extension",
@@ -47,16 +45,6 @@
       {
         "command": "azure-account.selectSubscriptions",
         "title": "%azure-account.commands.selectSubscriptions%",
-        "category": "%azure-account.commands.azure%"
-      },
-      {
-        "command": "azure-account.addFilter",
-        "title": "%azure-account.commands.addResourceFilter%",
-        "category": "%azure-account.commands.azure%"
-      },
-      {
-        "command": "azure-account.removeFilter",
-        "title": "%azure-account.commands.removeResourceFilter%",
         "category": "%azure-account.commands.azure%"
       },
       {

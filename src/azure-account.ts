@@ -91,8 +91,6 @@ export class AzureLoginHelper {
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.addFilter', () => this.addFilter().catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.removeFilter', () => this.removeFilter().catch(console.error)));
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateFilters().catch(console.error)));
 		subscriptions.push(workspace.onDidChangeConfiguration(() => this.updateFilters(true).catch(console.error)));
 		this.initialize()
@@ -278,71 +276,6 @@ export class AzureLoginHelper {
 				selected,
 			};
 		});
-	}
-
-	private async addFilter() {
-		if (!(await this.api.waitForLogin())) {
-			return commands.executeCommand('azure-account.askForLogin');
-		}
-
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = azureConfig.get<string[]>('resourceFilter') || [];
-
-		const subscriptionItems = this.loadSubscriptionItems(resourceFilter);
-		const subscriptionResult = await window.showQuickPick(subscriptionItems);
-		if (!subscriptionResult) {
-			return;
-		}
-
-		const { session, subscription } = subscriptionResult.subscription;
-		resourceFilter.push(`${session.tenantId}/${subscription.subscriptionId}`);
-
-		await this.updateConfiguration(azureConfig, resourceFilter);
-	}
-
-	private async removeFilter() {
-		if (!(await this.api.waitForLogin())) {
-			return commands.executeCommand('azure-account.askForLogin');
-		}
-
-		const azureConfig = workspace.getConfiguration('azure');
-		let resourceFilter = azureConfig.get<string[]>('resourceFilter') || [];
-
-		const subscriptionItems = this.loadSubscriptionItems(resourceFilter, false);
-		const subscriptionResult = await window.showQuickPick(subscriptionItems);
-		if (!subscriptionResult) {
-			return;
-		}
-
-		const { session, subscription } = subscriptionResult.subscription;
-		const remove = `${session.tenantId}/${subscription.subscriptionId}`;
-		resourceFilter = resourceFilter.filter(e => e !== remove);
-
-		await this.updateConfiguration(azureConfig, resourceFilter);
-	}
-
-	private async loadSubscriptionItems(resourceFilter: string[], exclude = true) {
-		if (!resourceFilter.length && !exclude) {
-			return [];
-		}
-		const subscriptionItems: { session: AzureSession; subscription: SubscriptionModels.Subscription }[] = [];
-		for (const session of this.api.sessions) {
-			const credentials = session.credentials;
-			const client = new SubscriptionClient(credentials);
-			const subscriptions = await listAll(client.subscriptions, client.subscriptions.list());
-			const items = subscriptions.filter(subscription => exclude !== (resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`) !== -1))
-				.map(subscription => ({
-					session,
-					subscription
-				}));
-			subscriptionItems.push(...items);
-		}
-		subscriptionItems.sort((a, b) => a.subscription.displayName!.localeCompare(b.subscription.displayName!));
-		return subscriptionItems.map(subscription => ({
-			label: subscription.subscription.displayName!,
-			description: subscription.subscription.subscriptionId!,
-			subscription
-		}));
 	}
 
 	private async updateConfiguration(azureConfig: WorkspaceConfiguration, resourceFilter: string[]) {

@@ -10,13 +10,13 @@ const CacheDriver = require('adal-node/lib/cache-driver');
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
 import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
-import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
+import { SubscriptionClient } from 'azure-arm-resource';
 import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
 
-import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel } from 'vscode';
+import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter } from './azure-account.api';
 
 const localize = nls.loadMessageBundle();
@@ -75,6 +75,16 @@ class AzureLoginError extends Error {
 	constructor(message: string, public _reason: any) {
 		super(message);
 	}
+}
+
+interface SubscriptionItem extends QuickPickItem {
+	type: 'item';
+	subscription: AzureResourceFilter;
+	selected: boolean;
+}
+
+interface SubscriptionActionItem extends QuickPickItem {
+	type: 'selectAll' | 'deselectAll';
 }
 
 export class AzureLoginHelper {
@@ -225,21 +235,70 @@ export class AzureLoginHelper {
 		}
 
 		const azureConfig = workspace.getConfiguration('azure');
-		let resourceFilter = azureConfig.get<string[]>('resourceFilter') || [];
+		const resourceFilter = azureConfig.get<string[]>('resourceFilter') || ['all'];
 		let changed = false;
 
 		const subscriptions = this.loadSubscriptions()
 			.then(list => this.asSubscriptionItems(list, resourceFilter));
-		for (let pick = await window.showQuickPick(subscriptions); pick; pick = await window.showQuickPick(subscriptions)) {
+		const items = subscriptions.then(list => [
+			<SubscriptionActionItem>{
+				type: 'selectAll',
+				get label() {
+					const selected = resourceFilter[0] === 'all' || !list.find(item => {
+						const { session, subscription } = item.subscription;
+						return resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`) === -1;
+					});
+					return `${getCheckmark(selected)} Select All`;
+				},
+				description: '',
+			},
+			<SubscriptionActionItem>{
+				type: 'deselectAll',
+				get label() {
+					return `${getCheckmark(!resourceFilter.length)} Deselect All`;
+				},
+				description: '',
+			},
+			...list
+		]);
+		for (let pick = await window.showQuickPick(items); pick; pick = await window.showQuickPick(items)) {
 			changed = true;
-			const { subscription } = pick.subscription;
-			if (pick.selected) {
-				const remove = `${subscription.tenantId}/${subscription.subscriptionId}`;
-				resourceFilter = resourceFilter.filter(e => e !== remove);
-			} else {
-				resourceFilter.push(`${subscription.tenantId}/${subscription.subscriptionId}`);
+			switch (pick.type) {
+				case 'selectAll':
+					if (resourceFilter[0] !== 'all') {
+						for (const subscription of await subscriptions) {
+							if (subscription.selected) {
+								this.removeFilter(resourceFilter, subscription);
+							}
+						}
+						resourceFilter.push('all');
+					}
+					break;
+				case 'deselectAll':
+					if (resourceFilter[0] === 'all') {
+						resourceFilter.splice(0, 1);
+					} else {
+						for (const subscription of await subscriptions) {
+							if (subscription.selected) {
+								this.removeFilter(resourceFilter, subscription);
+							}
+						}
+					}
+					break;
+				case 'item':
+					if (resourceFilter[0] === 'all') {
+						resourceFilter.splice(0, 1);
+						for (const subscription of await subscriptions) {
+							this.addFilter(resourceFilter, subscription);
+						}
+					}
+					if (pick.selected) {
+						this.removeFilter(resourceFilter, pick);
+					} else {
+						this.addFilter(resourceFilter, pick);
+					}
+					break;
 			}
-			pick.selected = !pick.selected;
 		}
 
 		if (changed) {
@@ -247,8 +306,21 @@ export class AzureLoginHelper {
 		}
 	}
 
+	private addFilter(resourceFilter: string[], item: SubscriptionItem) {
+		const { session, subscription } = item.subscription;
+		resourceFilter.push(`${session.tenantId}/${subscription.subscriptionId}`);
+		item.selected = true;
+	}
+
+	private removeFilter(resourceFilter: string[], item: SubscriptionItem) {
+		const { session, subscription } = item.subscription;
+		const remove = resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`);
+		resourceFilter.splice(remove, 1);
+		item.selected = false;
+	}
+
 	private async loadSubscriptions() {
-		const subscriptions: { session: AzureSession; subscription: SubscriptionModels.Subscription }[] = [];
+		const subscriptions: AzureResourceFilter[] = [];
 		for (const session of this.api.sessions) {
 			const credentials = session.credentials;
 			const client = new SubscriptionClient(credentials);
@@ -263,14 +335,18 @@ export class AzureLoginHelper {
 		return subscriptions;
 	}
 
-	private async asSubscriptionItems(subscriptions: { session: AzureSession; subscription: SubscriptionModels.Subscription }[], resourceFilter: string[]) {
+	private asSubscriptionItems(subscriptions: AzureResourceFilter[], resourceFilter: string[]): SubscriptionItem[] {
 		return subscriptions.map(subscription => {
-			const selected = resourceFilter.indexOf(`${subscription.subscription.tenantId}/${subscription.subscription.subscriptionId}`) !== -1;
-			return {
-				// Check box: '\u2611' : '\u2610'
-				// Check mark: '\u2713' : '\u2003'
-				// Check square: '\u25A3' : '\u25A1'
-				get label() { return `${this.selected ? '\u25A3' : '\u25A1'} ${this.subscription.subscription.displayName}` },
+			const selected = resourceFilter.indexOf(`${subscription.session.tenantId}/${subscription.subscription.subscriptionId}`) !== -1;
+			return <SubscriptionItem>{
+				type: 'item',
+				get label() {
+					let selected = this.selected;
+					if (!selected) {
+						selected = resourceFilter[0] === 'all';
+					}
+					return `${getCheckmark(selected)} ${this.subscription.subscription.displayName}`;
+				},
 				description: subscription.subscription.subscriptionId!,
 				subscription,
 				selected,
@@ -290,7 +366,7 @@ export class AzureLoginHelper {
 				target = ConfigurationTarget.Global;
 			}
 		}
-		await azureConfig.update('resourceFilter', resourceFilter.length ? resourceFilter : undefined, target);
+		await azureConfig.update('resourceFilter', resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
 	}
 
 	private async updateFilters(configChange = false) {
@@ -351,7 +427,13 @@ export class AzureLoginHelper {
 		if (!(await this.api.waitForLogin())) {
 			return false;
 		}
+		// TODO: Wait on some promise.
 		if (this.api.filters.length) {
+			return true;
+		}
+		const azureConfig = workspace.getConfiguration('azure');
+		const resourceFilter = azureConfig.get<string[]>('resourceFilter');
+		if (resourceFilter && !resourceFilter.length) {
 			return true;
 		}
 		return new Promise<boolean>(resolve => {
@@ -471,4 +553,11 @@ export async function listAll<T>(client: { listNext(nextPageLink: string): Promi
 		all.push(...list);
 	}
 	return all;
+}
+
+function getCheckmark(selected: boolean) {
+	// Check box: '\u2611' : '\u2610'
+	// Check mark: '\u2713' : '\u2003'
+	// Check square: '\u25A3' : '\u25A1'
+	return selected ? '\u2713' : '\u2003';
 }

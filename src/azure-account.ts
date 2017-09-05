@@ -127,6 +127,7 @@ export class AzureLoginHelper {
 		onSessionsChanged: this.onSessionsChanged.event,
 		filters: [],
 		onFiltersChanged: this.onFiltersChanged.event,
+		waitForFilters: () => this.waitForFilters(),
 	};
 
 	async login() {
@@ -153,6 +154,7 @@ export class AzureLoginHelper {
 	}
 
 	async logout() {
+		await this.api.waitForLogin();
 		if (keytar) {
 			await keytar.deletePassword(credentialsService, credentialsAccount);
 		}
@@ -350,6 +352,21 @@ export class AzureLoginHelper {
 				const status: never = this.api.status;
 				throw new Error(`Unexpected status '${status}'`);
 		}
+	}
+
+	private async waitForFilters() {
+		if (!(await this.api.waitForLogin())) {
+			return false;
+		}
+		if (this.api.filters.length) {
+			return true;
+		}
+		return new Promise<boolean>(resolve => {
+			const subscription = this.api.onFiltersChanged(() => {
+				subscription.dispose();
+				resolve(!!this.api.filters.length);
+			});
+		})
 	}
 }
 

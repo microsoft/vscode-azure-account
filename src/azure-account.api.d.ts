@@ -18,6 +18,7 @@ export interface AzureAccount {
 	readonly onSessionsChanged: Event<void>;
 	readonly filters: AzureResourceFilter[];
 	readonly onFiltersChanged: Event<void>;
+	readonly waitForFilters: () => Promise<boolean>;
 }
 
 export interface AzureSession {

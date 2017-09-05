@@ -32,6 +32,7 @@ function showSubscriptions(api: AzureAccount) {
 }
 
 async function loadSubscriptionItems(api: AzureAccount) {
+    await api.waitForFilters();
     const subscriptionItems: SubscriptionItem[] = [];
     for (const session of api.sessions) {
         const credentials = session.credentials;
@@ -71,6 +72,7 @@ function showAppServices(api: AzureAccount) {
 }
 
 async function loadWebAppItems(api: AzureAccount) {
+    await api.waitForFilters();
     const webAppsPromises: Promise<QuickPickItem[]>[] = [];
     for (const filter of api.filters) {
         const client = new WebSiteManagementClient(filter.session.credentials, filter.subscription.subscriptionId!);

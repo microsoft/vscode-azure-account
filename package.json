@@ -12,7 +12,7 @@
     "color": "#1289B9",
     "theme": "dark"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "ms-vscode",
   "engines": {
     "vscode": "^1.16.0"

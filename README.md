@@ -1,6 +1,6 @@
 # Azure Login
 
-Base extension supplying login and subscription filtering functionality for Azure extension.
+Base extension supplying login and subscription filtering functionality for Azure extensions.
 
 ## Contributing
 
@@ -17,4 +17,4 @@ For more information see the [Code of Conduct FAQ](https://opensource.microsoft.
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 ## License
-[MIT](LICENSE)
+[MIT](LICENSE.md)

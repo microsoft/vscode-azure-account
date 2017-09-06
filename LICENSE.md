@@ -1,8 +1,10 @@
-Visual Studio Code Extension for Azure Login
+Visual Studio Code Extension for Azure Account Login
+
+Copyright (c) Microsoft Corporation. 
+
+All rights reserved.
 
 MIT License
-
-Copyright (c) Microsoft Corporation. All rights reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

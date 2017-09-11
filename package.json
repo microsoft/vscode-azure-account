@@ -26,7 +26,7 @@
   "activationEvents": [
     "onCommand:azure-account.login",
     "onCommand:azure-account.logout",
-    "onCommand:azure-account.addFilter",
+    "onCommand:azure-account.selectSubscriptions",
     "onCommand:azure-account.createAccount"
   ],
   "main": "./out/src/extension",
@@ -43,7 +43,7 @@
         "category": "%azure-account.commands.azure%"
       },
       {
-        "command": "azure-account.addFilter",
+        "command": "azure-account.selectSubscriptions",
         "title": "%azure-account.commands.selectSubscriptions%",
         "category": "%azure-account.commands.azure%"
       },

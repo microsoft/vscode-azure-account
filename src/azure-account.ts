@@ -100,7 +100,7 @@ export class AzureLoginHelper {
 		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.addFilter', () => this.selectSubscriptions().catch(console.error)));
+		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateFilters().catch(console.error)));
 		subscriptions.push(workspace.onDidChangeConfiguration(() => this.updateFilters(true).catch(console.error)));
 		this.initialize()

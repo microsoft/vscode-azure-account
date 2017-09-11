@@ -84,7 +84,7 @@ interface SubscriptionItem extends QuickPickItem {
 }
 
 interface SubscriptionActionItem extends QuickPickItem {
-	type: 'selectAll' | 'deselectAll';
+	type: 'selectAll' | 'deselectAll' | 'noSubscriptions';
 }
 
 export class AzureLoginHelper {
@@ -240,28 +240,43 @@ export class AzureLoginHelper {
 
 		const subscriptions = this.loadSubscriptions()
 			.then(list => this.asSubscriptionItems(list, resourceFilter));
-		const items = subscriptions.then(list => [
-			<SubscriptionActionItem>{
-				type: 'selectAll',
-				get label() {
-					const selected = resourceFilter[0] === 'all' || !list.find(item => {
-						const { session, subscription } = item.subscription;
-						return resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`) === -1;
-					});
-					return `${getCheckmark(selected)} Select All`;
+		const items = subscriptions.then(list => {
+			if (!list.length) {
+				return [
+					<SubscriptionActionItem>{
+						type: 'noSubscriptions',
+						label: localize('azure-account.noSubscriptionsSignUpFree', "No subscriptions found, select to sign up for a free account."),
+						description: '',
+					}
+				];
+			}
+			return [
+				<SubscriptionActionItem>{
+					type: 'selectAll',
+					get label() {
+						const selected = resourceFilter[0] === 'all' || !list.find(item => {
+							const { session, subscription } = item.subscription;
+							return resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`) === -1;
+						});
+						return `${getCheckmark(selected)} Select All`;
+					},
+					description: '',
 				},
-				description: '',
-			},
-			<SubscriptionActionItem>{
-				type: 'deselectAll',
-				get label() {
-					return `${getCheckmark(!resourceFilter.length)} Deselect All`;
+				<SubscriptionActionItem>{
+					type: 'deselectAll',
+					get label() {
+						return `${getCheckmark(!resourceFilter.length)} Deselect All`;
+					},
+					description: '',
 				},
-				description: '',
-			},
-			...list
-		]);
+				...list
+			];
+		});
 		for (let pick = await window.showQuickPick(items); pick; pick = await window.showQuickPick(items)) {
+			if (pick.type === 'noSubscriptions') {
+				commands.executeCommand('azure-account.createAccount');
+				break;
+			}
 			changed = true;
 			switch (pick.type) {
 				case 'selectAll':

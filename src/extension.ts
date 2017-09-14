@@ -5,9 +5,10 @@
 
 import { window, ExtensionContext, commands } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
-import { AzureAccount } from './azure-account.api';
+import { AzureAccount, AzureSession } from './azure-account.api';
 import * as opn from 'opn';
 import * as nls from 'vscode-nls';
+import * as path from 'path';
 
 const localize = nls.loadMessageBundle();
 
@@ -16,6 +17,7 @@ export function activate(context: ExtensionContext) {
 	const subscriptions = context.subscriptions;
 	subscriptions.push(createStatusBarItem(azureLogin.api));
 	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
+	subscriptions.push(commands.registerCommand('azure-account.openCloudConsole', openCloudConsole(azureLogin.api)));
 	return azureLogin.api;
 }
 
@@ -49,5 +51,42 @@ function createStatusBarItem(api: AzureAccount) {
 	return statusBarItem;
 }
 
+function openCloudConsole(api: AzureAccount) {
+	return () => {
+		(async () => {
+			if (!(await api.waitForLogin())) {
+				return commands.executeCommand('azure-account.askForLogin');
+			}
+
+			const tokens = await acquireToken(api.sessions[0]); // TODO: How to update the access token when it expires?
+			window.createTerminal({
+				name: localize('azure-account.cloudConsole', "Cloud Console"),
+				shellPath: 'node', // process.argv0, // TODO
+				shellArgs: [
+					path.join(__dirname, 'cloudConsoleLauncher.js'),
+					tokens.accessToken
+				]
+			}).show();
+		})()
+			.catch(console.error);
+	};
+}
+
+async function acquireToken(session: AzureSession) {
+	return new Promise<{ accessToken: string; refreshToken: string; }>((resolve, reject) => {
+		const credentials: any = session.credentials;
+		const environment: any = session.environment;
+		credentials.context.acquireToken(environment.activeDirectoryResourceId, credentials.username, credentials.clientId, function (err: any, result: any) {
+			if (err) {
+				reject(err);
+			} else {
+				resolve({
+					accessToken: result.accessToken,
+					refreshToken: result.refreshToken
+				});
+			}
+		});
+	});
+}
 export function deactivate() {
 }

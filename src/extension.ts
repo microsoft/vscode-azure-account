@@ -25,6 +25,7 @@ function createAccount() {
 
 function createStatusBarItem(api: AzureAccount) {
 	const statusBarItem = window.createStatusBarItem();
+	statusBarItem.command = "azure-account.selectSubscriptions";
 	function updateStatusBar() {
 		switch (api.status) {
 			case 'LoggingIn':

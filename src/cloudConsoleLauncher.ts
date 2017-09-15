@@ -14,32 +14,37 @@ async function provisionConsole() {
 
 	return request({
 		uri: getConsoleUri(),
-		method: 'GET',
+		method: 'PUT',
 		headers: {
 			'Accept': 'application/json',
 			'Content-Type': 'application/json',
 			'Authorization': accessToken,
-			'x-ms-console-preferred-location': 'westus'
+			'x-ms-console-preferred-location': 'westus' // TODO
 		},
 		resolveWithFullResponse: true,
-		json: true
+		json: true,
+		body: {
+			properties: {
+				osType: 'Linux'
+			}
+		}
 	})
 		.then(function (response) {
 			const consoleResource = response.body;
 			if (consoleResource.properties.provisioningState === 'Succeeded') {
 				console.log('Connecting terminal...');
-				connectTerminal(consoleResource);
+				return connectTerminal(consoleResource);
 			} else {
 				console.log(`Sorry, your Cloud Shell failed to provision. Please retry later. Request correlation id: ${response.headers['x-ms-routing-request-id']}`);
 			}
 		});
 }
 
-function connectTerminal(consoleResource: any) {
+async function connectTerminal(consoleResource: any) {
 	const initialGeometry = getWindowSize();
 	const consoleUri = consoleResource.properties.uri;
 
-	request({
+	return request({
 		uri: consoleUri + '/terminals?cols=' + initialGeometry.cols + '&rows=' + initialGeometry.rows,
 		method: 'POST',
 		headers: {
@@ -48,8 +53,10 @@ function connectTerminal(consoleResource: any) {
 			'Authorization': accessToken
 		},
 		resolveWithFullResponse: true,
-		body: JSON.stringify({ tokens: [] }),
-		json: true
+		json: true,
+		body: {
+			tokens: []
+		}
 	})
 		.then(function (response) {
 			const res = response.body;
@@ -58,10 +65,11 @@ function connectTerminal(consoleResource: any) {
 			terminalIdleTimeout = res.idleTimeout || terminalIdleTimeout;
 
 			connectSocket(res.socketUri);
-		
+
 			process.stdout.on('resize', () => {
 				const { cols, rows } = getWindowSize();
-				resize(termId, cols, rows);
+				resize(consoleUri, termId, cols, rows)
+					.catch(console.error);
 			});
 		});
 }
@@ -74,27 +82,17 @@ function getWindowSize() {
 		rows: windowSize[1],
 	};
 }
-function resize(termId: string, cols: number, rows: number) {
-	// TODO
-	// var method = 'POST';
-	// var targetUri = consoleUri + '/terminals/' + termId + '/size?cols=' + size.cols + '&rows=' + size.rows;
-	// var start = Date.now();
 
-	// $.ajax(targetUri,
-	// 	{
-	// 		method: method,
-	// 		headers: {
-	// 			'Accept': 'application/json',
-	// 			'Content-Type': 'application/json',
-	// 			'Authorization': accessToken
-	// 		}
-	// 	})
-	// 	.fail(function (jqXHR, textStatus, errorThrown) {
-	// 		logger.clientRequest('ACC.TERMINAL.RESIZE', {}, Date.now() - start, method, targetUri, null, null, null, null, jqXHR.status);
-	// 	})
-	// 	.done(function (data, textStatus, jqXHR) {
-	// 		logger.clientRequest('ACC.TERMINAL.RESIZE', {}, Date.now() - start, method, targetUri, null, null, null, null, jqXHR.status);
-	// 	});
+async function resize(consoleUri: string, termId: string, cols: number, rows: number) {
+	return request({
+		uri: consoleUri + '/terminals/' + termId + '/size?cols=' + cols + '&rows=' + rows,
+		method: 'POST',
+		headers: {
+			'Accept': 'application/json',
+			'Content-Type': 'application/json',
+			'Authorization': accessToken
+		}
+	});
 }
 
 function connectSocket(url: string) {
@@ -111,12 +109,17 @@ function connectSocket(url: string) {
 		process.stdout.write(String(data));
 	});
 
+	let error = false;
 	ws.on('error', function (event) {
+		error = true;
 		console.error('Socket error: ' + JSON.stringify(event));
 	});
 
 	ws.on('close', function () {
-		console.error('Socket closed');
+		console.log('Socket closed');
+		if (!error) {
+			process.exit(0);
+		}
 	});
 }
 

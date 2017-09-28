@@ -466,7 +466,7 @@ async function deviceLogin1(): Promise<DeviceLogin> {
 		const context = new AuthenticationContext(authorityUrl, validateAuthority, cache);
 		context.acquireUserCode(resource, clientId, 'en-us', function (err: any, response: any) {
 			if (err) {
-				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Aquiring user code failed"), err));
+				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Acquiring user code failed"), err));
 			} else {
 				resolve(response);
 			}
@@ -480,7 +480,7 @@ async function deviceLogin2(deviceLogin: DeviceLogin) {
 		const context = new AuthenticationContext(authorityUrl, validateAuthority, tokenCache);
 		context.acquireTokenWithDeviceCode(resource, clientId, deviceLogin, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
-				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Aquiring token with device code"), err));
+				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
 			} else {
 				resolve(tokenResponse);
 			}
@@ -494,7 +494,7 @@ async function tokenFromRefreshToken(refreshToken: string, tenantId = commonTena
 		const context = new AuthenticationContext(`${authorityHostUrl}${tenantId}`, validateAuthority, tokenCache);
 		context.acquireTokenWithRefreshToken(refreshToken, clientId, null, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
-				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Aquiring token with refresh token"), err));
+				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Acquiring token with refresh token failed"), err));
 			} else {
 				resolve(tokenResponse);
 			}

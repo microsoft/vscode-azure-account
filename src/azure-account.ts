@@ -15,6 +15,7 @@ import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
+import * as cp from 'child_process';
 
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter } from './azure-account.api';
@@ -143,13 +144,7 @@ export class AzureLoginHelper {
 		try {
 			this.beginLoggingIn();
 			const deviceLogin = await deviceLogin1();
-			const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
-			const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
-			const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen, close);
-			if (response === copyAndOpen) {
-				copypaste.copy(deviceLogin.userCode);
-				opn(deviceLogin.verificationUrl);
-			}
+			this.showDeviceCodeMessage(deviceLogin);
 			const tokenResponse = await deviceLogin2(deviceLogin);
 			const refreshToken = tokenResponse.refreshToken;
 			const tokenResponses = await tokensFromToken(tokenResponse);
@@ -159,6 +154,21 @@ export class AzureLoginHelper {
 			await this.updateSessions(tokenResponses);
 		} finally {
 			this.updateStatus();
+		}
+	}
+
+	async showDeviceCodeMessage(deviceLogin: DeviceLogin) {
+		const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
+		const open: MessageItem = { title: localize('azure-account.open', "Open") };
+		const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
+		const canCopy = process.platform !== 'linux' || (await exitCode('xclip', '-version')) === 0;
+		const response = await window.showInformationMessage(deviceLogin.message, canCopy ? copyAndOpen : open, close);
+		if (response === copyAndOpen) {
+			copypaste.copy(deviceLogin.userCode);
+			opn(deviceLogin.verificationUrl);
+		} else if (response === open) {
+			opn(deviceLogin.verificationUrl);
+			await this.showDeviceCodeMessage(deviceLogin);
 		}
 	}
 
@@ -575,4 +585,12 @@ function getCheckmark(selected: boolean) {
 	// Check mark: '\u2713' : '\u2003'
 	// Check square: '\u25A3' : '\u25A1'
 	return selected ? '\u2713' : '\u2003';
+}
+
+async function exitCode(command: string, ...args: string[]) {
+	return new Promise<number | undefined>(resolve => {
+		cp.spawn(command, args)
+			.on('error', err => resolve())
+			.on('exit', code => resolve(code));
+	});
 }

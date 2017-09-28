@@ -1,7 +1,7 @@
 {
   "name": "azure-account",
   "displayName": "Azure Account",
-  "description": "A common Login and Subscription management extension for VS Code.",
+  "description": "A common Sign-In and Subscription management extension for VS Code.",
   "license": "SEE LICENSE IN LICENSE.md",
   "icon": "images/azurelogin.png",
   "repository": {

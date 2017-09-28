@@ -223,9 +223,9 @@ export class AzureLoginHelper {
 		if (this.api.status === 'LoggedIn') {
 			return;
 		}
-		const login = { title: localize('azure-account.login', "Login") };
+		const login = { title: localize('azure-account.login', "Sign In") };
 		const cancel = { title: 'Cancel', isCloseAffordance: true };
-		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "Not logged in, log in first."), login, cancel);
+		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "Not signed in, sign in first."), login, cancel);
 		return result === login && commands.executeCommand('azure-account.login');
 	}
 

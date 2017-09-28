@@ -1,7 +1,7 @@
 {
 	"azure-account.commands.azure": "Azure",
-	"azure-account.commands.login": "Login",
-	"azure-account.commands.logout": "Logout",
+	"azure-account.commands.login": "Sign In",
+	"azure-account.commands.logout": "Sign Out",
 	"azure-account.commands.selectSubscriptions": "Select Subscriptions",
 	"azure-account.commands.createAccount": "Create an Account"
 }

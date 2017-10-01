@@ -36,7 +36,7 @@ async function getUserSettings(accessToken: string) {
 async function provisionConsole(accessToken: string, userSettings: UserSettings) {
 	process.stdin.setRawMode!(true);
 
-	console.log('Requesting a Cloud Shell.');
+	console.log('Requesting a Cloud Shell...');
 	for (let response = await createTerminal(accessToken, userSettings, true); ; response = await createTerminal(accessToken, userSettings, false)) {
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.body && response.body.error && response.body.error.message) {
@@ -49,7 +49,6 @@ async function provisionConsole(accessToken: string, userSettings: UserSettings)
 
 		const consoleResource = response.body;
 		if (consoleResource.properties.provisioningState === 'Succeeded') {
-			console.log('Connecting terminal...');
 			return connectTerminal(accessToken, consoleResource);
 		} else if (consoleResource.properties.provisioningState === 'Failed') {
 			console.log(`Sorry, your Cloud Shell failed to provision. Please retry later. Request correlation id: ${response.headers['x-ms-routing-request-id']}`);
@@ -81,17 +80,22 @@ async function createTerminal(accessToken: string, userSettings: UserSettings, i
 }
 
 async function connectTerminal(accessToken: string, consoleResource: any) {
+	console.log('Connecting terminal...');
 	const consoleUri = consoleResource.properties.uri;
 
-	for (let i = 3; i > 0; i--) {
+	for (let i = 0; i < 5; i++) {
 		const response = await initializeTerminal(accessToken, consoleUri);
 
 		if (response.statusCode < 200 || response.statusCode > 299) {
-			if (response.body && response.body.error && response.body.error.message) {
-				console.log(`${response.body.error.message} (${response.statusCode})`);
-			} else {
-				console.log(response.statusCode, response.headers, response.body);
+			if (response.statusCode !== 404) {
+				if (response.body && response.body.error && response.body.error.message) {
+					console.log(`${response.body.error.message} (${response.statusCode})`);
+				} else {
+					console.log(response.statusCode, response.headers, response.body);
+				}
 			}
+			await delay(1000 * (i + 1));
+			console.log('.');
 			continue;
 		}
 
@@ -179,6 +183,10 @@ function connectSocket(url: string) {
 			process.exit(0);
 		}
 	});
+}
+
+async function delay(ms: number) {
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
 (async () => {

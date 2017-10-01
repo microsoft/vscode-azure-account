@@ -12,9 +12,34 @@ function getConsoleUri() {
 async function provisionConsole() {
 	process.stdin.setRawMode!(true);
 
+	console.log('Requesting a Cloud Shell.');
+	for (let response = await createTerminal(true); ; response = await createTerminal(false)) {
+		if (response.statusCode < 200 || response.statusCode > 299) {
+			if (response.body && response.body.error && response.body.error.message) {
+				console.log(`${response.body.error.message} (${response.statusCode})`);
+			} else {
+				console.log(response.statusCode, response.headers, response.body);
+			}
+			return;
+		}
+
+		const consoleResource = response.body;
+		if (consoleResource.properties.provisioningState === 'Succeeded') {
+			console.log('Connecting terminal...');
+			return connectTerminal(consoleResource);
+		} else if (consoleResource.properties.provisioningState === 'Failed') {
+			console.log(`Sorry, your Cloud Shell failed to provision. Please retry later. Request correlation id: ${response.headers['x-ms-routing-request-id']}`);
+			return;
+		}
+		console.log('.');
+	}
+}
+
+async function createTerminal(initial: boolean) {
 	return request({
+		simple: false,
 		uri: getConsoleUri(),
-		method: 'PUT',
+		method: initial ? 'PUT' : 'GET',
 		headers: {
 			'Accept': 'application/json',
 			'Content-Type': 'application/json',
@@ -23,28 +48,51 @@ async function provisionConsole() {
 		},
 		resolveWithFullResponse: true,
 		json: true,
-		body: {
+		body: initial ? {
 			properties: {
 				osType: 'Linux'
 			}
-		}
-	})
-		.then(function (response) {
-			const consoleResource = response.body;
-			if (consoleResource.properties.provisioningState === 'Succeeded') {
-				console.log('Connecting terminal...');
-				return connectTerminal(consoleResource);
-			} else {
-				console.log(`Sorry, your Cloud Shell failed to provision. Please retry later. Request correlation id: ${response.headers['x-ms-routing-request-id']}`);
-			}
-		});
+		} : undefined
+	});
 }
 
 async function connectTerminal(consoleResource: any) {
-	const initialGeometry = getWindowSize();
 	const consoleUri = consoleResource.properties.uri;
 
+	for (let i = 3; i > 0; i--) {
+		const response = await initializeTerminal(consoleUri);
+
+		if (response.statusCode < 200 || response.statusCode > 299) {
+			if (response.body && response.body.error && response.body.error.message) {
+				console.log(`${response.body.error.message} (${response.statusCode})`);
+			} else {
+				console.log(response.statusCode, response.headers, response.body);
+			}
+			continue;
+		}
+
+		const res = response.body;
+		const termId = res.id;
+		terminalIdleTimeout = res.idleTimeout || terminalIdleTimeout;
+
+		connectSocket(res.socketUri);
+
+		process.stdout.on('resize', () => {
+			const { cols, rows } = getWindowSize();
+			resize(consoleUri, termId, cols, rows)
+				.catch(console.error);
+		});
+
+		return;
+	}
+
+	console.log('Failed to connect to the terminal.');
+}
+
+async function initializeTerminal(consoleUri: string) {
+	const initialGeometry = getWindowSize();
 	return request({
+		simple: false,
 		uri: consoleUri + '/terminals?cols=' + initialGeometry.cols + '&rows=' + initialGeometry.rows,
 		method: 'POST',
 		headers: {
@@ -57,21 +105,7 @@ async function connectTerminal(consoleResource: any) {
 		body: {
 			tokens: []
 		}
-	})
-		.then(function (response) {
-			const res = response.body;
-
-			const termId = res.id;
-			terminalIdleTimeout = res.idleTimeout || terminalIdleTimeout;
-
-			connectSocket(res.socketUri);
-
-			process.stdout.on('resize', () => {
-				const { cols, rows } = getWindowSize();
-				resize(consoleUri, termId, cols, rows)
-					.catch(console.error);
-			});
-		});
+	});
 }
 
 function getWindowSize() {

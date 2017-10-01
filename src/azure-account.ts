@@ -15,6 +15,7 @@ import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
+import * as cp from 'child_process';
 
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter } from './azure-account.api';
@@ -143,13 +144,7 @@ export class AzureLoginHelper {
 		try {
 			this.beginLoggingIn();
 			const deviceLogin = await deviceLogin1();
-			const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
-			const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
-			const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen, close);
-			if (response === copyAndOpen) {
-				copypaste.copy(deviceLogin.userCode);
-				opn(deviceLogin.verificationUrl);
-			}
+			this.showDeviceCodeMessage(deviceLogin);
 			const tokenResponse = await deviceLogin2(deviceLogin);
 			const refreshToken = tokenResponse.refreshToken;
 			const tokenResponses = await tokensFromToken(tokenResponse);
@@ -159,6 +154,21 @@ export class AzureLoginHelper {
 			await this.updateSessions(tokenResponses);
 		} finally {
 			this.updateStatus();
+		}
+	}
+
+	async showDeviceCodeMessage(deviceLogin: DeviceLogin) {
+		const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
+		const open: MessageItem = { title: localize('azure-account.open', "Open") };
+		const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
+		const canCopy = process.platform !== 'linux' || (await exitCode('xclip', '-version')) === 0;
+		const response = await window.showInformationMessage(deviceLogin.message, canCopy ? copyAndOpen : open, close);
+		if (response === copyAndOpen) {
+			copypaste.copy(deviceLogin.userCode);
+			opn(deviceLogin.verificationUrl);
+		} else if (response === open) {
+			opn(deviceLogin.verificationUrl);
+			await this.showDeviceCodeMessage(deviceLogin);
 		}
 	}
 
@@ -223,9 +233,9 @@ export class AzureLoginHelper {
 		if (this.api.status === 'LoggedIn') {
 			return;
 		}
-		const login = { title: localize('azure-account.login', "Login") };
+		const login = { title: localize('azure-account.login', "Sign In") };
 		const cancel = { title: 'Cancel', isCloseAffordance: true };
-		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "Not logged in, log in first."), login, cancel);
+		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "Not signed in, sign in first."), login, cancel);
 		return result === login && commands.executeCommand('azure-account.login');
 	}
 
@@ -466,7 +476,7 @@ async function deviceLogin1(): Promise<DeviceLogin> {
 		const context = new AuthenticationContext(authorityUrl, validateAuthority, cache);
 		context.acquireUserCode(resource, clientId, 'en-us', function (err: any, response: any) {
 			if (err) {
-				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Aquiring user code failed"), err));
+				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Acquiring user code failed"), err));
 			} else {
 				resolve(response);
 			}
@@ -480,7 +490,7 @@ async function deviceLogin2(deviceLogin: DeviceLogin) {
 		const context = new AuthenticationContext(authorityUrl, validateAuthority, tokenCache);
 		context.acquireTokenWithDeviceCode(resource, clientId, deviceLogin, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
-				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Aquiring token with device code"), err));
+				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
 			} else {
 				resolve(tokenResponse);
 			}
@@ -494,7 +504,7 @@ async function tokenFromRefreshToken(refreshToken: string, tenantId = commonTena
 		const context = new AuthenticationContext(`${authorityHostUrl}${tenantId}`, validateAuthority, tokenCache);
 		context.acquireTokenWithRefreshToken(refreshToken, clientId, null, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
-				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Aquiring token with refresh token"), err));
+				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Acquiring token with refresh token failed"), err));
 			} else {
 				resolve(tokenResponse);
 			}
@@ -575,4 +585,12 @@ function getCheckmark(selected: boolean) {
 	// Check mark: '\u2713' : '\u2003'
 	// Check square: '\u25A3' : '\u25A1'
 	return selected ? '\u2713' : '\u2003';
+}
+
+async function exitCode(command: string, ...args: string[]) {
+	return new Promise<number | undefined>(resolve => {
+		cp.spawn(command, args)
+			.on('error', err => resolve())
+			.on('exit', code => resolve(code));
+	});
 }

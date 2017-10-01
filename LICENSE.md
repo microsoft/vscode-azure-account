@@ -1,4 +1,4 @@
-Visual Studio Code Extension for Azure Account Login
+Visual Studio Code Extension for Azure Account Sign-In
 
 Copyright (c) Microsoft Corporation. 
 

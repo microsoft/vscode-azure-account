@@ -1,13 +1,13 @@
-# Azure Account and Login
-The Azure Account extension provides a single Azure login and subscription filtering experience for all other Azure extensions.
+# Azure Account and Sign-In
+The Azure Account extension provides a single Azure sign-in and subscription filtering experience for all other Azure extensions.
 
 ## Commands
 
 
 | Command |  |
 | --- |---|
-| `Azure: Login`  | Login to your Azure subscription.
-| `Azure: Logout` | Log out of your Azure subscription.
+| `Azure: Sign In`  | Sign in to your Azure subscription.
+| `Azure: Sign Out` | Sign out of your Azure subscription.
 | `Azure: Select Subscription` | Pick the set of subscriptions you want to work with. Extensions should respect this list and only show resources within the filtered subscriptions.
 | `Azure: Create an Account`  | If you don't have an Azure Account, you can [sign up](https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account) for one today and receive $200 in free credits.
 

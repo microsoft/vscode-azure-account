@@ -2,18 +2,42 @@ import * as request from 'request-promise';
 import * as WS from 'ws';
 
 const consoleApiVersion = '2017-08-01-preview';
-const accessToken = `Bearer ${process.argv[2]}`; // TODO: process.env.CLOUD_CONSOLE_ACCESS_TOKEN (https://github.com/Microsoft/vscode/pull/30352)
 let terminalIdleTimeout = 20;
 
-function getConsoleUri() {
-	return 'https://management.azure.com/providers/Microsoft.Portal/consoles/default?api-version=' + consoleApiVersion;
+function getARMEndpoint() {
+	return 'https://management.azure.com'; // TODO
 }
 
-async function provisionConsole() {
+function getConsoleUri() {
+	return `${getARMEndpoint()}/providers/Microsoft.Portal/consoles/default?api-version=${consoleApiVersion}`;
+}
+
+interface UserSettings {
+	preferredLocation: string;
+	preferredOsType: string;
+}
+
+async function getUserSettings(accessToken: string) {
+	const targetUri = `${getARMEndpoint()}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
+	return request({
+		uri: targetUri,
+		method: 'GET',
+		headers: {
+			'Accept': 'application/json',
+			'Content-Type': 'application/json',
+			'Authorization': accessToken
+		},
+		simple: false,
+		resolveWithFullResponse: true,
+		json: true,
+	});
+}
+
+async function provisionConsole(accessToken: string, userSettings: UserSettings) {
 	process.stdin.setRawMode!(true);
 
 	console.log('Requesting a Cloud Shell.');
-	for (let response = await createTerminal(true); ; response = await createTerminal(false)) {
+	for (let response = await createTerminal(accessToken, userSettings, true); ; response = await createTerminal(accessToken, userSettings, false)) {
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.body && response.body.error && response.body.error.message) {
 				console.log(`${response.body.error.message} (${response.statusCode})`);
@@ -26,7 +50,7 @@ async function provisionConsole() {
 		const consoleResource = response.body;
 		if (consoleResource.properties.provisioningState === 'Succeeded') {
 			console.log('Connecting terminal...');
-			return connectTerminal(consoleResource);
+			return connectTerminal(accessToken, consoleResource);
 		} else if (consoleResource.properties.provisioningState === 'Failed') {
 			console.log(`Sorry, your Cloud Shell failed to provision. Please retry later. Request correlation id: ${response.headers['x-ms-routing-request-id']}`);
 			return;
@@ -35,32 +59,32 @@ async function provisionConsole() {
 	}
 }
 
-async function createTerminal(initial: boolean) {
+async function createTerminal(accessToken: string, userSettings: UserSettings, initial: boolean) {
 	return request({
-		simple: false,
 		uri: getConsoleUri(),
 		method: initial ? 'PUT' : 'GET',
 		headers: {
 			'Accept': 'application/json',
 			'Content-Type': 'application/json',
 			'Authorization': accessToken,
-			'x-ms-console-preferred-location': 'westus' // TODO
+			'x-ms-console-preferred-location': userSettings.preferredLocation
 		},
+		simple: false,
 		resolveWithFullResponse: true,
 		json: true,
 		body: initial ? {
 			properties: {
-				osType: 'Linux'
+				osType: userSettings.preferredOsType
 			}
 		} : undefined
 	});
 }
 
-async function connectTerminal(consoleResource: any) {
+async function connectTerminal(accessToken: string, consoleResource: any) {
 	const consoleUri = consoleResource.properties.uri;
 
 	for (let i = 3; i > 0; i--) {
-		const response = await initializeTerminal(consoleUri);
+		const response = await initializeTerminal(accessToken, consoleUri);
 
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.body && response.body.error && response.body.error.message) {
@@ -79,7 +103,7 @@ async function connectTerminal(consoleResource: any) {
 
 		process.stdout.on('resize', () => {
 			const { cols, rows } = getWindowSize();
-			resize(consoleUri, termId, cols, rows)
+			resize(accessToken, consoleUri, termId, cols, rows)
 				.catch(console.error);
 		});
 
@@ -89,10 +113,9 @@ async function connectTerminal(consoleResource: any) {
 	console.log('Failed to connect to the terminal.');
 }
 
-async function initializeTerminal(consoleUri: string) {
+async function initializeTerminal(accessToken: string, consoleUri: string) {
 	const initialGeometry = getWindowSize();
 	return request({
-		simple: false,
 		uri: consoleUri + '/terminals?cols=' + initialGeometry.cols + '&rows=' + initialGeometry.rows,
 		method: 'POST',
 		headers: {
@@ -100,6 +123,7 @@ async function initializeTerminal(consoleUri: string) {
 			'Accept': 'application/json',
 			'Authorization': accessToken
 		},
+		simple: false,
 		resolveWithFullResponse: true,
 		json: true,
 		body: {
@@ -117,7 +141,7 @@ function getWindowSize() {
 	};
 }
 
-async function resize(consoleUri: string, termId: string, cols: number, rows: number) {
+async function resize(accessToken: string, consoleUri: string, termId: string, cols: number, rows: number) {
 	return request({
 		uri: consoleUri + '/terminals/' + termId + '/size?cols=' + cols + '&rows=' + rows,
 		method: 'POST',
@@ -157,7 +181,30 @@ function connectSocket(url: string) {
 	});
 }
 
-provisionConsole()
-	.catch(console.error);
+(async () => {
+	for (const token of process.argv.slice(2)) {
+		const accessToken = `Bearer ${token}`; // TODO: process.env.CLOUD_CONSOLE_ACCESS_TOKEN (https://github.com/Microsoft/vscode/pull/30352)
+		const response = await getUserSettings(accessToken);
+		if (response.statusCode < 200 || response.statusCode > 299) {
+			// if (response.body && response.body.error && response.body.error.message) {
+			// 	console.log(`${response.body.error.message} (${response.statusCode})`);
+			// } else {
+			// 	console.log(response.statusCode, response.headers, response.body);
+			// }
+			continue;
+		}
+
+		const userSettings = response.body && response.body.properties;
+		if (!userSettings || !userSettings.storageProfile) {
+			// console.log(response.body);
+			continue;
+		}
+
+		return provisionConsole(accessToken, userSettings);
+	}
+
+	console.log('No user settings with configured storage account found. Open cloud console in portal to configure first: https://portal.azure.com');
+
+})().catch(console.error);
 
 process.stdin.resume();

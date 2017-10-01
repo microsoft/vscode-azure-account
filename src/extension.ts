@@ -58,13 +58,13 @@ function openCloudConsole(api: AzureAccount) {
 				return commands.executeCommand('azure-account.askForLogin');
 			}
 
-			const tokens = await acquireToken(api.sessions[0]); // TODO: How to update the access token when it expires?
+			const tokens = await Promise.all(api.sessions.map(session => acquireToken(session))); // TODO: How to update the access token when it expires?
 			window.createTerminal({
 				name: localize('azure-account.cloudConsole', "Cloud Console"),
 				shellPath: 'node', // process.argv0, // TODO
 				shellArgs: [
 					path.join(__dirname, 'cloudConsoleLauncher.js'),
-					tokens.accessToken
+					...tokens.map(token => token.accessToken)
 				]
 			}).show();
 		})()

@@ -144,7 +144,7 @@ export class AzureLoginHelper {
 		try {
 			this.beginLoggingIn();
 			const deviceLogin = await deviceLogin1();
-			this.showDeviceCodeMessage(deviceLogin);
+			await this.showDeviceCodeMessage(deviceLogin);
 			const tokenResponse = await deviceLogin2(deviceLogin);
 			const refreshToken = tokenResponse.refreshToken;
 			const tokenResponses = await tokensFromToken(tokenResponse);
@@ -157,7 +157,7 @@ export class AzureLoginHelper {
 		}
 	}
 
-	async showDeviceCodeMessage(deviceLogin: DeviceLogin) {
+	async showDeviceCodeMessage(deviceLogin: DeviceLogin): Promise<any> {
 		const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
 		const open: MessageItem = { title: localize('azure-account.open', "Open") };
 		const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
@@ -169,6 +169,8 @@ export class AzureLoginHelper {
 		} else if (response === open) {
 			opn(deviceLogin.verificationUrl);
 			await this.showDeviceCodeMessage(deviceLogin);
+		} else if (response === close) {
+			return Promise.reject(null);
 		}
 	}
 

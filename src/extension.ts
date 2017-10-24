@@ -5,10 +5,10 @@
 
 import { window, ExtensionContext, commands } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
-import { AzureAccount, AzureSession } from './azure-account.api';
+import { openCloudConsole } from './cloudConsole';
+import { AzureAccount } from './azure-account.api';
 import * as opn from 'opn';
 import * as nls from 'vscode-nls';
-import * as path from 'path';
 
 const localize = nls.loadMessageBundle();
 
@@ -51,42 +51,5 @@ function createStatusBarItem(api: AzureAccount) {
 	return statusBarItem;
 }
 
-function openCloudConsole(api: AzureAccount) {
-	return () => {
-		(async () => {
-			if (!(await api.waitForLogin())) {
-				return commands.executeCommand('azure-account.askForLogin');
-			}
-
-			const tokens = await Promise.all(api.sessions.map(session => acquireToken(session))); // TODO: How to update the access token when it expires?
-			window.createTerminal({
-				name: localize('azure-account.cloudConsole', "Cloud Console"),
-				shellPath: 'node', // process.argv0, // TODO
-				shellArgs: [
-					path.join(__dirname, 'cloudConsoleLauncher.js'),
-					...tokens.map(token => token.accessToken)
-				]
-			}).show();
-		})()
-			.catch(console.error);
-	};
-}
-
-async function acquireToken(session: AzureSession) {
-	return new Promise<{ accessToken: string; refreshToken: string; }>((resolve, reject) => {
-		const credentials: any = session.credentials;
-		const environment: any = session.environment;
-		credentials.context.acquireToken(environment.activeDirectoryResourceId, credentials.username, credentials.clientId, function (err: any, result: any) {
-			if (err) {
-				reject(err);
-			} else {
-				resolve({
-					accessToken: result.accessToken,
-					refreshToken: result.refreshToken
-				});
-			}
-		});
-	});
-}
 export function deactivate() {
 }

@@ -2,7 +2,6 @@ import * as request from 'request-promise';
 import * as WS from 'ws';
 
 const consoleApiVersion = '2017-08-01-preview';
-let terminalIdleTimeout = 20;
 
 function getARMEndpoint() {
 	return 'https://management.azure.com'; // TODO
@@ -12,30 +11,40 @@ function getConsoleUri() {
 	return `${getARMEndpoint()}/providers/Microsoft.Portal/consoles/default?api-version=${consoleApiVersion}`;
 }
 
-interface UserSettings {
+export interface UserSettings {
 	preferredLocation: string;
 	preferredOsType: string;
+	storageProfile: any;
 }
 
-async function getUserSettings(accessToken: string) {
+export async function getUserSettings(accessToken: string): Promise<UserSettings | undefined> {
 	const targetUri = `${getARMEndpoint()}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
-	return request({
+	const response = await request({
 		uri: targetUri,
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
 			'Content-Type': 'application/json',
-			'Authorization': accessToken
+			'Authorization': `Bearer ${accessToken}`
 		},
 		simple: false,
 		resolveWithFullResponse: true,
 		json: true,
 	});
+
+	if (response.statusCode < 200 || response.statusCode > 299) {
+		// if (response.body && response.body.error && response.body.error.message) {
+		// 	console.log(`${response.body.error.message} (${response.statusCode})`);
+		// } else {
+		// 	console.log(response.statusCode, response.headers, response.body);
+		// }
+		return;
+	}
+
+	return response.body && response.body.properties;
 }
 
 async function provisionConsole(accessToken: string, userSettings: UserSettings) {
-	process.stdin.setRawMode!(true);
-
 	console.log('Requesting a Cloud Shell...');
 	for (let response = await createTerminal(accessToken, userSettings, true); ; response = await createTerminal(accessToken, userSettings, false)) {
 		if (response.statusCode < 200 || response.statusCode > 299) {
@@ -65,7 +74,7 @@ async function createTerminal(accessToken: string, userSettings: UserSettings, i
 		headers: {
 			'Accept': 'application/json',
 			'Content-Type': 'application/json',
-			'Authorization': accessToken,
+			'Authorization': `Bearer ${accessToken}`,
 			'x-ms-console-preferred-location': userSettings.preferredLocation
 		},
 		simple: false,
@@ -101,7 +110,7 @@ async function connectTerminal(accessToken: string, consoleResource: any) {
 
 		const res = response.body;
 		const termId = res.id;
-		terminalIdleTimeout = res.idleTimeout || terminalIdleTimeout;
+		// terminalIdleTimeout = res.idleTimeout || terminalIdleTimeout;
 
 		connectSocket(res.socketUri);
 
@@ -125,7 +134,7 @@ async function initializeTerminal(accessToken: string, consoleUri: string) {
 		headers: {
 			'Content-Type': 'application/json',
 			'Accept': 'application/json',
-			'Authorization': accessToken
+			'Authorization': `Bearer ${accessToken}`
 		},
 		simple: false,
 		resolveWithFullResponse: true,
@@ -152,7 +161,7 @@ async function resize(accessToken: string, consoleUri: string, termId: string, c
 		headers: {
 			'Accept': 'application/json',
 			'Content-Type': 'application/json',
-			'Authorization': accessToken
+			'Authorization': `Bearer ${accessToken}`
 		}
 	});
 }
@@ -189,30 +198,16 @@ async function delay(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-(async () => {
-	for (const token of process.argv.slice(2)) {
-		const accessToken = `Bearer ${token}`; // TODO: process.env.CLOUD_CONSOLE_ACCESS_TOKEN (https://github.com/Microsoft/vscode/pull/30352)
-		const response = await getUserSettings(accessToken);
-		if (response.statusCode < 200 || response.statusCode > 299) {
-			// if (response.body && response.body.error && response.body.error.message) {
-			// 	console.log(`${response.body.error.message} (${response.statusCode})`);
-			// } else {
-			// 	console.log(response.statusCode, response.headers, response.body);
-			// }
-			continue;
-		}
+async function runInTerminal() {
+	process.stdin.setRawMode!(true);
+	process.stdin.resume();
 
-		const userSettings = response.body && response.body.properties;
-		if (!userSettings || !userSettings.storageProfile) {
-			// console.log(response.body);
-			continue;
-		}
+	const accessToken = process.argv[1]; // TODO: process.env.CLOUD_CONSOLE_ACCESS_TOKEN (https://github.com/Microsoft/vscode/pull/30352)
+	const userSettings = await getUserSettings(accessToken);
+	return provisionConsole(accessToken, userSettings!);
+}
 
-		return provisionConsole(accessToken, userSettings);
-	}
-
-	console.log('No user settings with configured storage account found. Open cloud console in portal to configure first: https://portal.azure.com');
-
-})().catch(console.error);
-
-process.stdin.resume();
+export function main() {
+	runInTerminal()
+		.catch(console.error);
+}

@@ -202,7 +202,7 @@ async function runInTerminal() {
 	process.stdin.setRawMode!(true);
 	process.stdin.resume();
 
-	const accessToken = process.argv[1]; // TODO: process.env.CLOUD_CONSOLE_ACCESS_TOKEN (https://github.com/Microsoft/vscode/pull/30352)
+	const accessToken = process.env.CLOUD_CONSOLE_ACCESS_TOKEN!;
 	const userSettings = await getUserSettings(accessToken);
 	return provisionConsole(accessToken, userSettings!);
 }

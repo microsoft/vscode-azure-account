@@ -32,8 +32,10 @@ export function openCloudConsole(api: AzureAccount) {
 				shellArgs: [
 					'-e',
 					`require('${path.join(__dirname, 'cloudConsoleLauncher')}').main()`,
-					result.token.accessToken
-				]
+				],
+				env: {
+					CLOUD_CONSOLE_ACCESS_TOKEN: result.token.accessToken
+				}
 			}).show();
 		})()
 			.catch(console.error);

@@ -27,7 +27,7 @@ export function openCloudConsole(api: AzureAccount) {
 
 			// TODO: How to update the access token when it expires?
 			window.createTerminal({
-				name: localize('azure-account.cloudConsole', "Cloud Console"),
+				name: localize('azure-account.cloudConsole', "Cloud Shell"),
 				shellPath: 'node', // process.argv0, // TODO
 				shellArgs: [
 					'-e',

@@ -3,12 +3,8 @@ import * as WS from 'ws';
 
 const consoleApiVersion = '2017-08-01-preview';
 
-function getARMEndpoint() {
-	return 'https://management.azure.com'; // TODO
-}
-
-function getConsoleUri() {
-	return `${getARMEndpoint()}/providers/Microsoft.Portal/consoles/default?api-version=${consoleApiVersion}`;
+function getConsoleUri(armEndpoint: string) {
+	return `${armEndpoint}/providers/Microsoft.Portal/consoles/default?api-version=${consoleApiVersion}`;
 }
 
 export interface UserSettings {
@@ -17,8 +13,8 @@ export interface UserSettings {
 	storageProfile: any;
 }
 
-export async function getUserSettings(accessToken: string): Promise<UserSettings | undefined> {
-	const targetUri = `${getARMEndpoint()}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
+export async function getUserSettings(accessToken: string, armEndpoint: string): Promise<UserSettings | undefined> {
+	const targetUri = `${armEndpoint}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
 	const response = await request({
 		uri: targetUri,
 		method: 'GET',
@@ -44,9 +40,9 @@ export async function getUserSettings(accessToken: string): Promise<UserSettings
 	return response.body && response.body.properties;
 }
 
-async function provisionConsole(accessToken: string, userSettings: UserSettings) {
+async function provisionConsole(accessToken: string, armEndpoint: string, userSettings: UserSettings) {
 	console.log('Requesting a Cloud Shell...');
-	for (let response = await createTerminal(accessToken, userSettings, true); ; response = await createTerminal(accessToken, userSettings, false)) {
+	for (let response = await createTerminal(accessToken, armEndpoint, userSettings, true); ; response = await createTerminal(accessToken, armEndpoint, userSettings, false)) {
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.body && response.body.error && response.body.error.message) {
 				console.log(`${response.body.error.message} (${response.statusCode})`);
@@ -67,9 +63,9 @@ async function provisionConsole(accessToken: string, userSettings: UserSettings)
 	}
 }
 
-async function createTerminal(accessToken: string, userSettings: UserSettings, initial: boolean) {
+async function createTerminal(accessToken: string, armEndpoint: string, userSettings: UserSettings, initial: boolean) {
 	return request({
-		uri: getConsoleUri(),
+		uri: getConsoleUri(armEndpoint),
 		method: initial ? 'PUT' : 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -198,16 +194,17 @@ async function delay(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-async function runInTerminal() {
+async function runInTerminal(accessToken: string, armEndpoint: string) {
 	process.stdin.setRawMode!(true);
 	process.stdin.resume();
 
-	const accessToken = process.env.CLOUD_CONSOLE_ACCESS_TOKEN!;
-	const userSettings = await getUserSettings(accessToken);
-	return provisionConsole(accessToken, userSettings!);
+	const userSettings = await getUserSettings(accessToken, armEndpoint);
+	return provisionConsole(accessToken, armEndpoint, userSettings!);
 }
 
 export function main() {
-	runInTerminal()
+	const accessToken = process.env.CLOUD_CONSOLE_ACCESS_TOKEN!;
+	const armEndpoint = process.env.ARM_ENDPOINT!;
+	runInTerminal(accessToken, armEndpoint)
 		.catch(console.error);
 }

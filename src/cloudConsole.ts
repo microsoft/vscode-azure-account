@@ -34,7 +34,8 @@ export function openCloudConsole(api: AzureAccount) {
 					`require('${path.join(__dirname, 'cloudConsoleLauncher')}').main()`,
 				],
 				env: {
-					CLOUD_CONSOLE_ACCESS_TOKEN: result.token.accessToken
+					CLOUD_CONSOLE_ACCESS_TOKEN: result.token.accessToken,
+					ARM_ENDPOINT: result.token.session.environment.resourceManagerEndpointUrl
 				}
 			}).show();
 		})()
@@ -44,7 +45,7 @@ export function openCloudConsole(api: AzureAccount) {
 
 async function findUserSettings(tokens: Token[]) {
 	for (const token of tokens) {
-		const userSettings = await getUserSettings(token.accessToken);
+		const userSettings = await getUserSettings(token.accessToken, token.session.environment.resourceManagerEndpointUrl);
 		if (userSettings && userSettings.storageProfile) {
 			return { userSettings, token };
 		}
@@ -62,6 +63,7 @@ async function requiresSetUp() {
 }
 
 interface Token {
+	session: AzureSession;
 	accessToken: string;
 	refreshToken: string;
 }
@@ -75,6 +77,7 @@ async function acquireToken(session: AzureSession) {
 				reject(err);
 			} else {
 				resolve({
+					session,
 					accessToken: result.accessToken,
 					refreshToken: result.refreshToken
 				});

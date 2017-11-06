@@ -22,7 +22,7 @@ export function activate(context: ExtensionContext) {
 	subscriptions.push(createStatusBarItem(azureLogin.api));
 	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsole', openCloudConsole(azureLogin.api)));
-	return azureLogin.api;
+	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
 }
 
 function logDiagnostics(context: ExtensionContext, api: AzureAccount) {

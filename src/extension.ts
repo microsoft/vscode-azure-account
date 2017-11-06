@@ -20,7 +20,7 @@ export function activate(context: ExtensionContext) {
 	const subscriptions = context.subscriptions;
 	subscriptions.push(createStatusBarItem(azureLogin.api));
 	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-	return azureLogin.api;
+	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
 }
 
 function logDiagnostics(context: ExtensionContext, api: AzureAccount) {

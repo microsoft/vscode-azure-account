@@ -13,10 +13,39 @@ const localize = nls.loadMessageBundle();
 
 export function activate(context: ExtensionContext) {
 	const azureLogin = new AzureLoginHelper(context);
+	logDiagnostics(context, azureLogin.api);
 	const subscriptions = context.subscriptions;
 	subscriptions.push(createStatusBarItem(azureLogin.api));
 	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
 	return azureLogin.api;
+}
+
+function logDiagnostics(context: ExtensionContext, api: AzureAccount) {
+	const subscriptions = context.subscriptions;
+	subscriptions.push(api.onStatusChanged(status => {
+		console.log(`onStatusChanged: ${status}`);
+	}));
+	subscriptions.push(api.onSessionsChanged(() => {
+		console.log(`onSessionsChanged: ${api.sessions.length} ${api.status}`);
+	}));
+	(async function waitForLogin() {
+		console.log(`waitForLogin: ${await api.waitForLogin()} ${api.status}`);
+		// waitForLogin();
+	})().catch(console.error);
+	subscriptions.push(api.onSubscriptionsChanged(() => {
+		console.log(`onSubscriptionsChanged: ${api.subscriptions.length}`);
+	}));
+	(async function waitForSubscriptions() {
+		console.log(`waitForSubscriptions: ${await api.waitForSubscriptions()} ${api.subscriptions.length}`);
+		// waitForSubscriptions();
+	})().catch(console.error);
+	subscriptions.push(api.onFiltersChanged(() => {
+		console.log(`onFiltersChanged: ${api.filters.length}`);
+	}));
+	(async function waitForFilters() {
+		console.log(`waitForFilters: ${await api.waitForFilters()} ${api.filters.length}`);
+		// waitForFilters();
+	})().catch(console.error);
 }
 
 function createAccount() {

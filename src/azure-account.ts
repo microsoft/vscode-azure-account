@@ -18,7 +18,7 @@ import * as keytarType from 'keytar';
 import * as cp from 'child_process';
 
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem } from 'vscode';
-import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter } from './azure-account.api';
+import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 
 const localize = nls.loadMessageBundle();
 
@@ -80,7 +80,7 @@ class AzureLoginError extends Error {
 
 interface SubscriptionItem extends QuickPickItem {
 	type: 'item';
-	subscription: AzureResourceFilter;
+	subscription: AzureSubscription;
 	selected: boolean;
 }
 
@@ -92,7 +92,14 @@ export class AzureLoginHelper {
 
 	private onStatusChanged = new EventEmitter<AzureLoginStatus>();
 	private onSessionsChanged = new EventEmitter<void>();
+
+	private subscriptions = Promise.resolve(<AzureSubscription[]>[]);
+	private onSubscriptionsChanged = new EventEmitter<void>();
+
+	private filters = Promise.resolve(<AzureResourceFilter[]>[]);
+
 	private onFiltersChanged = new EventEmitter<void>();
+
 	private tokenCache = new MemoryCache();
 	private oldResourceFilter: string;
 
@@ -102,7 +109,8 @@ export class AzureLoginHelper {
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
-		subscriptions.push(this.api.onSessionsChanged(() => this.updateFilters().catch(console.error)));
+		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
+		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters().catch(console.error)));
 		subscriptions.push(workspace.onDidChangeConfiguration(() => this.updateFilters(true).catch(console.error)));
 		this.initialize()
 			.catch(console.error);
@@ -135,6 +143,9 @@ export class AzureLoginHelper {
 		waitForLogin: () => this.waitForLogin(),
 		sessions: [],
 		onSessionsChanged: this.onSessionsChanged.event,
+		subscriptions: [],
+		onSubscriptionsChanged: this.onSubscriptionsChanged.event,
+		waitForSubscriptions: () => this.waitForSubscriptions(),
 		filters: [],
 		onFiltersChanged: this.onFiltersChanged.event,
 		waitForFilters: () => this.waitForFilters(),
@@ -231,6 +242,21 @@ export class AzureLoginHelper {
 		this.onSessionsChanged.fire();
 	}
 
+	private async waitForSubscriptions() {
+		if (!(await this.api.waitForLogin())) {
+			return false;
+		}
+		await this.subscriptions;
+		return true;
+	}
+
+	private async updateSubscriptions() {
+		await this.api.waitForLogin();
+		this.subscriptions = this.loadSubscriptions();
+		this.api.subscriptions.splice(0, this.api.subscriptions.length, ...await this.subscriptions);
+		this.onSubscriptionsChanged.fire();
+	}
+
 	private async askForLogin() {
 		if (this.api.status === 'LoggedIn') {
 			return;
@@ -242,7 +268,7 @@ export class AzureLoginHelper {
 	}
 
 	private async selectSubscriptions() {
-		if (!(await this.api.waitForLogin())) {
+		if (!(await this.waitForSubscriptions())) {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
@@ -250,7 +276,7 @@ export class AzureLoginHelper {
 		const resourceFilter = azureConfig.get<string[]>('resourceFilter') || ['all'];
 		let changed = false;
 
-		const subscriptions = this.loadSubscriptions()
+		const subscriptions = this.subscriptions
 			.then(list => this.asSubscriptionItems(list, resourceFilter));
 		const items = subscriptions.then(list => {
 			if (!list.length) {
@@ -347,7 +373,7 @@ export class AzureLoginHelper {
 	}
 
 	private async loadSubscriptions() {
-		const subscriptions: AzureResourceFilter[] = [];
+		const subscriptions: AzureSubscription[] = [];
 		for (const session of this.api.sessions) {
 			const credentials = session.credentials;
 			const client = new SubscriptionClient(credentials);
@@ -362,7 +388,7 @@ export class AzureLoginHelper {
 		return subscriptions;
 	}
 
-	private asSubscriptionItems(subscriptions: AzureResourceFilter[], resourceFilter: string[]): SubscriptionItem[] {
+	private asSubscriptionItems(subscriptions: AzureSubscription[], resourceFilter: string[]): SubscriptionItem[] {
 		return subscriptions.map(subscription => {
 			const selected = resourceFilter.indexOf(`${subscription.session.tenantId}/${subscription.subscription.subscriptionId}`) !== -1;
 			return <SubscriptionItem>{
@@ -402,32 +428,25 @@ export class AzureLoginHelper {
 		if (configChange && JSON.stringify(resourceFilter) === this.oldResourceFilter) {
 			return;
 		}
-		this.oldResourceFilter = JSON.stringify(resourceFilter);
-		if (resourceFilter && !Array.isArray(resourceFilter)) {
-			resourceFilter = [];
-		}
-		const filters = resourceFilter && resourceFilter.map(s => typeof s === 'string' ? s.split('/') : [])
-			.filter(s => s.length === 2)
-			.map(([tenantId, subscriptionId]) => ({ tenantId, subscriptionId }));
-		const tenantIds = filters && filters.reduce<Record<string, Record<string, boolean>>>((result, filter) => {
-			const tenant = result[filter.tenantId] || (result[filter.tenantId] = {});
-			tenant[filter.subscriptionId] = true;
-			return result;
-		}, {});
-
-		const newFilters: AzureResourceFilter[] = [];
-		const sessions = tenantIds ? this.api.sessions.filter(session => tenantIds[session.tenantId]) : this.api.sessions;
-		for (const session of sessions) {
-			const client = new SubscriptionClient(session.credentials);
-			const subscriptionIds = tenantIds && tenantIds[session.tenantId];
-			const subscriptions = await listAll(client.subscriptions, client.subscriptions.list());
-			const filteredSubscriptions = subscriptionIds ? subscriptions.filter(subscription => subscriptionIds[subscription.subscriptionId!]) : subscriptions;
-			for (const subscription of filteredSubscriptions) {
-				newFilters.push({ session, subscription });
+		this.filters = (async () => {
+			await this.waitForSubscriptions();
+			this.oldResourceFilter = JSON.stringify(resourceFilter);
+			if (resourceFilter && !Array.isArray(resourceFilter)) {
+				resourceFilter = [];
 			}
-		}
-		this.api.filters.splice(0, this.api.filters.length, ...newFilters);
-		this.onFiltersChanged.fire();
+			const filters = resourceFilter && resourceFilter.reduce((f, s) => {
+				if (typeof s === 'string') {
+					f[s] = true;
+				}
+				return f;
+			}, <Record<string, boolean>>{});
+
+			const subscriptions = await this.subscriptions;
+			const newFilters: AzureResourceFilter[] = filters ? subscriptions.filter(s => filters[`${s.session.tenantId}/${s.subscription.subscriptionId}`]) : subscriptions;
+			this.api.filters.splice(0, this.api.filters.length, ...newFilters);
+			this.onFiltersChanged.fire();
+			return this.api.filters;
+		})();
 	}
 
 	private async waitForLogin() {
@@ -451,24 +470,11 @@ export class AzureLoginHelper {
 	}
 
 	private async waitForFilters() {
-		if (!(await this.api.waitForLogin())) {
+		if (!(await this.waitForSubscriptions())) {
 			return false;
 		}
-		// TODO: Wait on some promise.
-		if (this.api.filters.length) {
-			return true;
-		}
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = azureConfig.get<string[]>('resourceFilter');
-		if (resourceFilter && !resourceFilter.length) {
-			return true;
-		}
-		return new Promise<boolean>(resolve => {
-			const subscription = this.api.onFiltersChanged(() => {
-				subscription.dispose();
-				resolve(!!this.api.filters.length);
-			});
-		})
+		await this.filters;
+		return true;
 	}
 }
 

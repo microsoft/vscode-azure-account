@@ -28,7 +28,8 @@
     "onCommand:azure-account.logout",
     "onCommand:azure-account.selectSubscriptions",
     "onCommand:azure-account.createAccount",
-    "onCommand:azure-account.openCloudConsole"
+    "onCommand:azure-account.openCloudConsoleLinux",
+    "onCommand:azure-account.openCloudConsoleWindows"
   ],
   "main": "./out/src/extension",
   "contributes": {

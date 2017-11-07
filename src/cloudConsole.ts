@@ -9,6 +9,8 @@ import { getUserSettings, provisionConsole, Errors, resetConsole } from './cloud
 import * as nls from 'vscode-nls';
 import * as path from 'path';
 import * as opn from 'opn';
+import * as cp from 'child_process';
+import * as semver from 'semver';
 
 const localize = nls.loadMessageBundle();
 
@@ -34,6 +36,21 @@ export const OSes: Record<string, OS> = {
 export function openCloudConsole(api: AzureAccount, os: OS) {
 	return () => {
 		return (async function retry(): Promise<any> {
+
+			const isWindows = process.platform === 'win32';
+			if (isWindows) {
+				// See below
+				try {
+					const { stdout } = await exec('node.exe --version');
+					const version = stdout[0] === 'v' && stdout.substr(1).trim();
+					if (version && semver.valid(version) && !semver.gte(version, '6.0.0')) {
+						return requiresNode();
+					}		
+				} catch (err) {
+					return requiresNode();
+				}
+			}
+			
 			if (!(await api.waitForLogin())) {
 				return commands.executeCommand('azure-account.askForLogin');
 			}
@@ -59,19 +76,27 @@ export function openCloudConsole(api: AzureAccount, os: OS) {
 			}
 
 			// TODO: How to update the access token when it expires?
-			const isWindows = process.platform === 'win32';
+			let shellPath = path.join(__dirname, `../../bin/node.${isWindows ? 'bat' : 'sh'}`);
 			let modulePath = path.join(__dirname, 'cloudConsoleLauncher');
 			if (isWindows) {
 				modulePath = modulePath.replace(/\\/g, '\\\\');
 			}
+			const shellArgs = [
+				process.argv0,
+				'-e',
+				`require('${modulePath}').main()`,
+			];
+
+			if (isWindows) {
+				// Work around https://github.com/electron/electron/issues/4218 https://github.com/nodejs/node/issues/11656
+				shellPath = 'node.exe';
+				shellArgs.shift();
+			}
+
 			window.createTerminal({
 				name: localize('azure-account.cloudConsole', "Cloud Shell"),
-				shellPath: path.join(__dirname, `../../bin/node.${isWindows ? 'bat' : 'sh'}`),
-				shellArgs: [
-					process.argv0,
-					'-e',
-					`require('${modulePath}').main()`,
-				],
+				shellPath,
+				shellArgs,
 				env: {
 					CLOUD_CONSOLE_ACCESS_TOKEN: result.token.accessToken,
 					CLOUD_CONSOLE_URI: consoleUri
@@ -97,6 +122,16 @@ async function requiresSetUp() {
 	const response = await window.showInformationMessage(message, open, close);
 	if (response === open) {
 		opn('https://portal.azure.com');
+	}
+}
+
+async function requiresNode() {
+	const open: MessageItem = { title: localize('azure-account.open', "Open") };
+	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
+	const message = localize('azure-account.requiresNode', "Opening a Cloud Shell currently requires Node.js 6 or later being installed (https://nodejs.org).");
+	const response = await window.showInformationMessage(message, open, close);
+	if (response === open) {
+		opn('https://nodejs.org');
 	}
 }
 
@@ -140,4 +175,19 @@ function delayed(fun: () => void, delay: number) {
 	return {
 		cancel: () => clearTimeout(handle)
 	}
+}
+
+export interface ExecResult {
+    error: Error | null;
+    stdout: string;
+    stderr: string;
+}
+
+
+async function exec(command: string) {
+    return new Promise<ExecResult>((resolve, reject) => {
+        cp.exec(command, (error, stdout, stderr) => {
+            (error || stderr ? reject : resolve)({ error, stdout, stderr });
+        });
+    });
 }

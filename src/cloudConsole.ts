@@ -60,15 +60,15 @@ export function openCloudConsole(api: AzureAccount, os: OS) {
 
 			// TODO: How to update the access token when it expires?
 			const isWindows = process.platform === 'win32';
-			const shellPath = isWindows ? 'node.exe' : 'node';
 			let modulePath = path.join(__dirname, 'cloudConsoleLauncher');
 			if (isWindows) {
 				modulePath = modulePath.replace(/\\/g, '\\\\');
 			}
 			window.createTerminal({
 				name: localize('azure-account.cloudConsole', "Cloud Shell"),
-				shellPath, // process.argv0, // TODO
+				shellPath: path.join(__dirname, `../../bin/node.${isWindows ? 'bat' : 'sh'}`),
 				shellArgs: [
+					process.argv0,
 					'-e',
 					`require('${modulePath}').main()`,
 				],

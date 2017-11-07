@@ -3,6 +3,10 @@ import * as WS from 'ws';
 
 const consoleApiVersion = '2017-08-01-preview';
 
+export enum Errors {
+	DeploymentOsTypeConflict = 'DeploymentOsTypeConflict'
+}
+
 function getConsoleUri(armEndpoint: string) {
 	return `${armEndpoint}/providers/Microsoft.Portal/consoles/default?api-version=${consoleApiVersion}`;
 }
@@ -40,27 +44,27 @@ export async function getUserSettings(accessToken: string, armEndpoint: string):
 	return response.body && response.body.properties;
 }
 
-async function provisionConsole(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string) {
-	console.log('Requesting a Cloud Shell...');
-	for (let response = await createTerminal(accessToken, armEndpoint, userSettings, osType, true); ; response = await createTerminal(accessToken, armEndpoint, userSettings, osType, false)) {
+export async function provisionConsole(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string): Promise<string> {
+	let response = await createTerminal(accessToken, armEndpoint, userSettings, osType, true);
+	for (let i = 0; i < 10; i++ , response = await createTerminal(accessToken, armEndpoint, userSettings, osType, false)) {
 		if (response.statusCode < 200 || response.statusCode > 299) {
-			if (response.body && response.body.error && response.body.error.message) {
-				console.log(`${response.body.error.message} (${response.statusCode})`);
+			if (response.statusCode === 409 && response.body && response.body.error && response.body.error.code === Errors.DeploymentOsTypeConflict) {
+				throw new Error(Errors.DeploymentOsTypeConflict);
+			} else if (response.body && response.body.error && response.body.error.message) {
+				throw new Error(`${response.body.error.message} (${response.statusCode})`);
 			} else {
-				console.log(response.statusCode, response.headers, response.body);
+				throw new Error(`${response.statusCode} ${response.headers} ${response.body}`);
 			}
-			return;
 		}
 
 		const consoleResource = response.body;
 		if (consoleResource.properties.provisioningState === 'Succeeded') {
-			return connectTerminal(accessToken, consoleResource);
+			return consoleResource.properties.uri;
 		} else if (consoleResource.properties.provisioningState === 'Failed') {
-			console.log(`Sorry, your Cloud Shell failed to provision. Please retry later. Request correlation id: ${response.headers['x-ms-routing-request-id']}`);
-			return;
+			break;
 		}
-		console.log('.');
 	}
+	throw new Error(`Sorry, your Cloud Shell failed to provision. Please retry later. Request correlation id: ${response.headers['x-ms-routing-request-id']}`);
 }
 
 async function createTerminal(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string, initial: boolean) {
@@ -84,20 +88,43 @@ async function createTerminal(accessToken: string, armEndpoint: string, userSett
 	});
 }
 
-async function connectTerminal(accessToken: string, consoleResource: any) {
-	console.log('Connecting terminal...');
-	const consoleUri = consoleResource.properties.uri;
+export async function resetConsole(accessToken: string, armEndpoint: string) {
+	const response = await request({
+		uri: getConsoleUri(armEndpoint),
+		method: 'DELETE',
+		headers: {
+			'Accept': 'application/json',
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${accessToken}`
+		},
+		simple: false,
+		resolveWithFullResponse: true,
+		json: true
+	});
 
-	for (let i = 0; i < 5; i++) {
+	if (response.statusCode < 200 || response.statusCode > 299) {
+		if (response.body && response.body.error && response.body.error.message) {
+			throw new Error(`${response.body.error.message} (${response.statusCode})`);
+		} else {
+			throw new Error(`${response.statusCode} ${response.headers} ${response.body}`);
+		}
+	}
+}
+
+async function connectTerminal(accessToken: string, consoleUri: string) {
+	console.log('Connecting terminal...');
+
+	for (let i = 0; i < 10; i++) {
 		const response = await initializeTerminal(accessToken, consoleUri);
 
 		if (response.statusCode < 200 || response.statusCode > 299) {
-			if (response.statusCode !== 404) {
+			if (response.statusCode !== 503 && response.statusCode !== 504 && response.body && response.body.error) {
 				if (response.body && response.body.error && response.body.error.message) {
 					console.log(`${response.body.error.message} (${response.statusCode})`);
 				} else {
 					console.log(response.statusCode, response.headers, response.body);
 				}
+				break;
 			}
 			await delay(1000 * (i + 1));
 			console.log('.');
@@ -194,18 +221,16 @@ async function delay(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-async function runInTerminal(accessToken: string, armEndpoint: string, osType: string) {
+async function runInTerminal(accessToken: string, consoleUri: string) {
 	process.stdin.setRawMode!(true);
 	process.stdin.resume();
 
-	const userSettings = await getUserSettings(accessToken, armEndpoint);
-	return provisionConsole(accessToken, armEndpoint, userSettings!, osType);
+	return connectTerminal(accessToken, consoleUri);
 }
 
 export function main() {
 	const accessToken = process.env.CLOUD_CONSOLE_ACCESS_TOKEN!;
-	const armEndpoint = process.env.ARM_ENDPOINT!;
-	const osType = process.env.CLOUD_CONSOLE_OS_TYPE!;
-	runInTerminal(accessToken, armEndpoint, osType)
+	const consoleUri = process.env.CLOUD_CONSOLE_URI!;
+	runInTerminal(accessToken, consoleUri)
 		.catch(console.error);
 }

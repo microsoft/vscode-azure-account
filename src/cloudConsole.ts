@@ -5,21 +5,35 @@
 
 import { window, commands, MessageItem } from 'vscode';
 import { AzureAccount, AzureSession } from './azure-account.api';
-import { getUserSettings } from './cloudConsoleLauncher';
+import { getUserSettings, provisionConsole, Errors, resetConsole } from './cloudConsoleLauncher';
 import * as nls from 'vscode-nls';
 import * as path from 'path';
 import * as opn from 'opn';
 
 const localize = nls.loadMessageBundle();
 
-export enum OS {
-	Linux = 'linux',
-	Windows = 'windows'
+export interface OS {
+	id: string;
+	shellName: string;
+	otherOS: OS;
+}
+
+export const OSes: Record<string, OS> = {
+	Linux: {
+		id: 'linux',
+		shellName: localize('azure-account.bash', "Bash"),
+		get otherOS() { return OSes.Windows; },
+	},
+	Windows: {
+		id: 'windows',
+		shellName: localize('azure-account.powershell', "PowerShell"),
+		get otherOS() { return OSes.Linux; },
+	}
 };
 
 export function openCloudConsole(api: AzureAccount, os: OS) {
 	return () => {
-		(async () => {
+		return (async function retry(): Promise<any> {
 			if (!(await api.waitForLogin())) {
 				return commands.executeCommand('azure-account.askForLogin');
 			}
@@ -28,6 +42,17 @@ export function openCloudConsole(api: AzureAccount, os: OS) {
 			const result = await findUserSettings(tokens);
 			if (!result) {
 				return requiresSetUp();
+			}
+
+			let consoleUri: string;
+			const armEndpoint = result.token.session.environment.resourceManagerEndpointUrl;
+			try {
+				consoleUri = await provisionConsole(result.token.accessToken, armEndpoint, result.userSettings, os.id);
+			} catch (err) {
+				if (err && err.message === Errors.DeploymentOsTypeConflict) {
+					return deploymentConflict(retry, os, result.token.accessToken, armEndpoint);
+				}
+				throw err;
 			}
 
 			// TODO: How to update the access token when it expires?
@@ -46,12 +71,10 @@ export function openCloudConsole(api: AzureAccount, os: OS) {
 				],
 				env: {
 					CLOUD_CONSOLE_ACCESS_TOKEN: result.token.accessToken,
-					ARM_ENDPOINT: result.token.session.environment.resourceManagerEndpointUrl,
-					CLOUD_CONSOLE_OS_TYPE: os
+					CLOUD_CONSOLE_URI: consoleUri
 				}
 			}).show();
-		})()
-			.catch(console.error);
+		})();
 	};
 }
 
@@ -71,6 +94,17 @@ async function requiresSetUp() {
 	const response = await window.showInformationMessage(message, open, close);
 	if (response === open) {
 		opn('https://portal.azure.com');
+	}
+}
+
+async function deploymentConflict(retry: () => Promise<void>, os: OS, accessToken: string, armEndpoint: string) {
+	const ok: MessageItem = { title: localize('azure-account.ok', "OK") };
+	const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel"), isCloseAffordance: true };
+	const message = localize('azure-account.deploymentConflict', "Starting a {0} session will terminate all active {1} sessions. Any running processes in active {1} sessions will be terminated.", os.shellName, os.otherOS.shellName);
+	const response = await window.showWarningMessage(message, ok, cancel);
+	if (response === ok) {
+		await resetConsole(accessToken, armEndpoint);
+		return retry();
 	}
 }
 

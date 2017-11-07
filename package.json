@@ -54,8 +54,13 @@
         "category": "%azure-account.commands.azure%"
       },
       {
-        "command": "azure-account.openCloudConsole",
-        "title": "%azure-account.commands.openCloudConsole%",
+        "command": "azure-account.openCloudConsoleLinux",
+        "title": "%azure-account.commands.openCloudConsoleLinux%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.openCloudConsoleWindows",
+        "title": "%azure-account.commands.openCloudConsoleWindows%",
         "category": "%azure-account.commands.azure%"
       }
     ],

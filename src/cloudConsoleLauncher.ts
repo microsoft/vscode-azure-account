@@ -9,7 +9,7 @@ function getConsoleUri(armEndpoint: string) {
 
 export interface UserSettings {
 	preferredLocation: string;
-	preferredOsType: string;
+	preferredOsType: string; // The last OS chosen in the portal.
 	storageProfile: any;
 }
 
@@ -40,9 +40,9 @@ export async function getUserSettings(accessToken: string, armEndpoint: string):
 	return response.body && response.body.properties;
 }
 
-async function provisionConsole(accessToken: string, armEndpoint: string, userSettings: UserSettings) {
+async function provisionConsole(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string) {
 	console.log('Requesting a Cloud Shell...');
-	for (let response = await createTerminal(accessToken, armEndpoint, userSettings, true); ; response = await createTerminal(accessToken, armEndpoint, userSettings, false)) {
+	for (let response = await createTerminal(accessToken, armEndpoint, userSettings, osType, true); ; response = await createTerminal(accessToken, armEndpoint, userSettings, osType, false)) {
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.body && response.body.error && response.body.error.message) {
 				console.log(`${response.body.error.message} (${response.statusCode})`);
@@ -63,7 +63,7 @@ async function provisionConsole(accessToken: string, armEndpoint: string, userSe
 	}
 }
 
-async function createTerminal(accessToken: string, armEndpoint: string, userSettings: UserSettings, initial: boolean) {
+async function createTerminal(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string, initial: boolean) {
 	return request({
 		uri: getConsoleUri(armEndpoint),
 		method: initial ? 'PUT' : 'GET',
@@ -78,7 +78,7 @@ async function createTerminal(accessToken: string, armEndpoint: string, userSett
 		json: true,
 		body: initial ? {
 			properties: {
-				osType: userSettings.preferredOsType
+				osType
 			}
 		} : undefined
 	});
@@ -194,17 +194,18 @@ async function delay(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-async function runInTerminal(accessToken: string, armEndpoint: string) {
+async function runInTerminal(accessToken: string, armEndpoint: string, osType: string) {
 	process.stdin.setRawMode!(true);
 	process.stdin.resume();
 
 	const userSettings = await getUserSettings(accessToken, armEndpoint);
-	return provisionConsole(accessToken, armEndpoint, userSettings!);
+	return provisionConsole(accessToken, armEndpoint, userSettings!, osType);
 }
 
 export function main() {
 	const accessToken = process.env.CLOUD_CONSOLE_ACCESS_TOKEN!;
 	const armEndpoint = process.env.ARM_ENDPOINT!;
-	runInTerminal(accessToken, armEndpoint)
+	const osType = process.env.CLOUD_CONSOLE_OS_TYPE!;
+	runInTerminal(accessToken, armEndpoint, osType)
 		.catch(console.error);
 }

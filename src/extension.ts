@@ -5,7 +5,7 @@
 
 import { window, ExtensionContext, commands } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
-import { openCloudConsole } from './cloudConsole';
+import { openCloudConsole, OS } from './cloudConsole';
 import { AzureAccount } from './azure-account.api';
 import * as opn from 'opn';
 import * as nls from 'vscode-nls';
@@ -21,7 +21,8 @@ export function activate(context: ExtensionContext) {
 	const subscriptions = context.subscriptions;
 	subscriptions.push(createStatusBarItem(azureLogin.api));
 	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsole', openCloudConsole(azureLogin.api)));
+	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', openCloudConsole(azureLogin.api, OS.Linux)));
+	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', openCloudConsole(azureLogin.api, OS.Windows)));
 	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
 }
 

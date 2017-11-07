@@ -12,7 +12,12 @@ import * as opn from 'opn';
 
 const localize = nls.loadMessageBundle();
 
-export function openCloudConsole(api: AzureAccount) {
+export enum OS {
+	Linux = 'linux',
+	Windows = 'windows'
+};
+
+export function openCloudConsole(api: AzureAccount, os: OS) {
 	return () => {
 		(async () => {
 			if (!(await api.waitForLogin())) {
@@ -41,7 +46,8 @@ export function openCloudConsole(api: AzureAccount) {
 				],
 				env: {
 					CLOUD_CONSOLE_ACCESS_TOKEN: result.token.accessToken,
-					ARM_ENDPOINT: result.token.session.environment.resourceManagerEndpointUrl
+					ARM_ENDPOINT: result.token.session.environment.resourceManagerEndpointUrl,
+					CLOUD_CONSOLE_OS_TYPE: os
 				}
 			}).show();
 		})()

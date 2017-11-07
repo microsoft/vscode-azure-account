@@ -4,5 +4,6 @@
 	"azure-account.commands.logout": "Sign Out",
 	"azure-account.commands.selectSubscriptions": "Select Subscriptions",
 	"azure-account.commands.createAccount": "Create an Account",
-	"azure-account.commands.openCloudConsole": "Open Cloud Shell"
+	"azure-account.commands.openCloudConsoleLinux": "Open Bash in Cloud Shell",
+	"azure-account.commands.openCloudConsoleWindows": "Open PowerShell in Cloud Shell"
 }

@@ -46,9 +46,12 @@ export function openCloudConsole(api: AzureAccount, os: OS) {
 
 			let consoleUri: string;
 			const armEndpoint = result.token.session.environment.resourceManagerEndpointUrl;
+			const inProgress = delayed(() => window.showInformationMessage(localize('azure-account.provisioningInProgress', "Provisioning a Cloud Shell may take a few seconds.")), 2000);
 			try {
 				consoleUri = await provisionConsole(result.token.accessToken, armEndpoint, result.userSettings, os.id);
+				inProgress.cancel();
 			} catch (err) {
+				inProgress.cancel();
 				if (err && err.message === Errors.DeploymentOsTypeConflict) {
 					return deploymentConflict(retry, os, result.token.accessToken, armEndpoint);
 				}
@@ -130,4 +133,11 @@ async function acquireToken(session: AzureSession) {
 			}
 		});
 	});
+}
+
+function delayed(fun: () => void, delay: number) {
+	const handle = setTimeout(fun, delay);
+	return {
+		cancel: () => clearTimeout(handle)
+	}
 }

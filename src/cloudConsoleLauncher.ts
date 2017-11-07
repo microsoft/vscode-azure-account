@@ -127,7 +127,7 @@ async function connectTerminal(accessToken: string, consoleUri: string) {
 				break;
 			}
 			await delay(1000 * (i + 1));
-			console.log('.');
+			console.log(`\x1b[AConnecting terminal...${'.'.repeat(i + 1)}`);
 			continue;
 		}
 

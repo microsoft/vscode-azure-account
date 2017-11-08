@@ -12,7 +12,7 @@
     "color": "#1289B9",
     "theme": "dark"
   },
-  "version": "0.1.3",
+  "version": "0.2.0",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "publisher": "ms-vscode",
   "engines": {
@@ -87,24 +87,24 @@
   "devDependencies": {
     "@types/copy-paste": "1.1.30",
     "@types/keytar": "4.0.1",
-    "@types/node": "^8.0.26",
+    "@types/node": "8.0.26",
     "@types/opn": "3.0.28",
-    "@types/request-promise": "^4.1.37",
-    "@types/semver": "^5.4.0",
-    "@types/ws": "^3.0.2",
-    "vscode": "^1.0.0"
+    "@types/request-promise": "4.1.37",
+    "@types/semver": "5.4.0",
+    "@types/ws": "3.0.2",
+    "vscode": "1.1.6"
   },
   "dependencies": {
-    "adal-node": "^0.1.22",
-    "azure-arm-resource": "^2.0.0-preview",
-    "copy-paste": "^1.3.0",
-    "ms-rest-azure": "^2.2.3",
-    "opn": "^5.1.0",
-    "request": "^2.81.0",
-    "request-promise": "^4.2.1",
-    "semver": "^5.4.1",
+    "adal-node": "0.1.22",
+    "azure-arm-resource": "2.0.0-preview",
+    "copy-paste": "1.3.0",
+    "ms-rest-azure": "2.4.4",
+    "opn": "5.1.0",
+    "request": "2.81.0",
+    "request-promise": "4.2.1",
+    "semver": "5.4.1",
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "^2.0.2",
-    "ws": "^3.1.0"
+    "vscode-nls": "2.0.2",
+    "ws": "3.1.0"
   }
 }

@@ -104,6 +104,7 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 					CLOUD_CONSOLE_URI: consoleUri
 				}
 			}).show();
+			reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'provisioned' });
 		})().catch(err => {
 			reporter.sendTelemetryEvent('openCloudConsole', {
 				outcome: 'error',

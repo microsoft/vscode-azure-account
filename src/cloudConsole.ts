@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as opn from 'opn';
 import * as cp from 'child_process';
 import * as semver from 'semver';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 const localize = nls.loadMessageBundle();
 
@@ -33,7 +34,7 @@ export const OSes: Record<string, OS> = {
 	}
 };
 
-export function openCloudConsole(api: AzureAccount, os: OS) {
+export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter, os: OS) {
 	return () => {
 		return (async function retry(): Promise<any> {
 
@@ -44,21 +45,22 @@ export function openCloudConsole(api: AzureAccount, os: OS) {
 					const { stdout } = await exec('node.exe --version');
 					const version = stdout[0] === 'v' && stdout.substr(1).trim();
 					if (version && semver.valid(version) && !semver.gte(version, '6.0.0')) {
-						return requiresNode();
-					}		
+						return requiresNode(reporter);
+					}
 				} catch (err) {
-					return requiresNode();
+					return requiresNode(reporter);
 				}
 			}
-			
+
 			if (!(await api.waitForLogin())) {
+				reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresLogin' });
 				return commands.executeCommand('azure-account.askForLogin');
 			}
 
 			const tokens = await Promise.all(api.sessions.map(session => acquireToken(session)));
 			const result = await findUserSettings(tokens);
 			if (!result) {
-				return requiresSetUp();
+				return requiresSetUp(reporter);
 			}
 
 			let consoleUri: string;
@@ -70,7 +72,7 @@ export function openCloudConsole(api: AzureAccount, os: OS) {
 			} catch (err) {
 				inProgress.cancel();
 				if (err && err.message === Errors.DeploymentOsTypeConflict) {
-					return deploymentConflict(retry, os, result.token.accessToken, armEndpoint);
+					return deploymentConflict(reporter, retry, os, result.token.accessToken, armEndpoint);
 				}
 				throw err;
 			}
@@ -102,7 +104,13 @@ export function openCloudConsole(api: AzureAccount, os: OS) {
 					CLOUD_CONSOLE_URI: consoleUri
 				}
 			}).show();
-		})();
+		})().catch(err => {
+			reporter.sendTelemetryEvent('openCloudConsole', {
+				outcome: 'error',
+				message: String(err && err.message || err)
+			});
+			throw err;
+		});
 	};
 }
 
@@ -115,35 +123,46 @@ async function findUserSettings(tokens: Token[]) {
 	}
 }
 
-async function requiresSetUp() {
+async function requiresSetUp(reporter: TelemetryReporter) {
+	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUp' });
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
 	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
 	const message = localize('azure-account.setUpInPortal', "First launch of Cloud Shell requires setup in the Azure portal (https://portal.azure.com).");
 	const response = await window.showInformationMessage(message, open, close);
 	if (response === open) {
+		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUpOpen' });
 		opn('https://portal.azure.com');
+	} else {
+		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUpCancel' });
 	}
 }
 
-async function requiresNode() {
+async function requiresNode(reporter: TelemetryReporter) {
+	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresNode' });
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
 	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
 	const message = localize('azure-account.requiresNode', "Opening a Cloud Shell currently requires Node.js 6 or later being installed (https://nodejs.org).");
 	const response = await window.showInformationMessage(message, open, close);
 	if (response === open) {
+		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresNodeOpen' });
 		opn('https://nodejs.org');
+	} else {
+		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresNodeCancel' });
 	}
 }
 
-async function deploymentConflict(retry: () => Promise<void>, os: OS, accessToken: string, armEndpoint: string) {
+async function deploymentConflict(reporter: TelemetryReporter, retry: () => Promise<void>, os: OS, accessToken: string, armEndpoint: string) {
+	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'deploymentConflict' });
 	const ok: MessageItem = { title: localize('azure-account.ok', "OK") };
 	const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel"), isCloseAffordance: true };
 	const message = localize('azure-account.deploymentConflict', "Starting a {0} session will terminate all active {1} sessions. Any running processes in active {1} sessions will be terminated.", os.shellName, os.otherOS.shellName);
 	const response = await window.showWarningMessage(message, ok, cancel);
 	if (response === ok) {
+		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'deploymentConflictReset' });
 		await resetConsole(accessToken, armEndpoint);
 		return retry();
 	}
+	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'deploymentConflictCancel' });
 }
 
 interface Token {
@@ -178,16 +197,16 @@ function delayed(fun: () => void, delay: number) {
 }
 
 export interface ExecResult {
-    error: Error | null;
-    stdout: string;
-    stderr: string;
+	error: Error | null;
+	stdout: string;
+	stderr: string;
 }
 
 
 async function exec(command: string) {
-    return new Promise<ExecResult>((resolve, reject) => {
-        cp.exec(command, (error, stdout, stderr) => {
-            (error || stderr ? reject : resolve)({ error, stdout, stderr });
-        });
-    });
+	return new Promise<ExecResult>((resolve, reject) => {
+		cp.exec(command, (error, stdout, stderr) => {
+			(error || stderr ? reject : resolve)({ error, stdout, stderr });
+		});
+	});
 }

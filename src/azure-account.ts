@@ -155,8 +155,9 @@ export class AzureLoginHelper {
 		try {
 			this.beginLoggingIn();
 			const deviceLogin = await deviceLogin1();
-			await this.showDeviceCodeMessage(deviceLogin);
-			const tokenResponse = await deviceLogin2(deviceLogin);
+			const message = this.showDeviceCodeMessage(deviceLogin);
+			const login2 = deviceLogin2(deviceLogin);
+			const tokenResponse = await Promise.race([login2, message.then(() => login2)]);
 			const refreshToken = tokenResponse.refreshToken;
 			const tokenResponses = await tokensFromToken(tokenResponse);
 			if (keytar) {

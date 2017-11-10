@@ -138,8 +138,7 @@ async function connectTerminal(accessToken: string, consoleUri: string) {
 		connectSocket(res.socketUri);
 
 		process.stdout.on('resize', () => {
-			const { cols, rows } = getWindowSize();
-			resize(accessToken, consoleUri, termId, cols, rows)
+			resize(accessToken, consoleUri, termId)
 				.catch(console.error);
 		});
 
@@ -177,16 +176,47 @@ function getWindowSize() {
 	};
 }
 
-async function resize(accessToken: string, consoleUri: string, termId: string, cols: number, rows: number) {
-	return request({
-		uri: consoleUri + '/terminals/' + termId + '/size?cols=' + cols + '&rows=' + rows,
-		method: 'POST',
-		headers: {
-			'Accept': 'application/json',
-			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${accessToken}`
+let resizeToken = {};
+async function resize(accessToken: string, consoleUri: string, termId: string) {
+	const token = resizeToken = {};
+	await delay(300);
+
+	for (let i = 0; i < 10; i++) {
+		if (token !== resizeToken) {
+			return;
 		}
-	});
+
+		const { cols, rows } = getWindowSize();
+		const response = await request({
+			uri: consoleUri + '/terminals/' + termId + '/size?cols=' + cols + '&rows=' + rows,
+			method: 'POST',
+			headers: {
+				'Accept': 'application/json',
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${accessToken}`
+			},
+			simple: false,
+			resolveWithFullResponse: true,
+			json: true,
+		});
+
+		if (response.statusCode < 200 || response.statusCode > 299) {
+			if (response.statusCode !== 503 && response.statusCode !== 504 && response.body && response.body.error) {
+				if (response.body && response.body.error && response.body.error.message) {
+					console.log(`${response.body.error.message} (${response.statusCode})`);
+				} else {
+					console.log(response.statusCode, response.headers, response.body);
+				}
+				break;
+			}
+			await delay(1000 * (i + 1));
+			continue;
+		}
+
+		return;
+	}
+
+	console.log('Failed to resize terminal.');
 }
 
 function connectSocket(url: string) {

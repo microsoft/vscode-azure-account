@@ -65,7 +65,7 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 
 			let consoleUri: string;
 			const armEndpoint = result.token.session.environment.resourceManagerEndpointUrl;
-			const inProgress = delayed(() => window.showInformationMessage(localize('azure-account.provisioningInProgress', "Provisioning a Cloud Shell may take a few seconds.")), 2000);
+			const inProgress = delayed(() => window.showInformationMessage(localize('azure-account.provisioningInProgress', "Provisioning {0} in Cloud Shell may take a few seconds.", os.shellName)), 2000);
 			try {
 				consoleUri = await provisionConsole(result.token.accessToken, armEndpoint, result.userSettings, os.id);
 				inProgress.cancel();
@@ -96,7 +96,7 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 			}
 
 			window.createTerminal({
-				name: localize('azure-account.cloudConsole', "Cloud Shell"),
+				name: localize('azure-account.cloudConsole', "{0} in Cloud Shell", os.shellName),
 				shellPath,
 				shellArgs,
 				env: {

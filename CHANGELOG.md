@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.2.2]
+- Bug fix: Do not modify configuration object
+
 ## [0.2.1]
 - Bug fixes
 	- Avoid having to click 'Copy & Open' to advance the login

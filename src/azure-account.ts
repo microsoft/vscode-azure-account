@@ -274,7 +274,7 @@ export class AzureLoginHelper {
 		}
 
 		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = azureConfig.get<string[]>('resourceFilter') || ['all'];
+		const resourceFilter = (azureConfig.get<string[]>('resourceFilter') || ['all']).slice();
 		let changed = false;
 
 		const subscriptions = this.subscriptions

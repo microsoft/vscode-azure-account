@@ -5,6 +5,7 @@
 
 import { window, commands, MessageItem } from 'vscode';
 import { AzureAccount, AzureSession } from './azure-account.api';
+import { createServer, readJSON, Queue } from './ipc';
 import { getUserSettings, provisionConsole, Errors, resetConsole } from './cloudConsoleLauncher';
 import * as nls from 'vscode-nls';
 import * as path from 'path';
@@ -36,7 +37,7 @@ export const OSes: Record<string, OS> = {
 
 export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter, os: OS) {
 	return () => {
-		return (async function retry(): Promise<any> {
+		return (async function (): Promise<any> {
 
 			const isWindows = process.platform === 'win32';
 			if (isWindows) {
@@ -52,32 +53,26 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 				}
 			}
 
-			if (!(await api.waitForLogin())) {
+			const loginStatus = await waitForLoginStatus(api);
+			if (loginStatus === 'LoggedOut') {
 				reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresLogin' });
 				return commands.executeCommand('azure-account.askForLogin');
 			}
 
-			const tokens = await Promise.all(api.sessions.map(session => acquireToken(session)));
-			const result = await findUserSettings(tokens);
-			if (!result) {
-				return requiresSetUp(reporter);
-			}
-
-			let consoleUri: string;
-			const armEndpoint = result.token.session.environment.resourceManagerEndpointUrl;
-			const inProgress = delayed(() => window.showInformationMessage(localize('azure-account.provisioningInProgress', "Provisioning {0} in Cloud Shell may take a few seconds.", os.shellName)), 2000);
-			try {
-				consoleUri = await provisionConsole(result.token.accessToken, armEndpoint, result.userSettings, os.id);
-				inProgress.cancel();
-			} catch (err) {
-				inProgress.cancel();
-				if (err && err.message === Errors.DeploymentOsTypeConflict) {
-					return deploymentConflict(reporter, retry, os, result.token.accessToken, armEndpoint);
+			// ipc
+			const queue = new Queue<any>();
+			const ipc = await createServer('vscode-cloud-console', async (req, res) => {
+				for (const message of await readJSON<any>(req)) {
+					if (message.type === 'log') {
+						console.log(...message.args);
+					}
 				}
-				throw err;
-			}
 
-			// TODO: How to update the access token when it expires?
+				res.write(JSON.stringify(await queue.dequeue()));
+				res.end();
+			});
+
+			// open terminal
 			let shellPath = path.join(__dirname, `../../bin/node.${isWindows ? 'bat' : 'sh'}`);
 			let modulePath = path.join(__dirname, 'cloudConsoleLauncher');
 			if (isWindows) {
@@ -95,16 +90,71 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 				shellArgs.shift();
 			}
 
-			window.createTerminal({
+			const terminal = window.createTerminal({
 				name: localize('azure-account.cloudConsole', "{0} in Cloud Shell", os.shellName),
 				shellPath,
 				shellArgs,
 				env: {
-					CLOUD_CONSOLE_ACCESS_TOKEN: result.token.accessToken,
-					CLOUD_CONSOLE_URI: consoleUri
+					CLOUD_CONSOLE_IPC: ipc.ipcHandlePath,
 				}
-			}).show();
-			reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'provisioned' });
+			});
+			const subscription = window.onDidCloseTerminal(t => {
+				if (t === terminal) {
+					subscription.dispose();
+					ipc.dispose();
+				}
+			});
+			terminal.show();
+
+			if (loginStatus !== 'LoggedIn') {
+				queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
+				if (!(await api.waitForLogin())) {
+					queue.push({ type: 'log', args: [localize('azure-account.loginNeeded', "Sign in needed.")] });
+					reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresLogin' });
+					await commands.executeCommand('azure-account.askForLogin');
+					queue.push({ type: 'exit' });
+					return;
+				}
+			}
+
+			const tokens = await Promise.all(api.sessions.map(session => acquireToken(session)));
+			const result = await findUserSettings(tokens);
+			if (!result) {
+				queue.push({ type: 'log', args: [localize('azure-account.setupNeeded', "Setup needed.")] });
+				await requiresSetUp(reporter);
+				queue.push({ type: 'exit' });
+				return;
+			}
+
+			// provision
+			const accessToken = result.token.accessToken;
+			const armEndpoint = result.token.session.environment.resourceManagerEndpointUrl;
+			const provision = async () => {
+				const consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, os.id);
+				reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'provisioned' });
+				queue.push({
+					type: 'connect',
+					accessToken: accessToken,
+					consoleUri
+				});
+			}
+			try {
+				queue.push({ type: 'log', args: [localize('azure-account.requestingCloudConsole', "Requesting a Cloud Shell...")] });
+				await provision();
+			} catch (err) {
+				if (err && err.message === Errors.DeploymentOsTypeConflict) {
+					const reset = await deploymentConflict(reporter, os);
+					if (reset) {
+						await resetConsole(accessToken, armEndpoint);
+						return provision();
+					} else {
+						queue.push({ type: 'exit' });
+						return;
+					}
+				} else {
+					throw err;
+				}
+			}
 		})().catch(err => {
 			reporter.sendTelemetryEvent('openCloudConsole', {
 				outcome: 'error',
@@ -113,6 +163,18 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 			throw err;
 		});
 	};
+}
+
+async function waitForLoginStatus(api: AzureAccount) {
+	if (api.status !== 'Initializing') {
+		return api.status;
+	}
+	return new Promise<typeof api.status>(resolve => {
+		const subscription = api.onStatusChanged(() => {
+			subscription.dispose();
+			resolve(waitForLoginStatus(api));
+		});
+	});
 }
 
 async function findUserSettings(tokens: Token[]) {
@@ -152,18 +214,15 @@ async function requiresNode(reporter: TelemetryReporter) {
 	}
 }
 
-async function deploymentConflict(reporter: TelemetryReporter, retry: () => Promise<void>, os: OS, accessToken: string, armEndpoint: string) {
+async function deploymentConflict(reporter: TelemetryReporter, os: OS) {
 	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'deploymentConflict' });
 	const ok: MessageItem = { title: localize('azure-account.ok', "OK") };
 	const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel"), isCloseAffordance: true };
 	const message = localize('azure-account.deploymentConflict', "Starting a {0} session will terminate all active {1} sessions. Any running processes in active {1} sessions will be terminated.", os.shellName, os.otherOS.shellName);
 	const response = await window.showWarningMessage(message, ok, cancel);
-	if (response === ok) {
-		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'deploymentConflictReset' });
-		await resetConsole(accessToken, armEndpoint);
-		return retry();
-	}
-	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'deploymentConflictCancel' });
+	const reset = response === ok;
+	reporter.sendTelemetryEvent('openCloudConsole', { outcome: reset ? 'deploymentConflictReset' : 'deploymentConflictCancel' });
+	return reset;
 }
 
 interface Token {
@@ -188,13 +247,6 @@ async function acquireToken(session: AzureSession) {
 			}
 		});
 	});
-}
-
-function delayed(fun: () => void, delay: number) {
-	const handle = setTimeout(fun, delay);
-	return {
-		cancel: () => clearTimeout(handle)
-	}
 }
 
 export interface ExecResult {

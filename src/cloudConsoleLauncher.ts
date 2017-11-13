@@ -1,5 +1,7 @@
 import * as request from 'request-promise';
 import * as WS from 'ws';
+import * as http from 'http';
+import { sendData, readJSON } from './ipc';
 
 const consoleApiVersion = '2017-08-01-preview';
 
@@ -251,16 +253,25 @@ async function delay(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-async function runInTerminal(accessToken: string, consoleUri: string) {
+export function main() {
 	process.stdin.setRawMode!(true);
 	process.stdin.resume();
 
-	return connectTerminal(accessToken, consoleUri);
-}
-
-export function main() {
-	const accessToken = process.env.CLOUD_CONSOLE_ACCESS_TOKEN!;
-	const consoleUri = process.env.CLOUD_CONSOLE_URI!;
-	runInTerminal(accessToken, consoleUri)
+	const ipcHandle = process.env.CLOUD_CONSOLE_IPC!;
+	(async () => {
+		let res: http.IncomingMessage;
+		while (res = await sendData(ipcHandle, JSON.stringify([]))) {
+			for (const message of await readJSON<any>(res)) {
+				if (message.type === 'log') {
+					console.log(...message.args);
+				} else if (message.type === 'connect') {
+					connectTerminal(message.accessToken, message.consoleUri)
+						.catch(console.error);
+				} else if (message.type === 'exit') {
+					process.exit(message.code);
+				}
+			}
+		}
+	})()
 		.catch(console.error);
 }

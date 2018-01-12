@@ -197,12 +197,18 @@ export class AzureLoginHelper {
 
 	private async initialize() {
 		try {
+			const timing = false;
+			const start = Date.now();
 			const refreshToken = keytar && await keytar.getPassword(credentialsService, credentialsAccount);
+			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
 			if (refreshToken) {
 				this.beginLoggingIn();
 				const tokenResponse = await tokenFromRefreshToken(refreshToken);
+				timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
 				const tokenResponses = await tokensFromToken(tokenResponse);
+				timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
 				await this.updateSessions(tokenResponses);
+				timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
 			}
 		} catch (err) {
 			if (!(err instanceof AzureLoginError)) {
@@ -374,17 +380,16 @@ export class AzureLoginHelper {
 	}
 
 	private async loadSubscriptions() {
-		const subscriptions: AzureSubscription[] = [];
-		for (const session of this.api.sessions) {
+		const lists = await Promise.all(this.api.sessions.map(session => {
 			const credentials = session.credentials;
 			const client = new SubscriptionClient(credentials);
-			const list = await listAll(client.subscriptions, client.subscriptions.list());
-			const items = list.map(subscription => ({
-				session,
-				subscription,
-			}));
-			subscriptions.push(...items);
-		}
+			return listAll(client.subscriptions, client.subscriptions.list())
+				.then(list => list.map(subscription => ({
+					session,
+					subscription,
+				})));
+		}));
+		const subscriptions = (<AzureSubscription[]>[]).concat(...lists);
 		subscriptions.sort((a, b) => a.subscription.displayName!.localeCompare(b.subscription.displayName!));
 		return subscriptions;
 	}
@@ -522,19 +527,17 @@ async function tokenFromRefreshToken(refreshToken: string, tenantId = commonTena
 }
 
 async function tokensFromToken(firstTokenResponse: TokenResponse) {
-	const tokenResponses = [firstTokenResponse];
 	const tokenCache = new MemoryCache();
 	await addTokenToCache(tokenCache, firstTokenResponse);
 	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache });
 	const client = new SubscriptionClient(credentials);
 	const tenants = await listAll(client.tenants, client.tenants.list());
-	for (const tenant of tenants) {
-		if (tenant.tenantId !== firstTokenResponse.tenantId) {
-			const tokenResponse = await tokenFromRefreshToken(firstTokenResponse.refreshToken, tenant.tenantId);
-			tokenResponses.push(tokenResponse);
+	return Promise.all(tenants.map(tenant => {
+		if (tenant.tenantId === firstTokenResponse.tenantId) {
+			return firstTokenResponse;
 		}
-	}
-	return tokenResponses;
+		return tokenFromRefreshToken(firstTokenResponse.refreshToken, tenant.tenantId);
+	}));
 }
 
 async function addTokenToCache(tokenCache: any, tokenResponse: TokenResponse) {

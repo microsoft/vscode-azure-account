@@ -101,7 +101,7 @@ export class AzureLoginHelper {
 	private onFiltersChanged = new EventEmitter<void>();
 
 	private tokenCache = new MemoryCache();
-	private oldResourceFilter: string;
+	private oldResourceFilter = '';
 
 	constructor(context: ExtensionContext) {
 		const subscriptions = context.subscriptions;

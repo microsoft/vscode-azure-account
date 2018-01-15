@@ -229,6 +229,7 @@ function connectSocket(url: string) {
 		process.stdin.on('data', function (data) {
 			ws.send(data);
 		});
+		startKeepAlive();
 	});
 
 	ws.on('message', function (data) {
@@ -247,6 +248,25 @@ function connectSocket(url: string) {
 			process.exit(0);
 		}
 	});
+	
+	function startKeepAlive() {
+		let isAlive = true;
+		ws.on('pong', () => {
+			isAlive = true;
+		});
+		const timer = setInterval(() => {
+			if (isAlive === false) {
+				error = true;
+				console.log('Socket timeout');
+				ws.terminate();
+				clearInterval(timer);
+			} else {
+				isAlive = false;
+				ws.ping();
+			}
+		}, 60000);
+		timer.unref();
+	}
 }
 
 async function delay(ms: number) {

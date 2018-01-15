@@ -10,7 +10,7 @@ const CacheDriver = require('adal-node/lib/cache-driver');
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
 import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
-import { SubscriptionClient } from 'azure-arm-resource';
+import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
 import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
@@ -73,7 +73,7 @@ interface AzureAccountWriteable extends AzureAccount {
 }
 
 class AzureLoginError extends Error {
-	constructor(message: string, public _reason: any) {
+	constructor(message: string, public reason?: any) {
 		super(message);
 	}
 }
@@ -86,6 +86,42 @@ interface SubscriptionItem extends QuickPickItem {
 
 interface SubscriptionActionItem extends QuickPickItem {
 	type: 'selectAll' | 'deselectAll' | 'noSubscriptions';
+}
+
+interface Cache {
+	subscriptions: {
+		session: {
+			environment: string;
+			userId: string;
+			tenantId: string;
+		};
+		subscription: SubscriptionModels.Subscription;
+	}[];
+}
+
+class ProxyTokenCache {
+
+	public initEnd?: () => void;
+	private init = new Promise(resolve => {
+		this.initEnd = resolve;
+	});
+
+	constructor(private target: any) {
+	}
+
+	remove(entries: any, callback: any) {
+		this.target.remove(entries, callback)
+	}
+
+	add(entries: any, callback: any) {
+		this.target.add(entries, callback)
+	}
+
+	find(query: any, callback: any) {
+		this.init.then(() => {
+			this.target.find(query, callback);
+		});
+	}
 }
 
 export class AzureLoginHelper {
@@ -101,17 +137,18 @@ export class AzureLoginHelper {
 	private onFiltersChanged = new EventEmitter<void>();
 
 	private tokenCache = new MemoryCache();
+	private delayedCache = new ProxyTokenCache(this.tokenCache);
 	private oldResourceFilter = '';
 
-	constructor(context: ExtensionContext) {
+	constructor(private context: ExtensionContext) {
 		const subscriptions = context.subscriptions;
 		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
-		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters().catch(console.error)));
-		subscriptions.push(workspace.onDidChangeConfiguration(() => this.updateFilters(true).catch(console.error)));
+		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
+		subscriptions.push(workspace.onDidChangeConfiguration(() => this.updateFilters(true)));
 		this.initialize()
 			.catch(console.error);
 
@@ -199,24 +236,52 @@ export class AzureLoginHelper {
 		try {
 			const timing = false;
 			const start = Date.now();
+			this.loadCache();
+			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
 			const refreshToken = keytar && await keytar.getPassword(credentialsService, credentialsAccount);
 			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
-			if (refreshToken) {
-				this.beginLoggingIn();
-				const tokenResponse = await tokenFromRefreshToken(refreshToken);
-				timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
-				const tokenResponses = await tokensFromToken(tokenResponse);
-				timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
-				await this.updateSessions(tokenResponses);
-				timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
+			if (!refreshToken) {
+				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
+			this.beginLoggingIn();
+			const tokenResponse = await tokenFromRefreshToken(refreshToken);
+			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
+			const tokenResponses = await tokensFromToken(tokenResponse);
+			timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
+			await this.updateSessions(tokenResponses);
+			timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
 		} catch (err) {
+			await this.updateSessions([]); // clear out cached data
 			if (!(err instanceof AzureLoginError)) {
 				throw err;
 			}
 		} finally {
 			this.updateStatus();
 		}
+	}
+
+	private loadCache() {
+		const cache = this.context.globalState.get<Cache>('cache');
+		if (cache) {
+			(<AzureAccountWriteable>this.api).status = 'LoggedIn';
+			const sessions = this.initializeSessions(cache);
+			const subscriptions = this.initializeSubscriptions(cache, sessions);
+			this.initializeFilters(subscriptions);
+		}
+	}
+
+	private updateCache() {
+		const cache: Cache = {
+			subscriptions: this.api.subscriptions.map(({ session, subscription }) => ({
+				session: {
+					environment: session.environment.name,
+					userId: session.userId,
+					tenantId: session.tenantId
+				},
+				subscription
+			}))
+		}
+		this.context.globalState.update('cache', cache);
 	}
 
 	private beginLoggingIn() {
@@ -234,17 +299,36 @@ export class AzureLoginHelper {
 		}
 	}
 
+	private initializeSessions(cache: Cache) {
+		const sessions: Record<string, AzureSession> = {};
+		for (const { session } of cache.subscriptions) {
+			const { environment, userId, tenantId } = session;
+			const key = `${environment} ${userId} ${tenantId}`;
+			if (!sessions[key]) {
+				sessions[key] = {
+					environment: (<any>AzureEnvironment) [environment],
+					userId,
+					tenantId,
+					credentials: new DeviceTokenCredentials({ username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId })
+				};
+				this.api.sessions.push(sessions[key]);
+			}
+		}
+		return sessions;
+	}
+
 	private async updateSessions(tokenResponses: TokenResponse[]) {
 		await clearTokenCache(this.tokenCache);
 		for (const tokenResponse of tokenResponses) {
 			await addTokenToCache(this.tokenCache, tokenResponse);
 		}
+		this.delayedCache.initEnd!();
 		const sessions = this.api.sessions;
 		sessions.splice(0, sessions.length, ...tokenResponses.map<AzureSession>(tokenResponse => ({
 			environment: defaultEnvironment,
 			userId: tokenResponse.userId,
 			tenantId: tokenResponse.tenantId,
-			credentials: new DeviceTokenCredentials({ username: tokenResponse.userId, clientId, tokenCache: this.tokenCache, domain: tokenResponse.tenantId })
+			credentials: new DeviceTokenCredentials({ username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId })
 		})));
 		this.onSessionsChanged.fire();
 	}
@@ -257,10 +341,25 @@ export class AzureLoginHelper {
 		return true;
 	}
 
+	private initializeSubscriptions(cache: Cache, sessions: Record<string, AzureSession>) {
+		const subscriptions = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
+			const { environment, userId, tenantId } = session;
+			const key = `${environment} ${userId} ${tenantId}`;
+			return {
+				session: sessions[key],
+				subscription
+			};
+		});
+		this.subscriptions = Promise.resolve(subscriptions);
+		this.api.subscriptions.push(...subscriptions);
+		return subscriptions;
+	}
+
 	private async updateSubscriptions() {
 		await this.api.waitForLogin();
 		this.subscriptions = this.loadSubscriptions();
 		this.api.subscriptions.splice(0, this.api.subscriptions.length, ...await this.subscriptions);
+		this.updateCache();
 		this.onSubscriptionsChanged.fire();
 	}
 
@@ -428,31 +527,44 @@ export class AzureLoginHelper {
 		await azureConfig.update('resourceFilter', resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
 	}
 
-	private async updateFilters(configChange = false) {
+	private initializeFilters(subscriptions: AzureSubscription[]) {
 		const azureConfig = workspace.getConfiguration('azure');
-		let resourceFilter = azureConfig.get<string[]>('resourceFilter');
+		const resourceFilter = azureConfig.get<string[]>('resourceFilter');
+		this.oldResourceFilter = JSON.stringify(resourceFilter);
+		const newFilters = this.newFilters(subscriptions, resourceFilter);
+		this.filters = Promise.resolve(newFilters);
+		this.api.filters.push(...newFilters);
+	}
+
+	private updateFilters(configChange = false) {
+		const azureConfig = workspace.getConfiguration('azure');
+		const resourceFilter = azureConfig.get<string[]>('resourceFilter');
 		if (configChange && JSON.stringify(resourceFilter) === this.oldResourceFilter) {
 			return;
 		}
 		this.filters = (async () => {
 			await this.waitForSubscriptions();
-			this.oldResourceFilter = JSON.stringify(resourceFilter);
-			if (resourceFilter && !Array.isArray(resourceFilter)) {
-				resourceFilter = [];
-			}
-			const filters = resourceFilter && resourceFilter.reduce((f, s) => {
-				if (typeof s === 'string') {
-					f[s] = true;
-				}
-				return f;
-			}, <Record<string, boolean>>{});
-
 			const subscriptions = await this.subscriptions;
-			const newFilters: AzureResourceFilter[] = filters ? subscriptions.filter(s => filters[`${s.session.tenantId}/${s.subscription.subscriptionId}`]) : subscriptions;
+			this.oldResourceFilter = JSON.stringify(resourceFilter);
+			const newFilters = this.newFilters(subscriptions, resourceFilter);
 			this.api.filters.splice(0, this.api.filters.length, ...newFilters);
 			this.onFiltersChanged.fire();
 			return this.api.filters;
 		})();
+	}
+
+	private newFilters(subscriptions: AzureSubscription[], resourceFilter: string[] | undefined): AzureResourceFilter[] {
+		if (resourceFilter && !Array.isArray(resourceFilter)) {
+			resourceFilter = [];
+		}
+		const filters = resourceFilter && resourceFilter.reduce((f, s) => {
+			if (typeof s === 'string') {
+				f[s] = true;
+			}
+			return f;
+		}, <Record<string, boolean>>{});
+
+		return filters ? subscriptions.filter(s => filters[`${s.session.tenantId}/${s.subscription.subscriptionId}`]) : subscriptions;
 	}
 
 	private async waitForLogin() {

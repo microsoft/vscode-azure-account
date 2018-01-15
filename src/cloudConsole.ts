@@ -190,11 +190,11 @@ async function requiresSetUp(reporter: TelemetryReporter) {
 	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUp' });
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
 	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
-	const message = localize('azure-account.setUpInPortal', "First launch of Cloud Shell requires setup in the Azure portal (https://portal.azure.com).");
+	const message = localize('azure-account.setUpInWeb', "First launch of Cloud Shell requires setup in the web application (https://shell.azure.com).");
 	const response = await window.showInformationMessage(message, open, close);
 	if (response === open) {
 		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUpOpen' });
-		opn('https://portal.azure.com');
+		opn('https://shell.azure.com');
 	} else {
 		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUpCancel' });
 	}

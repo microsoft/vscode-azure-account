@@ -10,9 +10,9 @@ The Azure Account extension provides a single Azure sign-in and subscription fil
 | `Azure: Sign Out` | Sign out of your Azure subscription.
 | `Azure: Select Subscription` | Pick the set of subscriptions you want to work with. Extensions should respect this list and only show resources within the filtered subscriptions.
 | `Azure: Create an Account`  | If you don't have an Azure Account, you can [sign up](https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account) for one today and receive $200 in free credits.
-| `Azure: Open Bash in Cloud Shell`  | Open a new terminal running Bash in Cloud Shell.
-| `Azure: Open PowerShell in Cloud Shell`  | Open a new terminal running PowerShell in Cloud Shell.
-
+| `Azure: Open Bash in Cloud Shell`<sup>1</sup> | Open a new terminal running Bash in Cloud Shell.
+| `Azure: Open PowerShell in Cloud Shell`<sup>1</sup> | Open a new terminal running PowerShell in Cloud Shell.
+<sup>1</sup> On Windows: Requires Node.js 6 or later to be installed (https://nodejs.org).
 
 ## Contributing
 

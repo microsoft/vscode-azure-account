@@ -222,7 +222,7 @@ async function requiresNode(reporter: TelemetryReporter) {
 	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresNode' });
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
 	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
-	const message = localize('azure-account.requiresNode', "Opening a Cloud Shell currently requires Node.js 6 or later being installed (https://nodejs.org).");
+	const message = localize('azure-account.requiresNode', "Opening a Cloud Shell currently requires Node.js 6 or later to be installed (https://nodejs.org).");
 	const response = await window.showInformationMessage(message, open, close);
 	if (response === open) {
 		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresNodeOpen' });

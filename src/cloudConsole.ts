@@ -68,7 +68,13 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 					}
 				}
 
-				res.write(JSON.stringify(await queue.dequeue()));
+				let response = [];
+				try {
+					response = await queue.dequeue(60000);
+				} catch (err) {
+					// ignore timeout
+				}
+				res.write(JSON.stringify(response));
 				res.end();
 			});
 

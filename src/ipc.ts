@@ -109,7 +109,7 @@ export class Queue<T> {
 		}
 	}
 
-	public async dequeue() {
+	public async dequeue(timeout?: number) {
 		if (this.messages.length) {
 			const messages = this.messages;
 			this.messages = [];
@@ -120,6 +120,9 @@ export class Queue<T> {
 		}
 		return new Promise<T[]>((resolve, reject) => {
 			this.dequeueRequest = { resolve, reject };
+			if (typeof timeout === 'number') {
+				setTimeout(reject, timeout);
+			}
 		});
 	}
 }

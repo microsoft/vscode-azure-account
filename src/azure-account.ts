@@ -644,12 +644,17 @@ async function tokensFromToken(firstTokenResponse: TokenResponse) {
 	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache });
 	const client = new SubscriptionClient(credentials);
 	const tenants = await listAll(client.tenants, client.tenants.list());
-	return Promise.all(tenants.map(tenant => {
+	const responses = await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
 			return firstTokenResponse;
 		}
-		return tokenFromRefreshToken(firstTokenResponse.refreshToken, tenant.tenantId);
+		return tokenFromRefreshToken(firstTokenResponse.refreshToken, tenant.tenantId)
+			.catch(err => {
+				console.error(err instanceof AzureLoginError && err.reason ? err.reason : err);
+				return null;
+			});
 	}));
+	return <TokenResponse[]>responses.filter(r => r);
 }
 
 async function addTokenToCache(tokenCache: any, tokenResponse: TokenResponse) {

@@ -30,7 +30,7 @@ try {
 }
 
 const logVerbose = false;
-const defaultEnvironment = (<any>AzureEnvironment).Azure;
+const defaultEnvironment: AzureEnvironment = (<any>AzureEnvironment).Azure;
 const commonTenantId = 'common';
 const authorityHostUrl = defaultEnvironment.activeDirectoryEndpointUrl; // Testing: 'https://login.windows-ppe.net/'
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
@@ -624,11 +624,11 @@ async function deviceLogin2(deviceLogin: DeviceLogin) {
 	});
 }
 
-async function tokenFromRefreshToken(refreshToken: string, tenantId = commonTenantId) {
+export async function tokenFromRefreshToken(refreshToken: string, tenantId = commonTenantId, resource: string | null = null) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${authorityHostUrl}${tenantId}`, validateAuthority, tokenCache);
-		context.acquireTokenWithRefreshToken(refreshToken, clientId, null, function (err: any, tokenResponse: TokenResponse) {
+		context.acquireTokenWithRefreshToken(refreshToken, clientId, resource, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Acquiring token with refresh token failed"), err));
 			} else {

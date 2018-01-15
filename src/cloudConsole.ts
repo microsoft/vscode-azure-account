@@ -5,8 +5,9 @@
 
 import { window, commands, MessageItem } from 'vscode';
 import { AzureAccount, AzureSession } from './azure-account.api';
+import { tokenFromRefreshToken } from './azure-account';
 import { createServer, readJSON, Queue } from './ipc';
-import { getUserSettings, provisionConsole, Errors, resetConsole } from './cloudConsoleLauncher';
+import { getUserSettings, provisionConsole, Errors, resetConsole, AccessTokens } from './cloudConsoleLauncher';
 import * as nls from 'vscode-nls';
 import * as path from 'path';
 import * as opn from 'opn';
@@ -131,16 +132,27 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 				queue.push({ type: 'exit' });
 				return;
 			}
-
+			
 			// provision
+			const session = result.token.session;
 			const accessToken = result.token.accessToken;
-			const armEndpoint = result.token.session.environment.resourceManagerEndpointUrl;
+			const armEndpoint = session.environment.resourceManagerEndpointUrl;
 			const provision = async () => {
+				const [graphToken, keyVaultToken] = await Promise.all([
+					tokenFromRefreshToken(result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
+					tokenFromRefreshToken(result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix.substr(1)}`)
+				]);
+
 				const consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, os.id);
 				reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'provisioned' });
+				const accessTokens: AccessTokens = {
+					resource: accessToken,
+					graph: graphToken.accessToken,
+					keyVault: keyVaultToken.accessToken
+				};
 				queue.push({
 					type: 'connect',
-					accessToken: accessToken,
+					accessTokens,
 					consoleUri
 				});
 			}

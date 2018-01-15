@@ -19,6 +19,12 @@ export interface UserSettings {
 	storageProfile: any;
 }
 
+export interface AccessTokens {
+	resource: string;
+	graph: string;
+	keyVault: string;
+}
+
 export async function getUserSettings(accessToken: string, armEndpoint: string): Promise<UserSettings | undefined> {
 	const targetUri = `${armEndpoint}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
 	const response = await request({
@@ -113,11 +119,11 @@ export async function resetConsole(accessToken: string, armEndpoint: string) {
 	}
 }
 
-async function connectTerminal(accessToken: string, consoleUri: string) {
+async function connectTerminal(accessTokens: AccessTokens, consoleUri: string) {
 	console.log('Connecting terminal...');
 
 	for (let i = 0; i < 10; i++) {
-		const response = await initializeTerminal(accessToken, consoleUri);
+		const response = await initializeTerminal(accessTokens, consoleUri);
 
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.statusCode !== 503 && response.statusCode !== 504 && response.body && response.body.error) {
@@ -140,7 +146,7 @@ async function connectTerminal(accessToken: string, consoleUri: string) {
 		connectSocket(res.socketUri);
 
 		process.stdout.on('resize', () => {
-			resize(accessToken, consoleUri, termId)
+			resize(accessTokens, consoleUri, termId)
 				.catch(console.error);
 		});
 
@@ -150,7 +156,7 @@ async function connectTerminal(accessToken: string, consoleUri: string) {
 	console.log('Failed to connect to the terminal.');
 }
 
-async function initializeTerminal(accessToken: string, consoleUri: string) {
+async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string) {
 	const initialGeometry = getWindowSize();
 	return request({
 		uri: consoleUri + '/terminals?cols=' + initialGeometry.cols + '&rows=' + initialGeometry.rows,
@@ -158,13 +164,13 @@ async function initializeTerminal(accessToken: string, consoleUri: string) {
 		headers: {
 			'Content-Type': 'application/json',
 			'Accept': 'application/json',
-			'Authorization': `Bearer ${accessToken}`
+			'Authorization': `Bearer ${accessTokens.resource}`
 		},
 		simple: false,
 		resolveWithFullResponse: true,
 		json: true,
 		body: {
-			tokens: []
+			tokens: [accessTokens.graph, accessTokens.keyVault]
 		}
 	});
 }
@@ -179,7 +185,7 @@ function getWindowSize() {
 }
 
 let resizeToken = {};
-async function resize(accessToken: string, consoleUri: string, termId: string) {
+async function resize(accessTokens: AccessTokens, consoleUri: string, termId: string) {
 	const token = resizeToken = {};
 	await delay(300);
 
@@ -195,7 +201,7 @@ async function resize(accessToken: string, consoleUri: string, termId: string) {
 			headers: {
 				'Accept': 'application/json',
 				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${accessToken}`
+				'Authorization': `Bearer ${accessTokens.resource}`
 			},
 			simple: false,
 			resolveWithFullResponse: true,
@@ -248,7 +254,7 @@ function connectSocket(url: string) {
 			process.exit(0);
 		}
 	});
-	
+
 	function startKeepAlive() {
 		let isAlive = true;
 		ws.on('pong', () => {
@@ -285,7 +291,7 @@ export function main() {
 				if (message.type === 'log') {
 					console.log(...message.args);
 				} else if (message.type === 'connect') {
-					connectTerminal(message.accessToken, message.consoleUri)
+					connectTerminal(message.accessTokens, message.consoleUri)
 						.catch(console.error);
 				} else if (message.type === 'exit') {
 					process.exit(message.code);

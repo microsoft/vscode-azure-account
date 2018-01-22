@@ -271,6 +271,10 @@ export class AzureLoginHelper {
 	}
 
 	private updateCache() {
+		if (this.api.status !== 'LoggedIn') {
+			this.context.globalState.update('cache', undefined);
+			return;
+		}
 		const cache: Cache = {
 			subscriptions: this.api.subscriptions.map(({ session, subscription }) => ({
 				session: {

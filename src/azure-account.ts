@@ -246,6 +246,10 @@ export class AzureLoginHelper {
 			this.beginLoggingIn();
 			const tokenResponse = await tokenFromRefreshToken(refreshToken);
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
+			// For testing
+			if (workspace.getConfiguration('azure').get('testTokenFailure')) {
+				throw new AzureLoginError(localize('azure-account.testingAquiringTokenFailed', "Testing: Acquiring token failed"));
+			}
 			const tokenResponses = await tokensFromToken(tokenResponse);
 			timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
 			await this.updateSessions(tokenResponses);

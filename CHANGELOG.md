@@ -1,6 +1,14 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.3.0]
+- Cache subscriptions for faster startup
+- Improved progress indication when starting Cloud Shell
+- Bug fixes
+	- Ignore failing tenants when signing in
+	- Send ping on Cloud Shell websocket to keep alive
+	- Supply graph and key vault tokens to Cloud Shell
+
 ## [0.2.2]
 - Bug fix: Do not modify configuration object
 

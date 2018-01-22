@@ -38,6 +38,7 @@ export const OSes: Record<string, OS> = {
 
 export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter, os: OS) {
 	return () => {
+		let liveQueue: Queue<any> | undefined;
 		return (async function (): Promise<any> {
 
 			const isWindows = process.platform === 'win32';
@@ -107,11 +108,13 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 			});
 			const subscription = window.onDidCloseTerminal(t => {
 				if (t === terminal) {
+					liveQueue = undefined;
 					subscription.dispose();
 					ipc.dispose();
 				}
 			});
 			terminal.show();
+			liveQueue = queue;
 
 			if (loginStatus !== 'LoggedIn') {
 				queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
@@ -178,7 +181,12 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 				outcome: 'error',
 				message: String(err && err.message || err)
 			});
-			throw err;
+			if (liveQueue) {
+				console.error(err);
+				liveQueue.push({ type: 'log', args: [localize('azure-account.error', "Error: {0}", String(err && err.message || err))] });
+			} else {
+				throw err;
+			}
 		});
 	};
 }

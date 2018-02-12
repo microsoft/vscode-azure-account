@@ -1,5 +1,5 @@
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
-For Microsoft vscode-docker
+For Microsoft vscode-azure-account
  
 This project incorporates material from the projects listed below.  The original copyright notice 
 and the license under which Microsoft received such material are set out below. Microsoft reserves 

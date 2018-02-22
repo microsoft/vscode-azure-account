@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.3.1]
+- Support for ASAR in preparation for [Microsoft/vscode#36997](https://github.com/Microsoft/vscode/issues/36997)
+
 ## [0.3.0]
 - Cache subscriptions for faster startup
 - Improved progress indication when starting Cloud Shell

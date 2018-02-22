@@ -22,11 +22,20 @@ import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, Azur
 
 const localize = nls.loadMessageBundle();
 
-let keytar: typeof keytarType;
-try {
-	keytar = require(`${env.appRoot}/node_modules/keytar`)
-} catch (e) {
-	// Not available.
+const keytar = getNodeModule<typeof keytarType>('keytar');
+
+function getNodeModule<T>(moduleName: string): T | undefined {
+	try {
+		return require(`${env.appRoot}/node_modules.asar/${moduleName}`);
+	} catch (err) {
+		// Not in ASAR.
+	}
+	try {
+		return require(`${env.appRoot}/node_modules/${moduleName}`);
+	} catch (err) {
+		// Not available.
+	}
+	return undefined;
 }
 
 const logVerbose = false;
@@ -201,6 +210,11 @@ export class AzureLoginHelper {
 				await keytar.setPassword(credentialsService, credentialsAccount, refreshToken);
 			}
 			await this.updateSessions(tokenResponses);
+		} catch (err) {
+			if (err instanceof AzureLoginError && err.reason) {
+				console.error(err.reason);
+			}
+			throw err;
 		} finally {
 			this.updateStatus();
 		}

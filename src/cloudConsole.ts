@@ -36,6 +36,18 @@ export const OSes: Record<string, OS> = {
 	}
 };
 
+
+function sendTelemetryEvent(reporter: TelemetryReporter, outcome: string, message?: string) {
+	/* __GDPR__
+	   "openCloudConsole" : {
+		  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+	   }
+	 */
+	
+	reporter.sendTelemetryEvent('openCloudConsole', message ? { outcome, message } : { outcome });
+}
+
 export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter, os: OS) {
 	return () => {
 		let liveQueue: Queue<any> | undefined;
@@ -57,7 +69,7 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 
 			const loginStatus = await waitForLoginStatus(api);
 			if (loginStatus === 'LoggedOut') {
-				reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresLogin' });
+				sendTelemetryEvent(reporter, 'requiresLogin');
 				return commands.executeCommand('azure-account.askForLogin');
 			}
 
@@ -120,7 +132,7 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 				queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
 				if (!(await api.waitForLogin())) {
 					queue.push({ type: 'log', args: [localize('azure-account.loginNeeded', "Sign in needed.")] });
-					reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresLogin' });
+					sendTelemetryEvent(reporter, 'requiresLogin');
 					await commands.executeCommand('azure-account.askForLogin');
 					queue.push({ type: 'exit' });
 					return;
@@ -147,7 +159,7 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 				]);
 
 				const consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, os.id);
-				reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'provisioned' });
+				sendTelemetryEvent(reporter, 'provisioned');
 				const accessTokens: AccessTokens = {
 					resource: accessToken,
 					graph: graphToken.accessToken,
@@ -177,10 +189,7 @@ export function openCloudConsole(api: AzureAccount, reporter: TelemetryReporter,
 				}
 			}
 		})().catch(err => {
-			reporter.sendTelemetryEvent('openCloudConsole', {
-				outcome: 'error',
-				message: String(err && err.message || err)
-			});
+			sendTelemetryEvent(reporter, 'error', String(err && err.message || err));
 			if (liveQueue) {
 				console.error(err);
 				liveQueue.push({ type: 'log', args: [localize('azure-account.error', "Error: {0}", String(err && err.message || err))] });
@@ -213,41 +222,41 @@ async function findUserSettings(tokens: Token[]) {
 }
 
 async function requiresSetUp(reporter: TelemetryReporter) {
-	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUp' });
+	sendTelemetryEvent(reporter, 'requiresSetUp');
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
 	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
 	const message = localize('azure-account.setUpInWeb', "First launch of Cloud Shell requires setup in the web application (https://shell.azure.com).");
 	const response = await window.showInformationMessage(message, open, close);
 	if (response === open) {
-		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUpOpen' });
+		sendTelemetryEvent(reporter, 'requiresSetUpOpen');
 		opn('https://shell.azure.com');
 	} else {
-		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresSetUpCancel' });
+		sendTelemetryEvent(reporter, 'requiresSetUpCancel');
 	}
 }
 
 async function requiresNode(reporter: TelemetryReporter) {
-	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresNode' });
+	sendTelemetryEvent(reporter, 'requiresNode');
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
 	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
 	const message = localize('azure-account.requiresNode', "Opening a Cloud Shell currently requires Node.js 6 or later to be installed (https://nodejs.org).");
 	const response = await window.showInformationMessage(message, open, close);
 	if (response === open) {
-		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresNodeOpen' });
+		sendTelemetryEvent(reporter, 'requiresNodeOpen');
 		opn('https://nodejs.org');
 	} else {
-		reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'requiresNodeCancel' });
+		sendTelemetryEvent(reporter, 'requiresNodeCancel');
 	}
 }
 
 async function deploymentConflict(reporter: TelemetryReporter, os: OS) {
-	reporter.sendTelemetryEvent('openCloudConsole', { outcome: 'deploymentConflict' });
+	sendTelemetryEvent(reporter, 'deploymentConflict');
 	const ok: MessageItem = { title: localize('azure-account.ok', "OK") };
 	const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel"), isCloseAffordance: true };
 	const message = localize('azure-account.deploymentConflict', "Starting a {0} session will terminate all active {1} sessions. Any running processes in active {1} sessions will be terminated.", os.shellName, os.otherOS.shellName);
 	const response = await window.showWarningMessage(message, ok, cancel);
 	const reset = response === ok;
-	reporter.sendTelemetryEvent('openCloudConsole', { outcome: reset ? 'deploymentConflictReset' : 'deploymentConflictCancel' });
+	sendTelemetryEvent(reporter, reset ? 'deploymentConflictReset' : 'deploymentConflictCancel');
 	return reset;
 }
 

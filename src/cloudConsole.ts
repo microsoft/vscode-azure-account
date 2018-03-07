@@ -254,9 +254,8 @@ async function findUserSettings(tokens: Token[]) {
 async function requiresSetUp(reporter: TelemetryReporter) {
 	sendTelemetryEvent(reporter, 'requiresSetUp');
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
-	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
 	const message = localize('azure-account.setUpInWeb', "First launch of Cloud Shell requires setup in the web application (https://shell.azure.com).");
-	const response = await window.showInformationMessage(message, open, close);
+	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresSetUpOpen');
 		opn('https://shell.azure.com');
@@ -268,9 +267,8 @@ async function requiresSetUp(reporter: TelemetryReporter) {
 async function requiresNode(reporter: TelemetryReporter) {
 	sendTelemetryEvent(reporter, 'requiresNode');
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
-	const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
 	const message = localize('azure-account.requiresNode', "Opening a Cloud Shell currently requires Node.js 6 or later to be installed (https://nodejs.org).");
-	const response = await window.showInformationMessage(message, open, close);
+	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresNodeOpen');
 		opn('https://nodejs.org');
@@ -282,9 +280,8 @@ async function requiresNode(reporter: TelemetryReporter) {
 async function deploymentConflict(reporter: TelemetryReporter, os: OS) {
 	sendTelemetryEvent(reporter, 'deploymentConflict');
 	const ok: MessageItem = { title: localize('azure-account.ok', "OK") };
-	const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel"), isCloseAffordance: true };
 	const message = localize('azure-account.deploymentConflict', "Starting a {0} session will terminate all active {1} sessions. Any running processes in active {1} sessions will be terminated.", os.shellName, os.otherOS.shellName);
-	const response = await window.showWarningMessage(message, ok, cancel);
+	const response = await window.showWarningMessage(message, ok);
 	const reset = response === ok;
 	sendTelemetryEvent(reporter, reset ? 'deploymentConflictReset' : 'deploymentConflictCancel');
 	return reset;

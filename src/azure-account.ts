@@ -228,16 +228,15 @@ export class AzureLoginHelper {
 	async showDeviceCodeMessage(deviceLogin: DeviceLogin): Promise<any> {
 		const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
 		const open: MessageItem = { title: localize('azure-account.open', "Open") };
-		const close: MessageItem = { title: localize('azure-account.close', "Close"), isCloseAffordance: true };
 		const canCopy = process.platform !== 'linux' || (await exitCode('xclip', '-version')) === 0;
-		const response = await window.showInformationMessage(deviceLogin.message, canCopy ? copyAndOpen : open, close);
+		const response = await window.showInformationMessage(deviceLogin.message, canCopy ? copyAndOpen : open);
 		if (response === copyAndOpen) {
 			copypaste.copy(deviceLogin.userCode);
 			opn(deviceLogin.verificationUrl);
 		} else if (response === open) {
 			opn(deviceLogin.verificationUrl);
 			await this.showDeviceCodeMessage(deviceLogin);
-		} else if (response === close) {
+		} else {
 			return Promise.reject(null);
 		}
 	}
@@ -395,8 +394,7 @@ export class AzureLoginHelper {
 			return;
 		}
 		const login = { title: localize('azure-account.login', "Sign In") };
-		const cancel = { title: 'Cancel', isCloseAffordance: true };
-		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "Not signed in, sign in first."), login, cancel);
+		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "Not signed in, sign in first."), login);
 		return result === login && commands.executeCommand('azure-account.login');
 	}
 

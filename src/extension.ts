@@ -5,7 +5,6 @@
 
 import { window, ExtensionContext, commands } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
-import { openCloudConsole, OSes } from './cloudConsole';
 import { AzureAccount } from './azure-account.api';
 import { createReporter } from './telemetry';
 import * as opn from 'opn';
@@ -15,17 +14,29 @@ const localize = nls.loadMessageBundle();
 const enableLogging = false;
 
 export function activate(context: ExtensionContext) {
-	const azureLogin = new AzureLoginHelper(context);
+	const reporter = createReporter(context);
+	const azureLogin = new AzureLoginHelper(context, reporter);
 	if (enableLogging) {
 		logDiagnostics(context, azureLogin.api);
 	}
 	const subscriptions = context.subscriptions;
-	const reporter = createReporter(context);
 	subscriptions.push(createStatusBarItem(azureLogin.api));
 	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', openCloudConsole(azureLogin.api, reporter, OSes.Linux)));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', openCloudConsole(azureLogin.api, reporter, OSes.Windows)));
+	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
+	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
 	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
+}
+
+function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
+	const shell = api.experimental.createCloudShell(os);
+	const disposable = shell.onStatusChanged(handleStatus);
+	function handleStatus() {
+		if (shell.terminal) {
+			shell.terminal.show();
+			disposable.dispose();
+		}
+	}
+	handleStatus();
 }
 
 function logDiagnostics(context: ExtensionContext, api: AzureAccount) {

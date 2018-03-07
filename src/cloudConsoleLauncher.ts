@@ -119,7 +119,7 @@ export async function resetConsole(accessToken: string, armEndpoint: string) {
 	}
 }
 
-async function connectTerminal(accessTokens: AccessTokens, consoleUri: string) {
+async function connectTerminal(ipcHandle: string, accessTokens: AccessTokens, consoleUri: string) {
 	console.log('Connecting terminal...');
 
 	for (let i = 0; i < 10; i++) {
@@ -143,7 +143,7 @@ async function connectTerminal(accessTokens: AccessTokens, consoleUri: string) {
 		const termId = res.id;
 		// terminalIdleTimeout = res.idleTimeout || terminalIdleTimeout;
 
-		connectSocket(res.socketUri);
+		connectSocket(ipcHandle, res.socketUri);
 
 		process.stdout.on('resize', () => {
 			resize(accessTokens, consoleUri, termId)
@@ -154,6 +154,7 @@ async function connectTerminal(accessTokens: AccessTokens, consoleUri: string) {
 	}
 
 	console.log('Failed to connect to the terminal.');
+	await sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Disconnected' } ]));
 }
 
 async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string) {
@@ -227,7 +228,7 @@ async function resize(accessTokens: AccessTokens, consoleUri: string, termId: st
 	console.log('Failed to resize terminal.');
 }
 
-function connectSocket(url: string) {
+function connectSocket(ipcHandle: string, url: string) {
 
 	const ws = new WS(url);
 
@@ -236,6 +237,10 @@ function connectSocket(url: string) {
 			ws.send(data);
 		});
 		startKeepAlive();
+		sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Connected' } ]))
+			.catch(err => {
+				console.error(err);
+			});
 	});
 
 	ws.on('message', function (data) {
@@ -250,6 +255,10 @@ function connectSocket(url: string) {
 
 	ws.on('close', function () {
 		console.log('Socket closed');
+		sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Disconnected' } ]))
+			.catch(err => {
+				console.error(err);
+			});
 		if (!error) {
 			process.exit(0);
 		}
@@ -286,13 +295,19 @@ export function main() {
 	const ipcHandle = process.env.CLOUD_CONSOLE_IPC!;
 	(async () => {
 		let res: http.IncomingMessage;
-		while (res = await sendData(ipcHandle, JSON.stringify([]))) {
+		while (res = await sendData(ipcHandle, JSON.stringify([ { type: 'poll' } ]))) {
 			for (const message of await readJSON<any>(res)) {
 				if (message.type === 'log') {
 					console.log(...message.args);
 				} else if (message.type === 'connect') {
-					connectTerminal(message.accessTokens, message.consoleUri)
-						.catch(console.error);
+					connectTerminal(ipcHandle, message.accessTokens, message.consoleUri)
+						.catch(err => {
+							console.error(err);
+							sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Disconnected' } ]))
+								.catch(err => {
+									console.error(err);
+								});
+						});
 				} else if (message.type === 'exit') {
 					process.exit(message.code);
 				}

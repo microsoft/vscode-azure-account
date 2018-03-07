@@ -19,6 +19,8 @@ import * as cp from 'child_process';
 
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
+import { createCloudConsole } from './cloudConsole';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 const localize = nls.loadMessageBundle();
 
@@ -149,7 +151,7 @@ export class AzureLoginHelper {
 	private delayedCache = new ProxyTokenCache(this.tokenCache);
 	private oldResourceFilter = '';
 
-	constructor(private context: ExtensionContext) {
+	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
 		const subscriptions = context.subscriptions;
 		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
@@ -195,6 +197,9 @@ export class AzureLoginHelper {
 		filters: [],
 		onFiltersChanged: this.onFiltersChanged.event,
 		waitForFilters: () => this.waitForFilters(),
+		experimental: {
+			createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
+		}
 	};
 
 	async login() {

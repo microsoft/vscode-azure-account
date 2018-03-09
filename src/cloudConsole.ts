@@ -14,6 +14,8 @@ import * as opn from 'opn';
 import * as cp from 'child_process';
 import * as semver from 'semver';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { TenantDetailsClient } from './tenantDetailsClient';
+import { DeviceTokenCredentials } from 'ms-rest-azure';
 
 const localize = nls.loadMessageBundle();
 
@@ -165,8 +167,28 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			}
 		}
 
-		const tokens = await Promise.all(api.sessions.map(session => acquireToken(session)));
-		const result = await findUserSettings(tokens);
+		let token: Token;
+		if (api.sessions.length > 1) {
+			queue.push({ type: 'log', args: [localize('azure-account.selectDirectory', "Select directory...")] });
+			const tenantDetails = await Promise.all(api.sessions.map(session => fetchTenantDetails(session)));
+			const pick = await window.showQuickPick(tenantDetails.map(details => ({
+				label: details.tenantDetails.displayName,
+				description: details.tenantDetails.verifiedDomains.find(domain => domain.default)!.name,
+				session: details.session
+			})));
+			if (!pick) {
+				sendTelemetryEvent(reporter, 'noTenantPicked');
+				queue.push({ type: 'exit' });
+				state.status = 'Disconnected';
+				event.fire(state.status);
+				return;
+			}
+			token = await acquireToken(pick.session);
+		} else {
+			token = await acquireToken(api.sessions[0]);
+		}
+
+		const result = await findUserSettings(token);
 		if (!result) {
 			queue.push({ type: 'log', args: [localize('azure-account.setupNeeded', "Setup needed.")] });
 			await requiresSetUp(reporter);
@@ -242,19 +264,17 @@ async function waitForLoginStatus(api: AzureAccount) {
 	});
 }
 
-async function findUserSettings(tokens: Token[]) {
-	for (const token of tokens) {
-		const userSettings = await getUserSettings(token.accessToken, token.session.environment.resourceManagerEndpointUrl);
-		if (userSettings && userSettings.storageProfile) {
-			return { userSettings, token };
-		}
+async function findUserSettings(token: Token) {
+	const userSettings = await getUserSettings(token.accessToken, token.session.environment.resourceManagerEndpointUrl);
+	if (userSettings && userSettings.storageProfile) {
+		return { userSettings, token };
 	}
 }
 
 async function requiresSetUp(reporter: TelemetryReporter) {
 	sendTelemetryEvent(reporter, 'requiresSetUp');
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
-	const message = localize('azure-account.setUpInWeb', "First launch of Cloud Shell requires setup in the web application (https://shell.azure.com).");
+	const message = localize('azure-account.setUpInWeb', "First launch of Cloud Shell in a directory requires setup in the web application (https://shell.azure.com).");
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresSetUpOpen');
@@ -309,6 +329,16 @@ async function acquireToken(session: AzureSession) {
 			}
 		});
 	});
+}
+
+async function fetchTenantDetails(session: AzureSession) {
+	const { username, clientId, tokenCache, domain } = <any>session.credentials;
+	const graphCredentials = new DeviceTokenCredentials({ username, clientId, tokenCache, domain, tokenAudience: 'graph' });
+	const client = new TenantDetailsClient(graphCredentials, session.tenantId);
+	return {
+		session,
+		tenantDetails: (await client.details.get()).value[0]
+	};
 }
 
 export interface ExecResult {

@@ -1,6 +1,12 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.3.2]
+- Let the user pick the tenant to open a Cloud Shell for ([#33](https://github.com/Microsoft/vscode-azure-account/issues/33))
+- Experimental API to create a Cloud Shell ([#34](https://github.com/Microsoft/vscode-azure-account/issues/34))
+- Remove extranous "Close" button ([#41](https://github.com/Microsoft/vscode-azure-account/issues/41))
+- Update moment.js
+
 ## [0.3.1]
 - Support for ASAR in preparation for [Microsoft/vscode#36997](https://github.com/Microsoft/vscode/issues/36997)
 

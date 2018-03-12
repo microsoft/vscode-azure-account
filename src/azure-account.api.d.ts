@@ -44,10 +44,11 @@ export interface AzureSubscription {
 
 export type AzureResourceFilter = AzureSubscription;
 
-export type CloudShellStatus = 'Initializing' | 'Failed' | 'Connecting' | 'Connected' | 'Disconnected';
+export type CloudShellStatus = 'Connecting' | 'Connected' | 'Disconnected';
 
 export interface CloudShell {
 	readonly status: CloudShellStatus;
 	readonly onStatusChanged: Event<CloudShellStatus>;
-	readonly terminal?: Terminal;
+	readonly terminal: Promise<Terminal>;
+	readonly session: Promise<AzureSession>;
 }

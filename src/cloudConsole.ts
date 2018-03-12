@@ -38,6 +38,11 @@ const OSes = {
 	}
 };
 
+interface Deferred<T> {
+	resolve: (result: T | Promise<T>) => void;
+	reject: (reason: any) => void;
+}
+
 
 function sendTelemetryEvent(reporter: TelemetryReporter, outcome: string, message?: string) {
 	/* __GDPR__
@@ -54,11 +59,22 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 	const os = OSes[osName];
 	let liveQueue: Queue<any> | undefined;
 	const event = new EventEmitter<CloudShellStatus>();
+	let deferredTerminal: Deferred<Terminal>;
+	let deferredSession: Deferred<AzureSession>;
 	const state = {
-		status: <CloudShellStatus>'initializing',
+		status: <CloudShellStatus>'Connecting',
 		onStatusChanged: event.event,
-		terminal: <Terminal | undefined>undefined
+		terminal: new Promise<Terminal>((resolve, reject) => deferredTerminal = { resolve, reject }),
+		session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
 	};
+	function updateStatus(status: CloudShellStatus) {
+		state.status = status;
+		event.fire(state.status);
+		if (status === 'Disconnected') {
+			deferredTerminal.reject(status);
+			deferredSession.reject(status);
+		}
+	}
 	(async function (): Promise<any> {
 
 		const isWindows = process.platform === 'win32';
@@ -68,13 +84,11 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				const { stdout } = await exec('node.exe --version');
 				const version = stdout[0] === 'v' && stdout.substr(1).trim();
 				if (version && semver.valid(version) && !semver.gte(version, '6.0.0')) {
-					state.status = 'Failed';
-					event.fire(state.status);
+					updateStatus('Disconnected');
 					return requiresNode(reporter);
 				}
 			} catch (err) {
-				state.status = 'Failed';
-				event.fire(state.status);
+				updateStatus('Disconnected');
 				return requiresNode(reporter);
 			}
 		}
@@ -82,8 +96,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		const loginStatus = await waitForLoginStatus(api);
 		if (loginStatus === 'LoggedOut') {
 			sendTelemetryEvent(reporter, 'requiresLogin');
-			state.status = 'Failed';
-			event.fire(state.status);
+			updateStatus('Disconnected');
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
@@ -97,8 +110,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				} else if (message.type === 'log') {
 					console.log(...message.args);
 				} else if (message.type === 'status') {
-					state.status = message.status;
-					event.fire(state.status);
+					updateStatus(message.status);
 				}
 			}
 
@@ -145,14 +157,11 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				liveQueue = undefined;
 				subscription.dispose();
 				ipc.dispose();
-				state.status = 'Disconnected';
-				event.fire(state.status);
+				updateStatus('Disconnected');
 			}
 		});
 		liveQueue = queue;
-		state.status = 'Connecting';
-		state.terminal = terminal;
-		event.fire(state.status);
+		deferredTerminal!.resolve(terminal);
 
 		if (loginStatus !== 'LoggedIn') {
 			queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
@@ -161,8 +170,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				sendTelemetryEvent(reporter, 'requiresLogin');
 				await commands.executeCommand('azure-account.askForLogin');
 				queue.push({ type: 'exit' });
-				state.status = 'Disconnected';
-				event.fire(state.status);
+				updateStatus('Disconnected');
 				return;
 			}
 		}
@@ -179,8 +187,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			if (!pick) {
 				sendTelemetryEvent(reporter, 'noTenantPicked');
 				queue.push({ type: 'exit' });
-				state.status = 'Disconnected';
-				event.fire(state.status);
+				updateStatus('Disconnected');
 				return;
 			}
 			token = await acquireToken(pick.session);
@@ -193,10 +200,10 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			queue.push({ type: 'log', args: [localize('azure-account.setupNeeded', "Setup needed.")] });
 			await requiresSetUp(reporter);
 			queue.push({ type: 'exit' });
-			state.status = 'Disconnected';
-			event.fire(state.status);
+			updateStatus('Disconnected');
 			return;
 		}
+		deferredSession!.resolve(result.token.session);
 		
 		// provision
 		const session = result.token.session;
@@ -232,8 +239,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 					return provision();
 				} else {
 					queue.push({ type: 'exit' });
-					state.status = 'Disconnected';
-					event.fire(state.status);
+					updateStatus('Disconnected');
 					return;
 				}
 			} else {
@@ -242,8 +248,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		}
 	})().catch(err => {
 		console.error(err && err.stack || err);
-		state.status = state.terminal ? 'Disconnected' : 'Failed';
-		event.fire(state.status);
+		updateStatus('Disconnected');
 		sendTelemetryEvent(reporter, 'error', String(err && err.message || err));
 		if (liveQueue) {
 			liveQueue.push({ type: 'log', args: [localize('azure-account.error', "Error: {0}", String(err && err.message || err))] });

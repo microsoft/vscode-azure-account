@@ -29,14 +29,7 @@ export function activate(context: ExtensionContext) {
 
 function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
 	const shell = api.experimental.createCloudShell(os);
-	const disposable = shell.onStatusChanged(handleStatus);
-	function handleStatus() {
-		if (shell.terminal) {
-			shell.terminal.show();
-			disposable.dispose();
-		}
-	}
-	handleStatus();
+	shell.terminal.then(terminal => terminal.show());
 }
 
 function logDiagnostics(context: ExtensionContext, api: AzureAccount) {

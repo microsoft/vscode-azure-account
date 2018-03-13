@@ -199,15 +199,17 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				return;
 			}
 		}
-
+		
 		let token: Token;
 		if (api.sessions.length > 1) {
 			queue.push({ type: 'log', args: [localize('azure-account.selectDirectory', "Select directory...")] });
-			const tenantDetails = await Promise.all(api.sessions.map(session => fetchTenantDetails(session)));
+			const tenantDetails = (await Promise.all(api.sessions.map(session => fetchTenantDetails(session)
+				.catch(err => console.error(err)))))
+				.filter(details => details);
 			const pick = await window.showQuickPick(tenantDetails.map(details => ({
-				label: details.tenantDetails.displayName,
-				description: details.tenantDetails.verifiedDomains.find(domain => domain.default)!.name,
-				session: details.session
+				label: details!.tenantDetails.displayName,
+				description: details!.tenantDetails.verifiedDomains.find(domain => domain.default)!.name,
+				session: details!.session
 			})));
 			if (!pick) {
 				sendTelemetryEvent(reporter, 'noTenantPicked');

@@ -55,6 +55,28 @@ function sendTelemetryEvent(reporter: TelemetryReporter, outcome: string, messag
 	reporter.sendTelemetryEvent('openCloudConsole', message ? { outcome, message } : { outcome });
 }
 
+async function waitForConnection(this: CloudShell) {
+	const handleStatus = () => {
+		switch(this.status) {
+			case 'Connecting':
+				return new Promise<boolean>(resolve => {
+					const subs = this.onStatusChanged(() => {
+						subs.dispose();
+						resolve(handleStatus());
+					});
+				});
+			case 'Connected':
+				return true;
+			case 'Disconnected':
+				return false;
+			default:
+				const status: never = this.status;
+				throw new Error(`Unexpected status '${status}'`);
+		}
+	};
+	return handleStatus();
+}
+
 export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporter, osName: keyof typeof OSes): CloudShell {
 	const os = OSes[osName];
 	let liveQueue: Queue<any> | undefined;
@@ -64,9 +86,12 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 	const state = {
 		status: <CloudShellStatus>'Connecting',
 		onStatusChanged: event.event,
+		waitForConnection,
 		terminal: new Promise<Terminal>((resolve, reject) => deferredTerminal = { resolve, reject }),
 		session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
 	};
+	state.terminal.catch(() => {}); // ignore
+	state.session.catch(() => {}); // ignore
 	function updateStatus(status: CloudShellStatus) {
 		state.status = status;
 		event.fire(state.status);

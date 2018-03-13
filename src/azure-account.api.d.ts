@@ -49,6 +49,7 @@ export type CloudShellStatus = 'Connecting' | 'Connected' | 'Disconnected';
 export interface CloudShell {
 	readonly status: CloudShellStatus;
 	readonly onStatusChanged: Event<CloudShellStatus>;
+	readonly waitForConnection: () => Promise<boolean>;
 	readonly terminal: Promise<Terminal>;
 	readonly session: Promise<AzureSession>;
 }

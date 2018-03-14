@@ -197,9 +197,7 @@ export class AzureLoginHelper {
 		filters: [],
 		onFiltersChanged: this.onFiltersChanged.event,
 		waitForFilters: () => this.waitForFilters(),
-		experimental: {
-			createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
-		}
+		createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
 	};
 
 	async login() {

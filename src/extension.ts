@@ -28,7 +28,7 @@ export function activate(context: ExtensionContext) {
 }
 
 function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
-	const shell = api.experimental.createCloudShell(os);
+	const shell = api.createCloudShell(os);
 	shell.terminal.then(terminal => terminal.show());
 }
 

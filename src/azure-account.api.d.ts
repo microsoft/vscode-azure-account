@@ -22,12 +22,7 @@ export interface AzureAccount {
 	readonly filters: AzureResourceFilter[];
 	readonly onFiltersChanged: Event<void>;
 	readonly waitForFilters: () => Promise<boolean>;
-	/**
-	 * Experimental API that is subject to change (#34).
-	 */
-	readonly experimental: {
-		createCloudShell(os: 'Linux' | 'Windows'): CloudShell;
-	}
+	createCloudShell(os: 'Linux' | 'Windows'): CloudShell;
 }
 
 export interface AzureSession {

@@ -67,7 +67,7 @@ function createStatusBarItem(api: AzureAccount) {
 	function updateStatusBar() {
 		switch (api.status) {
 			case 'LoggingIn':
-				statusBarItem.text = localize('azure-account.loggingIn', "Azure: Logging in...");
+				statusBarItem.text = localize('azure-account.loggingIn', "Azure: Signing in...");
 				statusBarItem.show();
 				break;
 			case 'LoggedIn':

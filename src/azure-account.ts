@@ -210,8 +210,8 @@ export class AzureLoginHelper {
 			let tokenResponse: TokenResponse;
 			try {
 				tokenResponse = await Promise.race([login2, message.then(() => login2), timeout]);
-			} catch (timeoutError) {
-				window.showErrorMessage("Timeout when signing in to Azure, please try again later.");
+			} catch (error) {
+				window.showErrorMessage("Failed to sign in, please try again later.");
 				return;
 			}
 			const refreshToken = tokenResponse.refreshToken;

@@ -92,11 +92,7 @@ class AzureLoginError extends Error {
 interface SubscriptionItem extends QuickPickItem {
 	type: 'item';
 	subscription: AzureSubscription;
-	selected: boolean;
-}
-
-interface SubscriptionActionItem extends QuickPickItem {
-	type: 'selectAll' | 'deselectAll' | 'noSubscriptions';
+	picked: boolean;
 }
 
 interface Cache {
@@ -407,79 +403,23 @@ export class AzureLoginHelper {
 
 		const subscriptions = this.subscriptions
 			.then(list => this.asSubscriptionItems(list, resourceFilter));
-		const items = subscriptions.then(list => {
-			if (!list.length) {
-				return [
-					<SubscriptionActionItem>{
-						type: 'noSubscriptions',
-						label: localize('azure-account.noSubscriptionsSignUpFree', "No subscriptions found, select to sign up for a free account."),
-						description: '',
-					}
-				];
+		const picks = await window.showQuickPick(subscriptions, { canPickMany: true, placeHolder: 'Select Subscriptions' });
+		if (picks) {
+			if (resourceFilter[0] === 'all') {
+				resourceFilter.splice(0, 1);
+				for (const subscription of await subscriptions) {
+					this.addFilter(resourceFilter, subscription);
+				}
 			}
-			return [
-				<SubscriptionActionItem>{
-					type: 'selectAll',
-					get label() {
-						const selected = resourceFilter[0] === 'all' || !list.find(item => {
-							const { session, subscription } = item.subscription;
-							return resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`) === -1;
-						});
-						return `${getCheckmark(selected)} Select All`;
-					},
-					description: '',
-				},
-				<SubscriptionActionItem>{
-					type: 'deselectAll',
-					get label() {
-						return `${getCheckmark(!resourceFilter.length)} Deselect All`;
-					},
-					description: '',
-				},
-				...list
-			];
-		});
-		for (let pick = await window.showQuickPick(items); pick; pick = await window.showQuickPick(items)) {
-			if (pick.type === 'noSubscriptions') {
-				commands.executeCommand('azure-account.createAccount');
-				break;
-			}
-			changed = true;
-			switch (pick.type) {
-				case 'selectAll':
-					if (resourceFilter[0] !== 'all') {
-						for (const subscription of await subscriptions) {
-							if (subscription.selected) {
-								this.removeFilter(resourceFilter, subscription);
-							}
-						}
-						resourceFilter.push('all');
-					}
-					break;
-				case 'deselectAll':
-					if (resourceFilter[0] === 'all') {
-						resourceFilter.splice(0, 1);
+			for (const subscription of await subscriptions) {
+				if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
+					changed = true;
+					if (subscription.picked) {
+						this.removeFilter(resourceFilter, subscription);
 					} else {
-						for (const subscription of await subscriptions) {
-							if (subscription.selected) {
-								this.removeFilter(resourceFilter, subscription);
-							}
-						}
+						this.addFilter(resourceFilter, subscription);
 					}
-					break;
-				case 'item':
-					if (resourceFilter[0] === 'all') {
-						resourceFilter.splice(0, 1);
-						for (const subscription of await subscriptions) {
-							this.addFilter(resourceFilter, subscription);
-						}
-					}
-					if (pick.selected) {
-						this.removeFilter(resourceFilter, pick);
-					} else {
-						this.addFilter(resourceFilter, pick);
-					}
-					break;
+				}
 			}
 		}
 
@@ -491,14 +431,14 @@ export class AzureLoginHelper {
 	private addFilter(resourceFilter: string[], item: SubscriptionItem) {
 		const { session, subscription } = item.subscription;
 		resourceFilter.push(`${session.tenantId}/${subscription.subscriptionId}`);
-		item.selected = true;
+		item.picked = true;
 	}
 
 	private removeFilter(resourceFilter: string[], item: SubscriptionItem) {
 		const { session, subscription } = item.subscription;
 		const remove = resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`);
 		resourceFilter.splice(remove, 1);
-		item.selected = false;
+		item.picked = false;
 	}
 
 	private async loadSubscriptions() {
@@ -518,19 +458,13 @@ export class AzureLoginHelper {
 
 	private asSubscriptionItems(subscriptions: AzureSubscription[], resourceFilter: string[]): SubscriptionItem[] {
 		return subscriptions.map(subscription => {
-			const selected = resourceFilter.indexOf(`${subscription.session.tenantId}/${subscription.subscription.subscriptionId}`) !== -1;
+			const picked = resourceFilter.indexOf(`${subscription.session.tenantId}/${subscription.subscription.subscriptionId}`) !== -1 || resourceFilter[0] === 'all';
 			return <SubscriptionItem>{
 				type: 'item',
-				get label() {
-					let selected = this.selected;
-					if (!selected) {
-						selected = resourceFilter[0] === 'all';
-					}
-					return `${getCheckmark(selected)} ${this.subscription.subscription.displayName}`;
-				},
+				label: subscription.subscription.displayName,
 				description: subscription.subscription.subscriptionId!,
 				subscription,
-				selected,
+				picked,
 			};
 		});
 	}
@@ -730,13 +664,6 @@ export async function listAll<T>(client: { listNext(nextPageLink: string): Promi
 		all.push(...list);
 	}
 	return all;
-}
-
-function getCheckmark(selected: boolean) {
-	// Check box: '\u2611' : '\u2610'
-	// Check mark: '\u2713' : '\u2003'
-	// Check square: '\u25A3' : '\u25A1'
-	return selected ? '\u2713' : '\u2003';
 }
 
 async function exitCode(command: string, ...args: string[]) {

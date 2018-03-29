@@ -206,14 +206,7 @@ export class AzureLoginHelper {
 			const deviceLogin = await deviceLogin1();
 			const message = this.showDeviceCodeMessage(deviceLogin);
 			const login2 = deviceLogin2(deviceLogin);
-			const timeout = new Promise((resolve: (value?: TokenResponse) => void, reject) => {setTimeout(reject, 3 * 60 * 1000)}); // 3 minutes
-			let tokenResponse: TokenResponse;
-			try {
-				tokenResponse = await Promise.race([login2, message.then(() => login2), timeout]);
-			} catch (error) {
-				window.showErrorMessage("Failed to sign in, please try again later.");
-				return;
-			}
+			const tokenResponse = await Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
 			const refreshToken = tokenResponse.refreshToken;
 			const tokenResponses = await tokensFromToken(tokenResponse);
 			if (keytar) {
@@ -752,4 +745,8 @@ async function exitCode(command: string, ...args: string[]) {
 			.on('error', err => resolve())
 			.on('exit', code => resolve(code));
 	});
+}
+
+function timeout(ms: number) {
+	return new Promise<never>((resolve, reject) => setTimeout(() => reject('timeout'), ms));
 }

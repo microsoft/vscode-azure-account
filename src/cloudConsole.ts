@@ -118,13 +118,6 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			}
 		}
 
-		const loginStatus = await waitForLoginStatus(api);
-		if (loginStatus === 'LoggedOut') {
-			sendTelemetryEvent(reporter, 'requiresLogin');
-			updateStatus('Disconnected');
-			return commands.executeCommand('azure-account.askForLogin');
-		}
-
 		// ipc
 		const queue = new Queue<any>();
 		const ipc = await createServer('vscode-cloud-console', async (req, res) => {
@@ -188,15 +181,20 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		liveQueue = queue;
 		deferredTerminal!.resolve(terminal);
 
+		const loginStatus = await waitForLoginStatus(api);
 		if (loginStatus !== 'LoggedIn') {
-			queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
+			if (loginStatus === 'LoggingIn') {
+				queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
+			}
 			if (!(await api.waitForLogin())) {
 				queue.push({ type: 'log', args: [localize('azure-account.loginNeeded', "Sign in needed.")] });
 				sendTelemetryEvent(reporter, 'requiresLogin');
 				await commands.executeCommand('azure-account.askForLogin');
-				queue.push({ type: 'exit' });
-				updateStatus('Disconnected');
-				return;
+				if (!(await api.waitForLogin())) {
+					queue.push({ type: 'exit' });
+					updateStatus('Disconnected');
+					return;
+				}
 			}
 		}
 		

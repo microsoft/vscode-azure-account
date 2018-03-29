@@ -118,11 +118,14 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			}
 		}
 
-		const loginStatus = await waitForLoginStatus(api);
-		if (loginStatus === 'LoggedOut') {
+		if (!await api.waitForLogin()) {
 			sendTelemetryEvent(reporter, 'requiresLogin');
 			updateStatus('Disconnected');
-			return commands.executeCommand('azure-account.askForLogin');
+			await commands.executeCommand('azure-account.askForLogin');
+			if (!(await api.waitForLogin())) {
+				sendTelemetryEvent(reporter, 'loginFailed');
+				return;
+			}
 		}
 
 		// ipc
@@ -188,6 +191,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		liveQueue = queue;
 		deferredTerminal!.resolve(terminal);
 
+		const loginStatus = await waitForLoginStatus(api);
 		if (loginStatus !== 'LoggedIn') {
 			queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
 			if (!(await api.waitForLogin())) {

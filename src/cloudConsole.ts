@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, commands, MessageItem, EventEmitter, Terminal } from 'vscode';
-import { AzureAccount, AzureSession, CloudShell, CloudShellStatus } from './azure-account.api';
+import { AzureAccount, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
 import { tokenFromRefreshToken } from './azure-account';
 import { createServer, readJSON, Queue } from './ipc';
-import { getUserSettings, provisionConsole, Errors, resetConsole, AccessTokens } from './cloudConsoleLauncher';
+import { getUserSettings, provisionConsole, Errors, resetConsole, AccessTokens, connectTerminal, ConsoleUris } from './cloudConsoleLauncher';
 import * as nls from 'vscode-nls';
 import * as path from 'path';
 import * as opn from 'opn';
@@ -16,6 +16,10 @@ import * as semver from 'semver';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { TenantDetailsClient } from './tenantDetailsClient';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
+import { ReadStream } from 'fs';
+import * as FormData from 'form-data';
+import { parse } from 'url';
+import { Socket } from 'net';
 
 const localize = nls.loadMessageBundle();
 
@@ -25,7 +29,7 @@ interface OS {
 	otherOS: OS;
 }
 
-const OSes = {
+export const OSes = {
 	Linux: {
 		id: 'linux',
 		shellName: localize('azure-account.bash', "Bash"),
@@ -77,30 +81,113 @@ async function waitForConnection(this: CloudShell) {
 	return handleStatus();
 }
 
+function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
+	return async function(this: CloudShell, filename: string, stream: ReadStream, options: UploadOptions = {}) {
+		if (options.progress) {
+			options.progress.report({ message: localize('azure-account.connectingForUpload', "Connecting to upload '{0}'...", filename) });
+		}
+		const accessTokens = await tokens;
+		const { terminalUri } = await uris;
+		if (options.token && options.token.isCancellationRequested) {
+			throw 'canceled';
+		}
+		return new Promise<void>((resolve, reject) => {
+			const form = new FormData();
+			form.append('uploading-file', stream, {
+				filename,
+				knownLength: options.contentLength
+			});
+			const uri = parse(`${terminalUri}/upload`);
+			const req = form.submit({
+				protocol: <any>uri.protocol,
+				hostname: uri.hostname,
+				port: uri.port,
+				path: uri.path,
+				headers: {
+					'Authorization': `Bearer ${accessTokens.resource}`
+				},
+			}, (err, res) => {
+				if (err) {
+					reject(err);
+				} if (res && res.statusCode && (res.statusCode < 200 || res.statusCode > 299)) {
+					reject(`${res.statusMessage} (${res.statusCode})`)
+				} else {
+					resolve();
+				}
+				if (res) {
+					res.resume(); // Consume response.
+				}
+			});
+			if (options.token) {
+				options.token.onCancellationRequested(() => {
+					reject('canceled');
+					req.abort();
+				});
+			}
+			if (options.progress) {
+				req.on('socket', (socket: Socket) => {
+					options.progress!.report({
+						message: localize('azure-account.uploading', "Uploading '{0}'...", filename),
+						increment: 0
+					});
+					let previous = 0;
+					socket.on('drain', () => {
+						const total = req.getHeader('Content-Length') as number;
+						if (total) {
+							const worked = Math.min(Math.round(100 * socket.bytesWritten / total), 100);
+							const increment = worked - previous;
+							if (increment) {
+								options.progress!.report({
+									message: localize('azure-account.uploading', "Uploading '{0}'...", filename),
+									increment
+								});
+							}
+							previous = worked;
+						}
+					});
+				});
+			}
+		});
+	}
+}
+
+export const shells: CloudShell[] = [];
+
 export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporter, osName: keyof typeof OSes): CloudShell {
 	const os = OSes[osName];
 	let liveQueue: Queue<any> | undefined;
 	const event = new EventEmitter<CloudShellStatus>();
 	let deferredTerminal: Deferred<Terminal>;
 	let deferredSession: Deferred<AzureSession>;
+	let deferredTokens: Deferred<AccessTokens>;
+	const tokensPromise = new Promise<AccessTokens>((resolve, reject) => deferredTokens = { resolve, reject });
+	let deferredUris: Deferred<ConsoleUris>;
+	const urisPromise = new Promise<ConsoleUris>((resolve, reject) => deferredUris = { resolve, reject });
 	const state = {
 		status: <CloudShellStatus>'Connecting',
 		onStatusChanged: event.event,
 		waitForConnection,
 		terminal: new Promise<Terminal>((resolve, reject) => deferredTerminal = { resolve, reject }),
 		session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
+		uploadFile: uploadFile(tokensPromise, urisPromise)
 	};
 	state.terminal.catch(() => {}); // ignore
 	state.session.catch(() => {}); // ignore
+	shells.push(state);
 	function updateStatus(status: CloudShellStatus) {
 		state.status = status;
 		event.fire(state.status);
 		if (status === 'Disconnected') {
 			deferredTerminal.reject(status);
 			deferredSession.reject(status);
+			deferredTokens.reject(status);
+			deferredUris.reject(status);
+			shells.splice(shells.indexOf(state), 1);
+			commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
 		}
 	}
 	(async function (): Promise<any> {
+		commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
 
 		const isWindows = process.platform === 'win32';
 		if (isWindows) {
@@ -234,27 +321,13 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		deferredSession!.resolve(result.token.session);
 		
 		// provision
+		let consoleUri: string;
 		const session = result.token.session;
 		const accessToken = result.token.accessToken;
 		const armEndpoint = session.environment.resourceManagerEndpointUrl;
 		const provision = async () => {
-			const [graphToken, keyVaultToken] = await Promise.all([
-				tokenFromRefreshToken(result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
-				tokenFromRefreshToken(result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix.substr(1)}`)
-			]);
-
-			const consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, os.id);
+			consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, os.id);
 			sendTelemetryEvent(reporter, 'provisioned');
-			const accessTokens: AccessTokens = {
-				resource: accessToken,
-				graph: graphToken.accessToken,
-				keyVault: keyVaultToken.accessToken
-			};
-			queue.push({
-				type: 'connect',
-				accessTokens,
-				consoleUri
-			});
 		}
 		try {
 			queue.push({ type: 'log', args: [localize('azure-account.requestingCloudConsole', "Requesting a Cloud Shell...")] });
@@ -274,6 +347,34 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				throw err;
 			}
 		}
+
+		// Additional tokens
+		const [graphToken, keyVaultToken] = await Promise.all([
+			tokenFromRefreshToken(result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
+			tokenFromRefreshToken(result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix.substr(1)}`)
+		]);
+		const accessTokens: AccessTokens = {
+			resource: accessToken,
+			graph: graphToken.accessToken,
+			keyVault: keyVaultToken.accessToken
+		};
+		deferredTokens!.resolve(accessTokens);
+
+		// Connect to terminal
+		const connecting = localize('azure-account.connectingTerminal', "Connecting terminal...");
+		queue.push({ type: 'log', args: [connecting] });
+		const progress = (i: number) => {
+			queue.push({ type: 'log', args: [`\x1b[A${connecting}${'.'.repeat(i)}`] });
+		};
+		const consoleUris = await connectTerminal(accessTokens, consoleUri!, progress);
+		deferredUris!.resolve(consoleUris);
+
+		// Connect to WebSocket
+		queue.push({
+			type: 'connect',
+			accessTokens,
+			consoleUris
+		});
 	})().catch(err => {
 		console.error(err && err.stack || err);
 		updateStatus('Disconnected');

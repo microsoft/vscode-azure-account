@@ -80,7 +80,7 @@
           "group": "999_cloudConsole"
         }
       ],
-      "editor/context": [
+      "editor/title/context": [
         {
           "command": "azure-account.uploadFileCloudConsole",
           "when": "resourceScheme == file && openCloudConsoleCount && openCloudConsoleCount != 0",

@@ -1,6 +1,12 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.4.0]
+- Add command to upload files to Cloud Shell
+- Use multi-select picker for subscription filter ([Microsoft/vscode#45589](https://github.com/Microsoft/vscode/issues/45589)).
+- Add timeout in promise race ([#46](https://github.com/Microsoft/vscode-azure-account/pull/46)).
+- Keep going after signing in ([#45](https://github.com/Microsoft/vscode-azure-account/issues/45)).
+
 ## [0.3.3]
 - Robustness against tenant details not resolving ([#33](https://github.com/Microsoft/vscode-azure-account/issues/33)).
 - Promote API to create a Cloud Shell ([#34](https://github.com/Microsoft/vscode-azure-account/issues/34)).

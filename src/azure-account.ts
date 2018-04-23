@@ -25,6 +25,7 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 const localize = nls.loadMessageBundle();
 
 const keytar = getNodeModule<typeof keytarType>('keytar');
+var selectedEnvironment : AzureEnvironment;
 
 function getNodeModule<T>(moduleName: string): T | undefined {
 	try {
@@ -40,14 +41,49 @@ function getNodeModule<T>(moduleName: string): T | undefined {
 	return undefined;
 }
 
+//List of environment names for user to choose from
+function getEnvironmentList(): string[] {
+	var list : string[];
+	list = ["Azure", "Azure US Government", "Azure China", "Azure Germany"];
+	return list;
+}
+
+//Returns AzureEnvironment that use has chosen
+function getEnvironment(name : string): any | undefined {
+	var environmentList : { [selectedname: string]: any} = {};
+	environmentList["Azure"] = (<any>AzureEnvironment).Azure;
+	environmentList["Azure US Government"] = (<any>AzureEnvironment).AzureUSGovernment;
+	environmentList["Azure China"] = (<any>AzureEnvironment).AzureChina;
+	environmentList["Azure Germany"] = (<any>AzureEnvironment).AzureGermanCloud;
+	if (name) {
+		return environmentList[name];
+	} else {
+		return environmentList["Azure"];
+	}
+}
+
+//placeholder for selectedEnvironment
+selectedEnvironment = (<any>AzureEnvironment).Azure;
+
+//check if setenvironment exists in keytar
+if(keytar.findPassword("storedEnvironment") == null){
+	keytar.setPassword("storedEnvironment", "current", "Azure");
+}
+
+//set selectedenvironment to current saved in keytar
+var storedenv = keytar.getPassword("storedEnvironment", "current");
+storedenv.then(function(env) {
+    selectedEnvironment = getEnvironment(env);
+});
+vscode.window.setStatusBarMessage("Current Azure Environment: " + selectedEnvironment.name);
+
 const logVerbose = false;
 const commonTenantId = 'common';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
 const validateAuthority = true;
 
-const credentialsService = 'VSCode Public Azure';
+const credentialsService = selectedEnvironment.name;
 const credentialsAccount = 'Refresh Token';
-var selectedEnvironment : AzureEnvironment;
 
 interface DeviceLogin {
 	userCode: string;
@@ -248,11 +284,13 @@ export class AzureLoginHelper {
 
 	async setEnvironment(): Promise<any>{
 		let selected = await vscode.window.showQuickPick(AzureLoginHelper.getEnvironmentList());
-		//sets environment to user selection, if none then default is public
+		//sets environment to user selection and updates keytar, if none then default is public
 		if (selected) {
-			selectedEnvironment = AzureLoginHelper.getEnvironment(selected);//(<any>AzureEnvironment).AzureUSGovernment;
+			selectedEnvironment = AzureLoginHelper.getEnvironment(selected);
+			keytar.setPassword("storedEnvironment", "current", selected);
 		} else {
 			selectedEnvironment = (<any>AzureEnvironment).Azure;
+			keytar.setPassword("storedEnvironment", "current", "Azure");
 		}
 		vscode.window.showInformationMessage("Set Azure Environment to: " + selected);
 		vscode.window.setStatusBarMessage("Current Azure Environment: " + selected);
@@ -287,27 +325,6 @@ export class AzureLoginHelper {
 			}
 		} finally {
 			this.updateStatus();
-		}
-	}
-
-	//List of environment names for user to choose from
-	private static getEnvironmentList(): string[] {
-		var list : string[];
-		list = ["Azure", "Azure US Government", "Azure China", "Azure Germany"];
-		return list;
-	}
-
-	//Returns AzureEnvironment that user has chosen
-	private static getEnvironment(name?: string): any | undefined {
-		var environmentList : { [selectedname: string]: any} = {};
-		environmentList["Azure"] = (<any>AzureEnvironment).Azure;
-		environmentList["Azure US Government"] = (<any>AzureEnvironment).AzureUSGovernment;
-		environmentList["Azure China"] = (<any>AzureEnvironment).AzureChina;
-		environmentList["Azure Germany"] = (<any>AzureEnvironment).AzureGermanCloud;
-		if (name) {
-			return environmentList[name];
-		} else {
-			return environmentList["Azure"];
 		}
 	}
 

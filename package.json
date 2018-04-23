@@ -12,11 +12,11 @@
     "color": "#1289B9",
     "theme": "dark"
   },
-  "version": "0.3.3",
+  "version": "0.4.0",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "publisher": "ms-vscode",
   "engines": {
-    "vscode": "^1.21.0"
+    "vscode": "^1.22.0"
   },
   "categories": [
     "Azure"
@@ -31,7 +31,8 @@
     "onCommand:azure-account.selectSubscriptions",
     "onCommand:azure-account.createAccount",
     "onCommand:azure-account.openCloudConsoleLinux",
-    "onCommand:azure-account.openCloudConsoleWindows"
+    "onCommand:azure-account.openCloudConsoleWindows",
+    "onCommand:azure-account.uploadFileCloudConsole"
   ],
   "main": "./out/src/extension",
   "contributes": {
@@ -70,8 +71,29 @@
         "command": "azure-account.openCloudConsoleWindows",
         "title": "%azure-account.commands.openCloudConsoleWindows%",
         "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.uploadFileCloudConsole",
+        "title": "%azure-account.commands.uploadFileCloudConsole%",
+        "category": "%azure-account.commands.azure%"
       }
     ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "azure-account.uploadFileCloudConsole",
+          "when": "resourceScheme == file && !explorerResourceIsFolder && openCloudConsoleCount && openCloudConsoleCount != 0",
+          "group": "999_cloudConsole"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "azure-account.uploadFileCloudConsole",
+          "when": "resourceScheme == file && openCloudConsoleCount && openCloudConsoleCount != 0",
+          "group": "999_cloudConsole"
+        }
+      ]
+    },
     "configuration": {
       "type": "object",
       "title": "Azure configuration",
@@ -92,19 +114,21 @@
   },
   "devDependencies": {
     "@types/copy-paste": "1.1.30",
+    "@types/form-data": "^2.2.1",
     "@types/keytar": "4.0.1",
     "@types/node": "8.0.26",
     "@types/opn": "3.0.28",
+    "@types/request": "2.0.7",
     "@types/request-promise": "4.1.37",
     "@types/semver": "5.4.0",
     "@types/ws": "3.0.2",
-    "@types/request": "2.0.7",
     "vscode": "1.1.6"
   },
   "dependencies": {
     "adal-node": "0.1.22",
     "azure-arm-resource": "2.0.0-preview",
     "copy-paste": "1.3.0",
+    "form-data": "^2.3.2",
     "ms-rest-azure": "2.4.4",
     "opn": "5.1.0",
     "request": "2.81.0",

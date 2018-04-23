@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, ExtensionContext, commands } from 'vscode';
+import { window, ExtensionContext, commands, ProgressLocation, Uri } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
 import { AzureAccount } from './azure-account.api';
 import { createReporter } from './telemetry';
 import * as opn from 'opn';
 import * as nls from 'vscode-nls';
+import { createReadStream } from 'fs';
+import { basename } from 'path';
+import { shells, OSes } from './cloudConsole';
 
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
@@ -24,12 +27,41 @@ export function activate(context: ExtensionContext) {
 	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
+	subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
 	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
 }
 
 function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
 	const shell = api.createCloudShell(os);
 	shell.terminal.then(terminal => terminal.show());
+	return shell;
+}
+
+function uploadFile(api: AzureAccount, uri?: Uri) {
+	(async () => {
+		let shell = shells[0];
+		if (!shell) {
+			const shellName = await window.showInformationMessage(localize('azure-account.uploadingRequiresOpenCloudConsole', "File upload requires an open Cloud Shell."), OSes.Linux.shellName, OSes.Windows.shellName);
+			if (!shellName) {
+				return;
+			}
+			shell = cloudConsole(api, shellName === OSes.Linux.shellName ? 'Linux' : 'Windows');
+		}
+		if (!uri) {
+			uri = (await window.showOpenDialog({}) || [])[0];
+		}
+		if (uri) {
+			const filename = basename(uri.fsPath);
+			return window.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('azure-account.uploading', "Uploading '{0}'...", filename),
+				cancellable: true
+			}, (progress, token) => {
+				return shell.uploadFile(filename, createReadStream(uri!.fsPath), { progress, token });
+			});
+		}
+	})()
+		.catch(console.error);
 }
 
 function logDiagnostics(context: ExtensionContext, api: AzureAccount) {

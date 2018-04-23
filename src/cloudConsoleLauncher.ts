@@ -25,6 +25,12 @@ export interface AccessTokens {
 	keyVault: string;
 }
 
+export interface ConsoleUris {
+	consoleUri: string;
+	terminalUri: string;
+	socketUri: string;
+}
+
 export async function getUserSettings(accessToken: string, armEndpoint: string): Promise<UserSettings | undefined> {
 	const targetUri = `${armEndpoint}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
 	const response = await request({
@@ -119,8 +125,7 @@ export async function resetConsole(accessToken: string, armEndpoint: string) {
 	}
 }
 
-async function connectTerminal(ipcHandle: string, accessTokens: AccessTokens, consoleUri: string) {
-	console.log('Connecting terminal...');
+export async function connectTerminal(accessTokens: AccessTokens, consoleUri: string, progress: (i: number) => void): Promise<ConsoleUris> {
 
 	for (let i = 0; i < 10; i++) {
 		const response = await initializeTerminal(accessTokens, consoleUri);
@@ -128,33 +133,26 @@ async function connectTerminal(ipcHandle: string, accessTokens: AccessTokens, co
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.statusCode !== 503 && response.statusCode !== 504 && response.body && response.body.error) {
 				if (response.body && response.body.error && response.body.error.message) {
-					console.log(`${response.body.error.message} (${response.statusCode})`);
+					throw new Error(`${response.body.error.message} (${response.statusCode})`);
 				} else {
-					console.log(response.statusCode, response.headers, response.body);
+					throw new Error(`${response.statusCode} ${response.headers} ${response.body}`);
 				}
-				break;
 			}
 			await delay(1000 * (i + 1));
-			console.log(`\x1b[AConnecting terminal...${'.'.repeat(i + 1)}`);
+			progress(i + 1);
 			continue;
 		}
 
-		const res = response.body;
-		const termId = res.id;
-		// terminalIdleTimeout = res.idleTimeout || terminalIdleTimeout;
-
-		connectSocket(ipcHandle, res.socketUri);
-
-		process.stdout.on('resize', () => {
-			resize(accessTokens, consoleUri, termId)
-				.catch(console.error);
-		});
-
-		return;
+		const { id, socketUri } = response.body;
+		const terminalUri = `${consoleUri}/terminals/${id}`;
+		return {
+			consoleUri,
+			terminalUri,
+			socketUri
+		};
 	}
 
-	console.log('Failed to connect to the terminal.');
-	await sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Disconnected' } ]));
+	throw new Error('Failed to connect to the terminal.');
 }
 
 async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string) {
@@ -186,7 +184,7 @@ function getWindowSize() {
 }
 
 let resizeToken = {};
-async function resize(accessTokens: AccessTokens, consoleUri: string, termId: string) {
+async function resize(accessTokens: AccessTokens, terminalUri: string) {
 	const token = resizeToken = {};
 	await delay(300);
 
@@ -197,7 +195,7 @@ async function resize(accessTokens: AccessTokens, consoleUri: string, termId: st
 
 		const { cols, rows } = getWindowSize();
 		const response = await request({
-			uri: consoleUri + '/terminals/' + termId + '/size?cols=' + cols + '&rows=' + rows,
+			uri: `${terminalUri}/size?cols=${cols}&rows=${rows}`,
 			method: 'POST',
 			headers: {
 				'Accept': 'application/json',
@@ -300,14 +298,21 @@ export function main() {
 				if (message.type === 'log') {
 					console.log(...message.args);
 				} else if (message.type === 'connect') {
-					connectTerminal(ipcHandle, message.accessTokens, message.consoleUri)
-						.catch(err => {
-							console.error(err);
-							sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Disconnected' } ]))
-								.catch(err => {
-									console.error(err);
-								});
+					try {
+						const accessTokens: AccessTokens = message.accessTokens;
+						const consoleUris: ConsoleUris = message.consoleUris;
+						connectSocket(ipcHandle, consoleUris.socketUri);
+						process.stdout.on('resize', () => {
+							resize(accessTokens, consoleUris.terminalUri)
+								.catch(console.error);
 						});
+					} catch(err) {
+						console.error(err);
+						sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Disconnected' } ]))
+							.catch(err => {
+								console.error(err);
+							});
+					}
 				} else if (message.type === 'exit') {
 					process.exit(message.code);
 				}

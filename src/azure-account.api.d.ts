@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Terminal } from 'vscode';
+import { Event, Terminal, Progress, CancellationToken } from 'vscode';
 import { ServiceClientCredentials } from 'ms-rest';
 import { AzureEnvironment } from 'ms-rest-azure';
 import { SubscriptionModels } from 'azure-arm-resource';
+import { ReadStream } from 'fs';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
@@ -41,10 +42,17 @@ export type AzureResourceFilter = AzureSubscription;
 
 export type CloudShellStatus = 'Connecting' | 'Connected' | 'Disconnected';
 
+export interface UploadOptions {
+	contentLength?: number;
+	progress?: Progress<{ message?: string; increment?: number }>;
+	token?: CancellationToken;
+}
+
 export interface CloudShell {
 	readonly status: CloudShellStatus;
 	readonly onStatusChanged: Event<CloudShellStatus>;
 	readonly waitForConnection: () => Promise<boolean>;
 	readonly terminal: Promise<Terminal>;
 	readonly session: Promise<AzureSession>;
+	readonly uploadFile: (filename: string, stream: ReadStream, options?: UploadOptions) => Promise<void>;
 }

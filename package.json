@@ -31,7 +31,8 @@
     "onCommand:azure-account.createAccount",
     "onCommand:azure-account.openCloudConsoleLinux",
     "onCommand:azure-account.openCloudConsoleWindows",
-    "onCommand:azure-account.uploadFileCloudConsole"
+    "onCommand:azure-account.uploadFileCloudConsole",
+    "onView:azure-account.resourceView"
   ],
   "main": "./out/src/extension",
   "contributes": {
@@ -98,6 +99,14 @@
           "description": "The resource filter, each element is a tenant id and a subscription id separated by a slash."
         }
       }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "azure-account.resourceView",
+          "name": "Azure Resources"
+        }
+      ]
     }
   },
   "scripts": {

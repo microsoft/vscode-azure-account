@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, TreeDataProvider, TreeItem, EventEmitter, TreeItemCollapsibleState, extensions, Extension } from 'vscode';
+import { ExtensionContext, TreeDataProvider, TreeItem, EventEmitter, TreeItemCollapsibleState, extensions, Extension, commands } from 'vscode';
 import { listAll } from './azure-account';
-import { AzureAccount, AzureSubscription } from './azure-account.api';
-import { ResourceModels, ResourceManagementClient } from 'azure-arm-resource';
+import { AzureAccount, AzureSession } from './azure-account.api';
+import { ResourceModels, ResourceManagementClient, SubscriptionModels } from 'azure-arm-resource';
 import * as path from 'path';
+import * as opn from 'opn';
 
 interface ResourceContext {
 	account: AzureAccount;
+	session: AzureSession;
 	client: ResourceManagementClient;
 	resourceTypes: Record<string, ResourceType>;
 }
@@ -27,9 +29,10 @@ abstract class GenericItem extends TreeItem {
 class SubscriptionItem extends GenericItem {
 
 	readonly iconPath = path.resolve(__dirname, '../../images/azureSubscription.svg');
+	readonly contextValue = 'subscription';
 
-	constructor(context: ResourceContext, subscription: AzureSubscription) {
-		super(context, subscription.subscription.displayName!, TreeItemCollapsibleState.Collapsed);
+	constructor(context: ResourceContext, public subscription: SubscriptionModels.Subscription) {
+		super(context, subscription.displayName!, TreeItemCollapsibleState.Expanded);
 	}
 
 	async getChildren(): Promise<ResourceGroupItem[]> {
@@ -41,9 +44,10 @@ class SubscriptionItem extends GenericItem {
 
 class ResourceGroupItem extends GenericItem {
 
-	readonly iconPath = path.resolve(__dirname, '../../images/ResourceGroup_COLOR.svg');
+	readonly iconPath = path.resolve(__dirname, '../../images/resourceGroup.svg');
+	readonly contextValue = 'resourceGroup';
 
-	constructor(context: ResourceContext, private resourceGroup: ResourceModels.ResourceGroup) {
+	constructor(context: ResourceContext, public resourceGroup: ResourceModels.ResourceGroup) {
 		super(context, resourceGroup.name!, TreeItemCollapsibleState.Collapsed);
 	}
 
@@ -54,18 +58,20 @@ class ResourceGroupItem extends GenericItem {
 	}
 }
 
+const genericIcon = path.resolve(__dirname, '../../images/genericService.svg');
+
 class ResourceItem extends GenericItem {
 
 	readonly contextValue: string;
 
 	constructor(context: ResourceContext, private resource: ResourceModels.GenericResource) {
 		super(context, resource.name!);
-		this.contextValue = resource.type!;
+		this.contextValue = `resource:${resource.type!}`;
 	}
 
 	get iconPath() {
 		const t = this.context.resourceTypes[this.resource.type!];
-		return t && t.iconPath;
+		return t && t.iconPath || genericIcon;
 	}
 
 	async getChildren(): Promise<GenericItem[]> {
@@ -88,7 +94,12 @@ export class ResourceTreeProvider implements TreeDataProvider<GenericItem> {
 	private resourceTypes: Record<string, ResourceType> = {};
 
 	constructor(context: ExtensionContext, private account: AzureAccount) {
-		context.subscriptions.push(account.onFiltersChanged(() => this.didChangeTreeData.fire()));
+		context.subscriptions.push(
+			account.onFiltersChanged(() => this.didChangeTreeData.fire()),
+			commands.registerCommand('azure-account.openInPortal', (node) => {
+				opn(`${node.context.session.environment.portalUrl}/${node.context.session.tenantId}/#resource${(node.subscription || node.resourceGroup || node.resource).id}`);
+			}),
+		);
 
 		for (const extension of extensions.all) {
 			const pkg = extension.packageJSON;
@@ -108,9 +119,10 @@ export class ResourceTreeProvider implements TreeDataProvider<GenericItem> {
 			const subscriptions = this.account.filters
 				.map(subscription => new SubscriptionItem({
 					account: this.account,
+					session: subscription.session,
 					client: new ResourceManagementClient(subscription.session.credentials, subscription.subscription.subscriptionId!),
 					resourceTypes: this.resourceTypes
-				}, subscription));
+				}, subscription.subscription));
 			if (subscriptions.length === 1) {
 				return subscriptions[0].getChildren();
 			}

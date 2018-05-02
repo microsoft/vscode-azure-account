@@ -32,6 +32,7 @@
     "onCommand:azure-account.openCloudConsoleLinux",
     "onCommand:azure-account.openCloudConsoleWindows",
     "onCommand:azure-account.uploadFileCloudConsole",
+    "onCommand:azure-account.openInPortal",
     "onView:azure-account.resourceView"
   ],
   "main": "./out/src/extension",
@@ -71,9 +72,20 @@
         "command": "azure-account.uploadFileCloudConsole",
         "title": "%azure-account.commands.uploadFileCloudConsole%",
         "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.openInPortal",
+        "title": "%azure-account.commands.openInPortal%",
+        "category": "%azure-account.commands.azure%"
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "azure-account.openInPortal",
+          "when": "false"
+        }
+      ],
       "explorer/context": [
         {
           "command": "azure-account.uploadFileCloudConsole",
@@ -86,6 +98,13 @@
           "command": "azure-account.uploadFileCloudConsole",
           "when": "resourceScheme == file && openCloudConsoleCount && openCloudConsoleCount != 0",
           "group": "999_cloudConsole"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "azure-account.openInPortal",
+          "when": "view == azure-account.resourceView && viewItem =~ /subscription|resourceGroup|^resource:/",
+          "group": "navigation"
         }
       ]
     },

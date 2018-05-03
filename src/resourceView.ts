@@ -13,6 +13,7 @@ import * as opn from 'opn';
 interface ResourceType {
 	extension: Extension<any>;
 	id: string;
+	kind?: string;
 	iconPath: string;
 }
 
@@ -22,9 +23,10 @@ function readResourceTypes() {
 		const pkg = extension.packageJSON;
 		const types = pkg && pkg.contributes && pkg.contributes['azure-account.resourceTypes'] || [];
 		types.forEach((t: any) => {
-			resourceTypes[t.id] = {
+			resourceTypes[t.kind ? `${t.id}:${t.kind}` : t.id] = {
 				extension,
 				id: t.id,
+				kind: t.kind,
 				iconPath: path.join(extension.extensionPath, t.iconPath)
 			};
 		});
@@ -62,9 +64,10 @@ const genericIcon = path.resolve(__dirname, '../../images/genericService.svg');
 
 function createResourceNode(session: AzureSession, model: ResourceModels.GenericResource, resourceTypes: Record<string, ResourceType>): Node<ResourceModels.GenericResource> {
 	const treeItem = new TreeItem(model.name!);
-	const t = resourceTypes[model.type!];
+	const selector = model.kind ? `${model.type}:${model.kind}` : model.type!;
+	const t = resourceTypes[selector];
 	treeItem.iconPath = t && t.iconPath || genericIcon;
-	treeItem.contextValue = `resource:${model.type!}`;
+	treeItem.contextValue = `resource:${selector}`;
 	return { session, model, treeItem };
 }
 

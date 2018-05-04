@@ -72,5 +72,5 @@ export interface AzureResourceNode<T extends AzureResourceModel> extends AzureRe
 
 export interface AzureResourceTypeProvider<T extends AzureResourceViewNode> {
 	treeDataProvider: TreeDataProvider<T>;
-	adaptResourceNode: (node: AzureResourceNode<ResourceModels.GenericResource>) => Promise<T>;
+	adaptResourceNode: (node: AzureResourceNode<ResourceModels.GenericResource>) => Promise<T>; // TODO: Reduce flexibility a bit so the resource nodes stay consistent.
 }

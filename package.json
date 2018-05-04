@@ -119,11 +119,20 @@
         }
       }
     },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "azure",
+          "title": "Azure",
+          "icon": "images/azure.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "azure": [
         {
           "id": "azure-account.resourceView",
-          "name": "Azure Resources"
+          "name": "Resources"
         }
       ]
     }

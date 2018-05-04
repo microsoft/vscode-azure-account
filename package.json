@@ -125,7 +125,7 @@
     "form-data": "^2.3.2",
     "ms-rest-azure": "2.4.4",
     "opn": "5.1.0",
-    "request": "2.81.0",
+    "request": "2.85.0",
     "request-promise": "4.2.1",
     "semver": "5.4.1",
     "vscode-extension-telemetry": "0.0.8",

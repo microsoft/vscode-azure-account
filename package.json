@@ -116,7 +116,7 @@
     "@types/request-promise": "4.1.37",
     "@types/semver": "5.4.0",
     "@types/ws": "3.0.2",
-    "vscode": "1.1.6"
+    "vscode": "1.1.17"
   },
   "dependencies": {
     "adal-node": "0.1.22",

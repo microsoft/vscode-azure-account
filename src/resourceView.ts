@@ -5,7 +5,7 @@
 
 import { ExtensionContext, TreeDataProvider, TreeItem, EventEmitter, TreeItemCollapsibleState, extensions, Extension, commands, window, Disposable } from 'vscode';
 import { listAll } from './azure-account';
-import { AzureAccount, AzureSession } from './azure-account.api';
+import { AzureAccount, AzureSession, AzureResourceTypeProvider, AzureResourceNode, AzureResourceViewNode, AzureResourceModel } from './azure-account.api';
 import { ResourceModels, ResourceManagementClient, SubscriptionModels } from 'azure-arm-resource';
 import * as path from 'path';
 import * as opn from 'opn';
@@ -14,7 +14,8 @@ interface ResourceType {
 	extension: Extension<any>;
 	id: string;
 	kind?: string;
-	iconPath: string;
+	iconPath?: string;
+	provider?: string;
 }
 
 function readResourceTypes() {
@@ -27,92 +28,130 @@ function readResourceTypes() {
 				extension,
 				id: t.id,
 				kind: t.kind,
-				iconPath: path.join(extension.extensionPath, t.iconPath)
+				iconPath: t.iconPath && path.join(extension.extensionPath, t.iconPath),
+				provider: t.provider
 			};
 		});
 	}
 	return resourceTypes;
 }
 
-type Models = SubscriptionModels.Subscription | ResourceModels.ResourceGroup | ResourceModels.GenericResource;
+export class ResourceTypeRegistry {
+	resourceTypes: Record<string, ResourceType> = readResourceTypes();
+	providerExtensions = Object.keys(this.resourceTypes)
+		.reduce((m, id) => {
+			const type = this.resourceTypes[id];
+			if (type.provider) {
+				m[type.provider] = type.extension;
+			}
+			return m;
+		}, <Record<string, Extension<any>>>{});
+	resourceTypeProviders: Record<string, AzureResourceTypeProvider<AzureResourceViewNode>> = {};
+	private _onResourceTypeProviderAdded = new EventEmitter();
+	onResourceTypeProviderAdded = this._onResourceTypeProviderAdded.event;
 
-interface Node<T extends Models> {
-	session: AzureSession;
-	model: T;
-	treeItem: TreeItem;
+	registerResourceTypeProvider(id: string, provider: AzureResourceTypeProvider<AzureResourceViewNode>) {
+		this.resourceTypeProviders[id] = provider;
+		this._onResourceTypeProviderAdded.fire(id);
+		return { dispose: () => {} };
+	}
+
+	async loadResourceTypeProvider(id: string) {
+		await this.providerExtensions[id].activate();
+		return this.resourceTypeProviders[id];
+	}
 }
 
 const subscriptionIconPath = path.resolve(__dirname, '../../images/azureSubscription.svg');
 
-function createSubscriptionNode(session: AzureSession, model: SubscriptionModels.Subscription): Node<SubscriptionModels.Subscription> {
+function createSubscriptionNode(session: AzureSession, model: SubscriptionModels.Subscription): AzureResourceNode<SubscriptionModels.Subscription> {
 	const treeItem = new TreeItem(model.displayName!, TreeItemCollapsibleState.Expanded);
 	treeItem.iconPath = subscriptionIconPath;
 	treeItem.contextValue = 'subscription';
-	return { session, model, treeItem };
+	return { provider: undefined, session, model, treeItem };
 }
 
 const resourceGroupIconPath = path.resolve(__dirname, '../../images/resourceGroup.svg');
 
-function createResourceGroupNode(session: AzureSession, model: ResourceModels.ResourceGroup): Node<ResourceModels.ResourceGroup> {
+function createResourceGroupNode(session: AzureSession, model: ResourceModels.ResourceGroup): AzureResourceNode<ResourceModels.ResourceGroup> {
 	const treeItem = new TreeItem(model.name!, TreeItemCollapsibleState.Collapsed);
 	treeItem.iconPath = resourceGroupIconPath;
 	treeItem.contextValue = 'resourceGroup';
-	return { session, model, treeItem };
+	return { provider: undefined, session, model, treeItem };
 }
 
 const genericIcon = path.resolve(__dirname, '../../images/genericService.svg');
 
-function createResourceNode(session: AzureSession, model: ResourceModels.GenericResource, resourceTypes: Record<string, ResourceType>): Node<ResourceModels.GenericResource> {
+function createResourceNode(session: AzureSession, model: ResourceModels.GenericResource, resourceType?: ResourceType): AzureResourceNode<ResourceModels.GenericResource> {
 	const treeItem = new TreeItem(model.name!);
 	const selector = model.kind ? `${model.type}:${model.kind}` : model.type!;
-	const t = resourceTypes[selector];
-	treeItem.iconPath = t && t.iconPath || genericIcon;
+	treeItem.iconPath = resourceType && resourceType.iconPath || genericIcon;
 	treeItem.contextValue = `resource:${selector}`;
-	return { session, model, treeItem };
+	return { provider: undefined, session, model, treeItem };
 }
 
-async function loadResourceGroups(node: Node<SubscriptionModels.Subscription>) {
+async function loadResourceGroups(node: AzureResourceNode<SubscriptionModels.Subscription>) {
 	const client = new ResourceManagementClient(node.session.credentials, node.model.subscriptionId!).resourceGroups;
 	const resourceGroups = await listAll(client, client.list());
 	return resourceGroups.map(resourceGroup => createResourceGroupNode(node.session, resourceGroup));
 }
 
-async function loadResources(node: Node<ResourceModels.GenericResource>, resourceTypes: Record<string, ResourceType>) {
+async function loadResources(node: AzureResourceNode<ResourceModels.GenericResource>, resourceTypeRegistry: ResourceTypeRegistry) {
 	const subscriptionId = node.model.id!.split('/')[2];
 	const client = new ResourceManagementClient(node.session.credentials, subscriptionId).resourceGroups;
 	const resources = await listAll(client, client.listResources(node.model.name!));
-	return resources.map(resource => createResourceNode(node.session, resource, resourceTypes));
+	return Promise.all(resources.map(async resource => {
+		const selector = resource.kind ? `${resource.type}:${resource.kind}` : resource.type!;
+		const resourceType = resourceTypeRegistry.resourceTypes[selector];
+		const child = createResourceNode(node.session, resource, resourceType);
+		if (resourceType && resourceType.provider) {
+			const provider = await resourceTypeRegistry.loadResourceTypeProvider(resourceType.provider);
+			return provider.adaptResourceNode(child);
+		}
+		return child;
+	}));
 }
 
-class ResourceTreeProvider implements TreeDataProvider<Node<Models>> {
+function isResourceNode(node: AzureResourceViewNode): node is AzureResourceNode<AzureResourceModel> {
+	return node.provider === undefined;
+}
 
-	private didChangeTreeData = new EventEmitter<Node<Models> | undefined | null>();
+class ResourceTreeProvider implements TreeDataProvider<AzureResourceViewNode> {
+
+	private didChangeTreeData = new EventEmitter<AzureResourceViewNode | undefined | null>();
 
 	onDidChangeTreeData = this.didChangeTreeData.event;
 
 	private subscriptions: Disposable[] = [];
 
-	constructor(private account: AzureAccount, private resourceTypes: Record<string, ResourceType>) {
+	constructor(private account: AzureAccount, private resourceTypeRegistry: ResourceTypeRegistry) {
 		this.subscriptions.push(account.onFiltersChanged(() => this.didChangeTreeData.fire()));
 	}
 
-	async getChildren(element?: Node<Models>): Promise<Node<Models>[]> {
+	async getChildren(element?: AzureResourceViewNode) {
 		if (!element) {
 			const subscriptions = this.account.filters
 				.map(subscription => createSubscriptionNode(subscription.session, subscription.subscription));
 			if (subscriptions.length === 1) {
-				return this.getChildren(subscriptions[0]);
+				return loadResourceGroups(subscriptions[0]);
 			}
 			return subscriptions;
+		} else if (!isResourceNode(element)) {
+			const provider = await this.resourceTypeRegistry.loadResourceTypeProvider(element.provider!);
+			return provider.treeDataProvider.getChildren(element);
 		} else if (element.treeItem.contextValue === 'subscription') {
 			return loadResourceGroups(element);
 		} else if (element.treeItem.contextValue === 'resourceGroup') {
-			return loadResources(element, this.resourceTypes);
+			return loadResources(element, this.resourceTypeRegistry);
 		}
 		return [];
 	}
 
-	getTreeItem(element: Node<Models>) {
+	async getTreeItem(element: AzureResourceViewNode) {
+		if (!isResourceNode(element)) {
+			const provider = await this.resourceTypeRegistry.loadResourceTypeProvider(element.provider!);
+			return provider.treeDataProvider.getTreeItem(element);
+		}
 		return element.treeItem;
 	}
 
@@ -128,15 +167,13 @@ class ResourceTreeProvider implements TreeDataProvider<Node<Models>> {
 	}
 }
 
-function openInPortal(node: Node<Models>) {
+function openInPortal(node: AzureResourceNode<AzureResourceModel>) {
 	opn(`${node.session.environment.portalUrl}/${node.session.tenantId}/#resource${node.model.id}`);
 }
 
-export function activate(context: ExtensionContext, account: AzureAccount) {
+export function activate(context: ExtensionContext, account: AzureAccount, resourceTypeRegistry: ResourceTypeRegistry) {
 
-	const resourceTypes = readResourceTypes();
-
-	const resourceTreeProvider = new ResourceTreeProvider(account, resourceTypes);
+	const resourceTreeProvider = new ResourceTreeProvider(account, resourceTypeRegistry);
 
 	context.subscriptions.push(
 		resourceTreeProvider,

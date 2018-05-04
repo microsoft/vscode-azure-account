@@ -21,6 +21,7 @@ import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspac
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { ResourceTypeRegistry } from './resourceView';
 
 const localize = nls.loadMessageBundle();
 
@@ -193,8 +194,11 @@ export class AzureLoginHelper {
 		filters: [],
 		onFiltersChanged: this.onFiltersChanged.event,
 		waitForFilters: () => this.waitForFilters(),
-		createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
+		createCloudShell: os => createCloudConsole(this.api, this.reporter, os),
+		registerResourceTypeProvider: (id, provider) => this.resourceTypeRegistry.registerResourceTypeProvider(id, provider)
 	};
+
+	resourceTypeRegistry = new ResourceTypeRegistry();
 
 	async login() {
 		try {

@@ -29,7 +29,7 @@ export function activate(context: ExtensionContext) {
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
 	subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
-	activateResourceView(context, azureLogin.api);
+	activateResourceView(context, azureLogin.api, azureLogin.resourceTypeRegistry);
 	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
 }
 

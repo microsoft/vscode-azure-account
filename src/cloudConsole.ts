@@ -20,6 +20,22 @@ import { ReadStream } from 'fs';
 import * as FormData from 'form-data';
 import { parse } from 'url';
 import { Socket } from 'net';
+// const adal = require('adal-node');
+
+// function turnOnLogging() {
+//   var log = adal.Logging;
+//   log.setLoggingOptions(
+//   {
+//     level : log.LOGGING_LEVEL.VERBOSE,
+//     log : function(level: number, message: string, error: any) {
+//       console.log(message);
+//       if (error) {
+//         console.log(error);
+//       }
+//     }
+//   });
+// }
+// turnOnLogging();
 
 const localize = nls.loadMessageBundle();
 

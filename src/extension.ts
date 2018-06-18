@@ -12,6 +12,7 @@ import * as nls from 'vscode-nls';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { shells, OSes } from './cloudConsole';
+import { survey } from './nps';
 
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
@@ -28,6 +29,7 @@ export function activate(context: ExtensionContext) {
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
 	subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
+	survey(context, reporter);
 	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
 }
 

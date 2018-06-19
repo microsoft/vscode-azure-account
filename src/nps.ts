@@ -60,6 +60,9 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 		const take = {
 			title: localize('azure-account.takeSurvey', "Take Survey"),
 			run: async () => {
+				/* __GDPR__
+					"nps.survey/takeShortSurvey" : {}
+				*/
 				reporter.sendTelemetryEvent('nps.survey/takeShortSurvey');
 				opn(`${NPS_SURVEY_URL}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(extensionVersion)}&m=${encodeURIComponent(env.machineId)}`);
 				await globalState.update(IS_CANDIDATE_KEY, false);
@@ -69,6 +72,9 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 		const remind = {
 			title: localize('azure-account.remindLater', "Remind Me Later"),
 			run: async () => {
+				/* __GDPR__
+					"nps.survey/remindMeLater" : {}
+				*/
 				reporter.sendTelemetryEvent('nps.survey/remindMeLater');
 				await globalState.update(SESSION_COUNT_KEY, sessionCount - 3);
 			}
@@ -77,11 +83,17 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 			title: localize('azure-account.neverAgain', "Don't Show Again"),
 			isSecondary: true,
 			run: async () => {
+				/* __GDPR__
+					"nps.survey/dontShowAgain" : {}
+				*/
 				reporter.sendTelemetryEvent('nps.survey/dontShowAgain');
 				await globalState.update(IS_CANDIDATE_KEY, false);
 				await globalState.update(SKIP_VERSION_KEY, extensionVersion);
 			}
 		};
+		/* __GDPR__
+			"nps.survey/userAsked" : {}
+		*/
 		reporter.sendTelemetryEvent('nps.survey/userAsked');
 		const button = await window.showInformationMessage(localize('azure-account.surveyQuestion', "Do you mind taking a quick feedback survey about the Azure Extensions for VS Code?"), take, remind, never);
 		await (button || remind).run();

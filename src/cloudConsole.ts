@@ -310,11 +310,15 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 					return undefined;
 				}))))
 				.filter(details => details);
-			const pick = await window.showQuickPick(tenantDetails.map(details => ({
-				label: details!.tenantDetails.displayName,
-				description: details!.tenantDetails.verifiedDomains.find(domain => domain.default)!.name,
-				session: details!.session
-			})));
+			const pick = await window.showQuickPick(tenantDetails.map(details => {
+				const tenantDetails = details!.tenantDetails;
+				const defaultDomain = tenantDetails.verifiedDomains.find(domain => domain.default);
+				return {
+					label: tenantDetails.displayName,
+					description: defaultDomain && defaultDomain.name,
+					session: details!.session
+				};
+			}));
 			if (!pick) {
 				sendTelemetryEvent(reporter, 'noTenantPicked');
 				queue.push({ type: 'exit' });

@@ -1,6 +1,12 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.4.1]
+- Update icon to 'key' ([#55](https://github.com/Microsoft/vscode-azure-account/issues/55)).
+- Add NPS user survey
+- Update dependencies
+- Check if there is a default domain ([#68](https://github.com/Microsoft/vscode-azure-account/issues/68)).
+
 ## [0.4.0]
 - Add command to upload files to Cloud Shell
 - Use multi-select picker for subscription filter ([Microsoft/vscode#45589](https://github.com/Microsoft/vscode/issues/45589)).

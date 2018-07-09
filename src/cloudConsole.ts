@@ -346,7 +346,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		const accessToken = result.token.accessToken;
 		const armEndpoint = session.environment.resourceManagerEndpointUrl;
 		const provision = async () => {
-			consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, os.id);
+			consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, OSes.Linux.id);
 			sendTelemetryEvent(reporter, 'provisioned');
 		}
 		try {
@@ -386,7 +386,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		const progress = (i: number) => {
 			queue.push({ type: 'log', args: [`\x1b[A${connecting}${'.'.repeat(i)}`] });
 		};
-		const consoleUris = await connectTerminal(accessTokens, consoleUri!, progress);
+		const consoleUris = await connectTerminal(accessTokens, consoleUri!, /* TODO: Separate Shell from OS */ osName === 'Linux' ? 'bash' : 'pwsh', progress);
 		deferredUris!.resolve(consoleUris);
 
 		// Connect to WebSocket

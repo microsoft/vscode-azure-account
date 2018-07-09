@@ -125,10 +125,10 @@ export async function resetConsole(accessToken: string, armEndpoint: string) {
 	}
 }
 
-export async function connectTerminal(accessTokens: AccessTokens, consoleUri: string, progress: (i: number) => void): Promise<ConsoleUris> {
+export async function connectTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string, progress: (i: number) => void): Promise<ConsoleUris> {
 
 	for (let i = 0; i < 10; i++) {
-		const response = await initializeTerminal(accessTokens, consoleUri);
+		const response = await initializeTerminal(accessTokens, consoleUri, shellType);
 
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.statusCode !== 503 && response.statusCode !== 504 && response.body && response.body.error) {
@@ -155,10 +155,10 @@ export async function connectTerminal(accessTokens: AccessTokens, consoleUri: st
 	throw new Error('Failed to connect to the terminal.');
 }
 
-async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string) {
+async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string) {
 	const initialGeometry = getWindowSize();
 	return request({
-		uri: consoleUri + '/terminals?cols=' + initialGeometry.cols + '&rows=' + initialGeometry.rows,
+		uri: consoleUri + '/terminals?cols=' + initialGeometry.cols + '&rows=' + initialGeometry.rows + '&shell=' + shellType,
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',

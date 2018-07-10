@@ -7,7 +7,7 @@ import { window, commands, MessageItem, EventEmitter, Terminal } from 'vscode';
 import { AzureAccount, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
 import { tokenFromRefreshToken } from './azure-account';
 import { createServer, readJSON, Queue } from './ipc';
-import { getUserSettings, provisionConsole, Errors, resetConsole, AccessTokens, connectTerminal, ConsoleUris } from './cloudConsoleLauncher';
+import { getUserSettings, provisionConsole, Errors, resetConsole, AccessTokens, connectTerminal, ConsoleUris, Size } from './cloudConsoleLauncher';
 import * as nls from 'vscode-nls';
 import * as path from 'path';
 import * as opn from 'opn';
@@ -179,6 +179,8 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 	const tokensPromise = new Promise<AccessTokens>((resolve, reject) => deferredTokens = { resolve, reject });
 	let deferredUris: Deferred<ConsoleUris>;
 	const urisPromise = new Promise<ConsoleUris>((resolve, reject) => deferredUris = { resolve, reject });
+	let deferredInitialSize: Deferred<Size>;
+	const initialSizePromise = new Promise<Size>((resolve, reject) => deferredInitialSize = { resolve, reject });
 	const state = {
 		status: <CloudShellStatus>'Connecting',
 		onStatusChanged: event.event,
@@ -230,6 +232,8 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 					dequeue = true;
 				} else if (message.type === 'log') {
 					console.log(...message.args);
+				} else if (message.type === 'size') {
+					deferredInitialSize.resolve(message.size);
 				} else if (message.type === 'status') {
 					updateStatus(message.status);
 				}
@@ -386,7 +390,8 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		const progress = (i: number) => {
 			queue.push({ type: 'log', args: [`\x1b[A${connecting}${'.'.repeat(i)}`] });
 		};
-		const consoleUris = await connectTerminal(accessTokens, consoleUri!, /* TODO: Separate Shell from OS */ osName === 'Linux' ? 'bash' : 'pwsh', progress);
+		const initialSize = await initialSizePromise;
+		const consoleUris = await connectTerminal(accessTokens, consoleUri!, /* TODO: Separate Shell from OS */ osName === 'Linux' ? 'bash' : 'pwsh', initialSize, progress);
 		deferredUris!.resolve(consoleUris);
 
 		// Connect to WebSocket

@@ -31,6 +31,11 @@ export interface ConsoleUris {
 	socketUri: string;
 }
 
+export interface Size {
+	cols: number;
+	rows: number;
+}
+
 export async function getUserSettings(accessToken: string, armEndpoint: string): Promise<UserSettings | undefined> {
 	const targetUri = `${armEndpoint}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
 	const response = await request({
@@ -125,10 +130,10 @@ export async function resetConsole(accessToken: string, armEndpoint: string) {
 	}
 }
 
-export async function connectTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string, progress: (i: number) => void): Promise<ConsoleUris> {
+export async function connectTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string, initialSize: Size, progress: (i: number) => void): Promise<ConsoleUris> {
 
 	for (let i = 0; i < 10; i++) {
-		const response = await initializeTerminal(accessTokens, consoleUri, shellType);
+		const response = await initializeTerminal(accessTokens, consoleUri, shellType, initialSize);
 
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.statusCode !== 503 && response.statusCode !== 504 && response.body && response.body.error) {
@@ -155,10 +160,9 @@ export async function connectTerminal(accessTokens: AccessTokens, consoleUri: st
 	throw new Error('Failed to connect to the terminal.');
 }
 
-async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string) {
-	const initialGeometry = getWindowSize();
+async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string, initialSize: Size) {
 	return request({
-		uri: consoleUri + '/terminals?cols=' + initialGeometry.cols + '&rows=' + initialGeometry.rows + '&shell=' + shellType,
+		uri: consoleUri + '/terminals?cols=' + initialSize.cols + '&rows=' + initialSize.rows + '&shell=' + shellType,
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -174,7 +178,7 @@ async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string
 	});
 }
 
-function getWindowSize() {
+function getWindowSize(): Size {
 	const stdout: any = process.stdout;
 	const windowSize: [number, number] = stdout.isTTY ? stdout.getWindowSize() : [80, 30];
 	return {
@@ -292,6 +296,7 @@ export function main() {
 
 	const ipcHandle = process.env.CLOUD_CONSOLE_IPC!;
 	(async () => {
+		sendData(ipcHandle, JSON.stringify([ { type: 'size', size: getWindowSize() } ]));
 		let res: http.IncomingMessage;
 		while (res = await sendData(ipcHandle, JSON.stringify([ { type: 'poll' } ]))) {
 			for (const message of await readJSON<any>(res)) {

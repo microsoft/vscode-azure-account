@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.4.2]
+- Request PowerShell Core on Linux, replacing PowerShell on Windows.
+- Fix reading initial size ([#76](https://github.com/Microsoft/vscode-azure-account/issues/76)).
+
 ## [0.4.1]
 - Update icon to 'key' ([#55](https://github.com/Microsoft/vscode-azure-account/issues/55)).
 - Add NPS user survey

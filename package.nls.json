@@ -1,10 +1,11 @@
 {
 	"azure-account.commands.azure": "Azure",
 	"azure-account.commands.login": "Sign In",
+	"azure-account.commands.setEnvironment": "Set Azure Environment",
 	"azure-account.commands.logout": "Sign Out",
 	"azure-account.commands.selectSubscriptions": "Select Subscriptions",
 	"azure-account.commands.createAccount": "Create an Account",
 	"azure-account.commands.openCloudConsoleLinux": "Open Bash in Cloud Shell",
 	"azure-account.commands.openCloudConsoleWindows": "Open PowerShell in Cloud Shell",
-	"azure-account.commands.uploadFileCloudConsole": "Upload to Cloud Shell"
+  	"azure-account.commands.uploadFileCloudConsole": "Upload to Cloud Shell"
 }

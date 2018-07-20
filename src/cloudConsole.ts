@@ -71,13 +71,13 @@ function sendTelemetryEvent(reporter: TelemetryReporter, outcome: string, messag
 		  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 	   }
 	 */
-	
+
 	reporter.sendTelemetryEvent('openCloudConsole', message ? { outcome, message } : { outcome });
 }
 
 async function waitForConnection(this: CloudShell) {
 	const handleStatus = () => {
-		switch(this.status) {
+		switch (this.status) {
 			case 'Connecting':
 				return new Promise<boolean>(resolve => {
 					const subs = this.onStatusChanged(() => {
@@ -98,7 +98,7 @@ async function waitForConnection(this: CloudShell) {
 }
 
 function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
-	return async function(this: CloudShell, filename: string, stream: ReadStream, options: UploadOptions = {}) {
+	return async function (this: CloudShell, filename: string, stream: ReadStream, options: UploadOptions = {}) {
 		if (options.progress) {
 			options.progress.report({ message: localize('azure-account.connectingForUpload', "Connecting to upload '{0}'...", filename) });
 		}
@@ -189,8 +189,8 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
 		uploadFile: uploadFile(tokensPromise, urisPromise)
 	};
-	state.terminal.catch(() => {}); // ignore
-	state.session.catch(() => {}); // ignore
+	state.terminal.catch(() => { }); // ignore
+	state.session.catch(() => { }); // ignore
 	shells.push(state);
 	function updateStatus(status: CloudShellStatus) {
 		state.status = status;
@@ -304,27 +304,31 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				}
 			}
 		}
-		
-		let token: Token;
-		if (api.sessions.length > 1) {
+
+		let token: Token | undefined = undefined;
+		await api.waitForSubscriptions();
+		const sessions = [...new Set(api.subscriptions.map(subscription => subscription.session))]; // Only consider those with at least one subscription.
+		if (sessions.length > 1) {
 			queue.push({ type: 'log', args: [localize('azure-account.selectDirectory', "Select directory...")] });
-			const tenantDetails = (await Promise.all(api.sessions.map(session => fetchTenantDetails(session)
+			const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(session)
 				.catch(err => {
 					console.error(err);
 					return undefined;
-				}))))
-				.filter(details => details);
-			const pick = await window.showQuickPick(tenantDetails.map(details => {
-				const tenantDetails = details!.tenantDetails;
-				const defaultDomain = tenantDetails.verifiedDomains.find(domain => domain.default);
-				return {
-					label: tenantDetails.displayName,
-					description: defaultDomain && defaultDomain.name,
-					session: details!.session
-				};
-			}), {
-				ignoreFocusOut: true // The terminal opens concurrently and can steal focus (#77).
-			});
+				})))
+				.then(tenantDetails => tenantDetails.filter(details => details));
+			const pick = await window.showQuickPick(fetchingDetails
+				.then(tenantDetails => tenantDetails.map(details => {
+					const tenantDetails = details!.tenantDetails;
+					const defaultDomain = tenantDetails.verifiedDomains.find(domain => domain.default);
+					return {
+						label: tenantDetails.displayName,
+						description: defaultDomain && defaultDomain.name,
+						session: details!.session
+					};
+				}).sort((a, b) => a.label.localeCompare(b.label))), {
+					placeHolder: localize('azure-account.selectDirectoryPlaceholder', "Select directory"),
+					ignoreFocusOut: true // The terminal opens concurrently and can steal focus (#77).
+				});
 			if (!pick) {
 				sendTelemetryEvent(reporter, 'noTenantPicked');
 				queue.push({ type: 'exit' });
@@ -332,11 +336,11 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				return;
 			}
 			token = await acquireToken(pick.session);
-		} else {
-			token = await acquireToken(api.sessions[0]);
+		} else if (sessions.length === 1) {
+			token = await acquireToken(sessions[0]);
 		}
 
-		const result = await findUserSettings(token);
+		const result = token && await findUserSettings(token);
 		if (!result) {
 			queue.push({ type: 'log', args: [localize('azure-account.setupNeeded', "Setup needed.")] });
 			await requiresSetUp(reporter);
@@ -345,7 +349,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			return;
 		}
 		deferredSession!.resolve(result.token.session);
-		
+
 		// provision
 		let consoleUri: string;
 		const session = result.token.session;

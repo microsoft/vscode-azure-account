@@ -322,7 +322,9 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 					description: defaultDomain && defaultDomain.name,
 					session: details!.session
 				};
-			}));
+			}), {
+				ignoreFocusOut: true // The terminal opens concurrently and can steal focus (#77).
+			});
 			if (!pick) {
 				sendTelemetryEvent(reporter, 'noTenantPicked');
 				queue.push({ type: 'exit' });

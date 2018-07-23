@@ -2,6 +2,7 @@
 	"azure-account.commands.azure": "Azure",
 	"azure-account.commands.login": "Sign In",
 	"azure-account.commands.logout": "Sign Out",
+	"azure-account.commands.loginToCloud": "Sign In to Azure Environment",
 	"azure-account.commands.selectSubscriptions": "Select Subscriptions",
 	"azure-account.commands.createAccount": "Create an Account",
 	"azure-account.commands.openCloudConsoleLinux": "Open Bash in Cloud Shell",

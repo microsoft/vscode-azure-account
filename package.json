@@ -27,7 +27,6 @@
   "activationEvents": [
     "onCommand:azure-account.login",
     "onCommand:azure-account.logout",
-    "onCommand:azure-account.loginToCloud",
     "onCommand:azure-account.selectSubscriptions",
     "onCommand:azure-account.createAccount",
     "onCommand:azure-account.openCloudConsoleLinux",
@@ -45,11 +44,6 @@
       {
         "command": "azure-account.logout",
         "title": "%azure-account.commands.logout%",
-        "category": "%azure-account.commands.azure%"
-      },
-      {
-        "command": "azure-account.loginToCloud",
-        "title": "%azure-account.commands.loginToCloud%",
         "category": "%azure-account.commands.azure%"
       },
       {
@@ -102,6 +96,11 @@
           "type": "array",
           "default": null,
           "description": "The resource filter, each element is a tenant id and a subscription id separated by a slash."
+        },
+        "azure.environment": {
+          "type" : "string",
+          "default" : "Azure",
+          "description": "The current Azure Environment to connect to"
         }
       }
     }

@@ -26,7 +26,9 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 const localize = nls.loadMessageBundle();
 
 const keytar = getNodeModule<typeof keytarType>('keytar');
-let currentEnv : AzureEnvironment = (<any>AzureEnvironment).Azure;
+let envConfig = vscode.workspace.getConfiguration('azure');
+let envSetting = envConfig.get<string>('environment') !== null ? envConfig.get<string>('environment') : 'Azure';
+let currentEnv = getEnvironment(envSetting);
 
 function getNodeModule<T>(moduleName: string): T | undefined {
 	try {
@@ -167,7 +169,6 @@ export class AzureLoginHelper {
 		const subscriptions = context.subscriptions;
 		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
@@ -212,37 +213,6 @@ export class AzureLoginHelper {
 		waitForFilters: () => this.waitForFilters(),
 		createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
 	};
-
-	//logging in to specific environment
-	async loginToCloud(): Promise<any>{
-		let selected = await vscode.window.showQuickPick(getEnvironmentList());
-		if (selected) {
-			currentEnv = getEnvironment(selected);
-		} else {
-			currentEnv = (<any>AzureEnvironment).Azure;
-		}
-		vscode.window.showInformationMessage("Set Azure Environment to: " + selected);
-		try {
-			this.beginLoggingIn();
-			const deviceLogin = await deviceLogin1(currentEnv);
-			const message = this.showDeviceCodeMessage(deviceLogin);
-			const login2 = deviceLogin2(currentEnv, deviceLogin);
-			const tokenResponse = await Promise.race([login2, message.then(() => login2)]);
-			const refreshToken = tokenResponse.refreshToken;
-			const tokenResponses = await tokensFromToken(currentEnv, tokenResponse);
-			if (keytar) {
-				await keytar.setPassword(getCredentialsService(currentEnv), credentialsAccount, refreshToken);
-			}
-			await this.updateSessions(currentEnv, tokenResponses);
-		} catch (err) {
-			if (err instanceof AzureLoginError && err.reason) {
-				console.error(err.reason);
-			}
-			throw err;
-		} finally {
-			this.updateStatus();
-		}
-	}
 
 	async login() {
 		try {

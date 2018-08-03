@@ -255,7 +255,7 @@ export class AzureLoginHelper {
 		await this.api.waitForLogin();
 		if (keytar) {
 			for (const label of getEnvironmentList()){
-				await keytar.deletePassword(getEnvironment(label).name, credentialsAccount);
+				await keytar.deletePassword(getCredentialsService(getEnvironment(label)), credentialsAccount);
 			}
 		}
 		await this.clearSessions();

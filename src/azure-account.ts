@@ -214,12 +214,13 @@ export class AzureLoginHelper {
 		try {
 			this.beginLoggingIn();
 			const environment = getSelectedEnvironment();
-			const deviceLogin = await deviceLogin1(environment);
+			const tenantId = getTenantId();
+			const deviceLogin = await deviceLogin1(environment, tenantId);
 			const message = this.showDeviceCodeMessage(deviceLogin);
-			const login2 = deviceLogin2(environment, deviceLogin);
+			const login2 = deviceLogin2(environment, tenantId, deviceLogin);
 			const tokenResponse = await Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
 			const refreshToken = tokenResponse.refreshToken;
-			const tokenResponses = await tokensFromToken(environment, tokenResponse);
+			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			if (keytar) {
 				await keytar.setPassword(getCredentialsService(environment), credentialsAccount, refreshToken);
 			}
@@ -268,19 +269,20 @@ export class AzureLoginHelper {
 			this.loadCache();
 			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
 			const environment = getSelectedEnvironment();
+			const tenantId = getTenantId();
 			const refreshToken = keytar && await keytar.getPassword(getCredentialsService(environment), credentialsAccount);
 			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
 			if (!refreshToken) {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
 			this.beginLoggingIn();
-			const tokenResponse = await tokenFromRefreshToken(environment, refreshToken);
+			const tokenResponse = await tokenFromRefreshToken(environment, refreshToken, tenantId);
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
 			// For testing
 			if (workspace.getConfiguration('azure').get('testTokenFailure')) {
 				throw new AzureLoginError(localize('azure-account.testingAquiringTokenFailed', "Testing: Acquiring token failed"));
 			}
-			const tokenResponses = await tokensFromToken(environment, tokenResponse);
+			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
 			await this.updateSessions(environment, tokenResponses);
 			timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
@@ -589,10 +591,15 @@ function getSelectedEnvironment(): AzureEnvironment {
 	return getEnvironment(envSetting);
 }
 
-async function deviceLogin1(environment: AzureEnvironment): Promise<DeviceLogin> {
+function getTenantId() {
+	const envConfig = workspace.getConfiguration('azure');
+	return envConfig.get<string>('tenant') || commonTenantId;
+}
+
+async function deviceLogin1(environment: AzureEnvironment, tenantId: string): Promise<DeviceLogin> {
 	return new Promise<DeviceLogin>((resolve, reject) => {
 		const cache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${commonTenantId}`, validateAuthority, cache);
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, cache);
 		context.acquireUserCode(environment.activeDirectoryResourceId, clientId, 'en-us', function (err: any, response: any) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Acquiring user code failed"), err));
@@ -603,10 +610,10 @@ async function deviceLogin1(environment: AzureEnvironment): Promise<DeviceLogin>
 	});
 }
 
-async function deviceLogin2(environment: AzureEnvironment, deviceLogin: DeviceLogin) {
+async function deviceLogin2(environment: AzureEnvironment, tenantId: string, deviceLogin: DeviceLogin) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${commonTenantId}`, validateAuthority, tokenCache);
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
 		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, deviceLogin, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
@@ -617,7 +624,7 @@ async function deviceLogin2(environment: AzureEnvironment, deviceLogin: DeviceLo
 	});
 }
 
-export async function tokenFromRefreshToken(environment: AzureEnvironment, refreshToken: string, tenantId = commonTenantId, resource: string | null = null) {
+export async function tokenFromRefreshToken(environment: AzureEnvironment, refreshToken: string, tenantId: string, resource: string | null = null) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
@@ -641,7 +648,7 @@ async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
 			return firstTokenResponse;
 		}
-		return tokenFromRefreshToken(environment, firstTokenResponse.refreshToken, tenant.tenantId)
+		return tokenFromRefreshToken(environment, firstTokenResponse.refreshToken, tenant.tenantId!)
 			.catch(err => {
 				console.error(err instanceof AzureLoginError && err.reason ? err.reason : err);
 				return null;

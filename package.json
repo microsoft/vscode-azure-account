@@ -101,11 +101,6 @@
           "type": "boolean",
           "default": true,
           "description": "Whether to show the email address (e.g., in the status bar) of the signed in account."
-        },
-        "azure.tenant": {
-          "type": "string",
-          "default": "",
-          "description": "A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants."
         }
       }
     }

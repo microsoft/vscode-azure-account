@@ -1,6 +1,11 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.4.3]
+- Setting to hide email ([#66](https://github.com/Microsoft/vscode-azure-account/issues/66)).
+- Only offer tenants with at least one subscription  ([#47](https://github.com/Microsoft/vscode-azure-account/issues/47)).
+- Ignore focus-out in tenant picker ([#77](https://github.com/Microsoft/vscode-azure-account/issues/77)).
+
 ## [0.4.2]
 - Request PowerShell Core on Linux, replacing PowerShell on Windows.
 - Fix reading initial size ([#76](https://github.com/Microsoft/vscode-azure-account/issues/76)).

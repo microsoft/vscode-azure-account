@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, ExtensionContext, commands, ProgressLocation, Uri } from 'vscode';
+import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
 import { AzureAccount } from './azure-account.api';
 import { createReporter } from './telemetry';
@@ -24,7 +24,7 @@ export function activate(context: ExtensionContext) {
 		logDiagnostics(context, azureLogin.api);
 	}
 	const subscriptions = context.subscriptions;
-	subscriptions.push(createStatusBarItem(azureLogin.api));
+	subscriptions.push(createStatusBarItem(context, azureLogin.api));
 	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
@@ -95,7 +95,7 @@ function createAccount() {
 	opn('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account');
 }
 
-function createStatusBarItem(api: AzureAccount) {
+function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {
 	const statusBarItem = window.createStatusBarItem();
 	statusBarItem.command = "azure-account.selectSubscriptions";
 	function updateStatusBar() {
@@ -106,7 +106,9 @@ function createStatusBarItem(api: AzureAccount) {
 				break;
 			case 'LoggedIn':
 				if (api.sessions.length) {
-					statusBarItem.text = localize('azure-account.loggedIn', "Azure: {0}", api.sessions[0].userId);
+					const azureConfig = workspace.getConfiguration('azure');
+					const showSignedInEmail = azureConfig.get<boolean>('showSignedInEmail');
+					statusBarItem.text = showSignedInEmail ? localize('azure-account.loggedIn', "Azure: {0}", api.sessions[0].userId) : localize('azure-account.loggedIn', "Azure: Signed In");
 					statusBarItem.show();
 				}
 				break;
@@ -115,8 +117,12 @@ function createStatusBarItem(api: AzureAccount) {
 				break;
 		}
 	}
-	api.onStatusChanged(updateStatusBar);
-	api.onSessionsChanged(updateStatusBar);
+	context.subscriptions.push(
+		statusBarItem,
+		api.onStatusChanged(updateStatusBar),
+		api.onSessionsChanged(updateStatusBar),
+		workspace.onDidChangeConfiguration(updateStatusBar)
+	);
 	updateStatusBar();
 	return statusBarItem;
 }

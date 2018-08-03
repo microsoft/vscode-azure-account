@@ -96,6 +96,11 @@
           "type": "array",
           "default": null,
           "description": "The resource filter, each element is a tenant id and a subscription id separated by a slash."
+        },
+        "azure.showSignedInEmail": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to show the email address (e.g., in the status bar) of the signed in account."
         }
       }
     }

@@ -96,11 +96,6 @@
           "type": "array",
           "default": null,
           "description": "The resource filter, each element is a tenant id and a subscription id separated by a slash."
-        },
-        "azure.environment": {
-          "type" : "string",
-          "default" : "Azure",
-          "description": "The current Azure Environment to connect to"
         }
       }
     }

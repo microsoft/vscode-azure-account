@@ -14,7 +14,6 @@ import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
 import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
-import * as vscode from 'vscode'
 import * as keytarType from 'keytar';
 import * as cp from 'child_process';
 
@@ -26,9 +25,6 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 const localize = nls.loadMessageBundle();
 
 const keytar = getNodeModule<typeof keytarType>('keytar');
-let envConfig = vscode.workspace.getConfiguration('azure');
-let envSetting = envConfig.get<string>('environment') !== null ? envConfig.get<string>('environment') : 'Azure';
-let currentEnv = getEnvironment(envSetting);
 
 function getNodeModule<T>(moduleName: string): T | undefined {
 	try {
@@ -221,7 +217,7 @@ export class AzureLoginHelper {
 			const deviceLogin = await deviceLogin1(environment);
 			const message = this.showDeviceCodeMessage(deviceLogin);
 			const login2 = deviceLogin2(environment, deviceLogin);
-			const tokenResponse = await Promise.race([login2, message.then(() => login2)]);
+			const tokenResponse = await Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
 			const refreshToken = tokenResponse.refreshToken;
 			const tokenResponses = await tokensFromToken(environment, tokenResponse);
 			if (keytar) {
@@ -588,7 +584,9 @@ function getCredentialsService(environment: AzureEnvironment) {
 }
 
 function getSelectedEnvironment(): AzureEnvironment {
-	return  currentEnv; 
+	const envConfig = workspace.getConfiguration('azure');
+	const envSetting = envConfig.get<string>('environment') || 'Azure';
+	return getEnvironment(envSetting);
 }
 
 async function deviceLogin1(environment: AzureEnvironment): Promise<DeviceLogin> {

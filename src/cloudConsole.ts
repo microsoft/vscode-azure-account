@@ -499,7 +499,7 @@ async function acquireToken(session: AzureSession) {
 async function fetchTenantDetails(session: AzureSession) {
 	const { username, clientId, tokenCache, domain } = <any>session.credentials;
 	const graphCredentials = new DeviceTokenCredentials({ username, clientId, tokenCache, domain, tokenAudience: 'graph' });
-	const client = new TenantDetailsClient(graphCredentials, session.tenantId);
+	const client = new TenantDetailsClient(graphCredentials, session.tenantId, session.environment.activeDirectoryGraphResourceId);
 	return {
 		session,
 		tenantDetails: (await client.details.get()).value[0]

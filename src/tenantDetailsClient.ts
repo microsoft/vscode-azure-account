@@ -13,10 +13,9 @@ export class TenantDetailsClient extends msRestAzure.AzureServiceClient {
 	acceptLanguage = 'en-US';
 	longRunningOperationRetryTimeout = 30;
 	generateClientRequestId = true;
-	baseUri = 'https://graph.windows.net';
 	details = new Details(this);
 
-	constructor(public credentials: any, public tenantID: string) {
+	constructor(public credentials: any, public tenantID: string, public baseUri = 'https://graph.windows.net') {
 		super(credentials, {});
 
 		let packageInfo = this.getPackageJsonInfo(__dirname);

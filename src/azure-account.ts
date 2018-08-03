@@ -39,17 +39,31 @@ function getNodeModule<T>(moduleName: string): T | undefined {
 	}
 	return undefined;
 }
+//List of environment names for user to choose from
+function getEnvironmentList(): string[] {
+	var list : string[];
+	list = ["Azure", "Azure US Government", "Azure China", "Azure Germany"];
+	return list;
+}
+
+//Returns AzureEnvironment that use has chosen
+function getEnvironment(name : string): AzureEnvironment {
+	var environmentList : { [selectedname: string]: any} = {};
+	environmentList["Azure"] = (<any>AzureEnvironment).Azure;
+	environmentList["Azure US Government"] = (<any>AzureEnvironment).AzureUSGovernment;
+	environmentList["Azure China"] = (<any>AzureEnvironment).AzureChina;
+	environmentList["Azure Germany"] = (<any>AzureEnvironment).AzureGermanCloud;
+	if (name) {
+		return environmentList[name];
+	} else {
+		return environmentList["Azure"];
+	}
+}
 
 const logVerbose = false;
-const defaultEnvironment: AzureEnvironment = (<any>AzureEnvironment).Azure;
 const commonTenantId = 'common';
-const authorityHostUrl = defaultEnvironment.activeDirectoryEndpointUrl; // Testing: 'https://login.windows-ppe.net/'
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
 const validateAuthority = true;
-const authorityUrl = `${authorityHostUrl}${commonTenantId}`;
-const resource = defaultEnvironment.activeDirectoryResourceId;
-
-const credentialsService = 'VSCode Public Azure';
 const credentialsAccount = 'Refresh Token';
 
 interface DeviceLogin {
@@ -199,16 +213,17 @@ export class AzureLoginHelper {
 	async login() {
 		try {
 			this.beginLoggingIn();
-			const deviceLogin = await deviceLogin1();
+			const environment = getSelectedEnvironment();
+			const deviceLogin = await deviceLogin1(environment);
 			const message = this.showDeviceCodeMessage(deviceLogin);
-			const login2 = deviceLogin2(deviceLogin);
+			const login2 = deviceLogin2(environment, deviceLogin);
 			const tokenResponse = await Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
 			const refreshToken = tokenResponse.refreshToken;
-			const tokenResponses = await tokensFromToken(tokenResponse);
+			const tokenResponses = await tokensFromToken(environment, tokenResponse);
 			if (keytar) {
-				await keytar.setPassword(credentialsService, credentialsAccount, refreshToken);
+				await keytar.setPassword(getCredentialsService(environment), credentialsAccount, refreshToken);
 			}
-			await this.updateSessions(tokenResponses);
+			await this.updateSessions(environment, tokenResponses);
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				console.error(err.reason);
@@ -238,9 +253,11 @@ export class AzureLoginHelper {
 	async logout() {
 		await this.api.waitForLogin();
 		if (keytar) {
-			await keytar.deletePassword(credentialsService, credentialsAccount);
+			for (const label of getEnvironmentList()){
+				await keytar.deletePassword(getEnvironment(label).name, credentialsAccount);
+			}
 		}
-		await this.updateSessions([]);
+		await this.clearSessions();
 		this.updateStatus();
 	}
 
@@ -250,24 +267,25 @@ export class AzureLoginHelper {
 			const start = Date.now();
 			this.loadCache();
 			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
-			const refreshToken = keytar && await keytar.getPassword(credentialsService, credentialsAccount);
+			const environment = getSelectedEnvironment();
+			const refreshToken = keytar && await keytar.getPassword(getCredentialsService(environment), credentialsAccount);
 			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
 			if (!refreshToken) {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
 			this.beginLoggingIn();
-			const tokenResponse = await tokenFromRefreshToken(refreshToken);
+			const tokenResponse = await tokenFromRefreshToken(environment, refreshToken);
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
 			// For testing
 			if (workspace.getConfiguration('azure').get('testTokenFailure')) {
 				throw new AzureLoginError(localize('azure-account.testingAquiringTokenFailed', "Testing: Acquiring token failed"));
 			}
-			const tokenResponses = await tokensFromToken(tokenResponse);
+			const tokenResponses = await tokensFromToken(environment, tokenResponse);
 			timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
-			await this.updateSessions(tokenResponses);
+			await this.updateSessions(environment, tokenResponses);
 			timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
 		} catch (err) {
-			await this.updateSessions([]); // clear out cached data
+			await this.clearSessions(); // clear out cached data
 			if (!(err instanceof AzureLoginError)) {
 				throw err;
 			}
@@ -329,7 +347,7 @@ export class AzureLoginHelper {
 					environment: (<any>AzureEnvironment) [environment],
 					userId,
 					tenantId,
-					credentials: new DeviceTokenCredentials({ username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId })
+					credentials: new DeviceTokenCredentials({ environment: (<any>AzureEnvironment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId })
 				};
 				this.api.sessions.push(sessions[key]);
 			}
@@ -337,19 +355,27 @@ export class AzureLoginHelper {
 		return sessions;
 	}
 
-	private async updateSessions(tokenResponses: TokenResponse[]) {
+	private async updateSessions(environment: AzureEnvironment, tokenResponses: TokenResponse[]) {
 		await clearTokenCache(this.tokenCache);
 		for (const tokenResponse of tokenResponses) {
-			await addTokenToCache(this.tokenCache, tokenResponse);
+			await addTokenToCache(environment, this.tokenCache, tokenResponse);
 		}
 		this.delayedCache.initEnd!();
 		const sessions = this.api.sessions;
 		sessions.splice(0, sessions.length, ...tokenResponses.map<AzureSession>(tokenResponse => ({
-			environment: defaultEnvironment,
+			environment,
 			userId: tokenResponse.userId,
 			tenantId: tokenResponse.tenantId,
-			credentials: new DeviceTokenCredentials({ username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId })
+			credentials: new DeviceTokenCredentials({ environment: environment, username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId })
 		})));
+		this.onSessionsChanged.fire();
+	}
+
+	private async clearSessions() {
+		await clearTokenCache(this.tokenCache);
+		this.delayedCache.initEnd!();
+		const sessions = this.api.sessions;
+		sessions.length = 0;
 		this.onSessionsChanged.fire();
 	}
 
@@ -444,7 +470,7 @@ export class AzureLoginHelper {
 	private async loadSubscriptions() {
 		const lists = await Promise.all(this.api.sessions.map(session => {
 			const credentials = session.credentials;
-			const client = new SubscriptionClient(credentials);
+			const client = new SubscriptionClient(credentials, session.environment.resourceManagerEndpointUrl);
 			return listAll(client.subscriptions, client.subscriptions.list())
 				.then(list => list.map(subscription => ({
 					session,
@@ -553,11 +579,21 @@ export class AzureLoginHelper {
 	}
 }
 
-async function deviceLogin1(): Promise<DeviceLogin> {
+function getCredentialsService(environment: AzureEnvironment) {
+	return environment.name === 'Azure' ? 'VSCode Public Azure' : `VSCode ${environment.name}`;
+}
+
+function getSelectedEnvironment(): AzureEnvironment {
+	const envConfig = workspace.getConfiguration('azure');
+	const envSetting = envConfig.get<string>('environment') || 'Azure';
+	return getEnvironment(envSetting);
+}
+
+async function deviceLogin1(environment: AzureEnvironment): Promise<DeviceLogin> {
 	return new Promise<DeviceLogin>((resolve, reject) => {
 		const cache = new MemoryCache();
-		const context = new AuthenticationContext(authorityUrl, validateAuthority, cache);
-		context.acquireUserCode(resource, clientId, 'en-us', function (err: any, response: any) {
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${commonTenantId}`, validateAuthority, cache);
+		context.acquireUserCode(environment.activeDirectoryResourceId, clientId, 'en-us', function (err: any, response: any) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Acquiring user code failed"), err));
 			} else {
@@ -567,11 +603,11 @@ async function deviceLogin1(): Promise<DeviceLogin> {
 	});
 }
 
-async function deviceLogin2(deviceLogin: DeviceLogin) {
+async function deviceLogin2(environment: AzureEnvironment, deviceLogin: DeviceLogin) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(authorityUrl, validateAuthority, tokenCache);
-		context.acquireTokenWithDeviceCode(resource, clientId, deviceLogin, function (err: any, tokenResponse: TokenResponse) {
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${commonTenantId}`, validateAuthority, tokenCache);
+		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, deviceLogin, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
 			} else {
@@ -581,10 +617,10 @@ async function deviceLogin2(deviceLogin: DeviceLogin) {
 	});
 }
 
-export async function tokenFromRefreshToken(refreshToken: string, tenantId = commonTenantId, resource: string | null = null) {
+export async function tokenFromRefreshToken(environment: AzureEnvironment, refreshToken: string, tenantId = commonTenantId, resource: string | null = null) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${authorityHostUrl}${tenantId}`, validateAuthority, tokenCache);
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
 		context.acquireTokenWithRefreshToken(refreshToken, clientId, resource, function (err: any, tokenResponse: TokenResponse) {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Acquiring token with refresh token failed"), err));
@@ -595,9 +631,9 @@ export async function tokenFromRefreshToken(refreshToken: string, tenantId = com
 	});
 }
 
-async function tokensFromToken(firstTokenResponse: TokenResponse) {
+async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse: TokenResponse) {
 	const tokenCache = new MemoryCache();
-	await addTokenToCache(tokenCache, firstTokenResponse);
+	await addTokenToCache(environment, tokenCache, firstTokenResponse);
 	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache });
 	const client = new SubscriptionClient(credentials);
 	const tenants = await listAll(client.tenants, client.tenants.list());
@@ -605,7 +641,7 @@ async function tokensFromToken(firstTokenResponse: TokenResponse) {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
 			return firstTokenResponse;
 		}
-		return tokenFromRefreshToken(firstTokenResponse.refreshToken, tenant.tenantId)
+		return tokenFromRefreshToken(environment, firstTokenResponse.refreshToken, tenant.tenantId)
 			.catch(err => {
 				console.error(err instanceof AzureLoginError && err.reason ? err.reason : err);
 				return null;
@@ -614,11 +650,11 @@ async function tokensFromToken(firstTokenResponse: TokenResponse) {
 	return <TokenResponse[]>responses.filter(r => r);
 }
 
-async function addTokenToCache(tokenCache: any, tokenResponse: TokenResponse) {
+async function addTokenToCache(environment: AzureEnvironment, tokenCache: any, tokenResponse: TokenResponse) {
 	return new Promise<any>((resolve, reject) => {
 		const driver = new CacheDriver(
 			{ _logContext: createLogContext('') },
-			`${authorityHostUrl}${tokenResponse.tenantId}`,
+			`${environment.activeDirectoryEndpointUrl}${tokenResponse.tenantId}`,
 			tokenResponse.resource,
 			clientId,
 			tokenCache,

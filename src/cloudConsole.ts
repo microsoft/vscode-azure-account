@@ -380,8 +380,8 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 
 		// Additional tokens
 		const [graphToken, keyVaultToken] = await Promise.all([
-			tokenFromRefreshToken(result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
-			tokenFromRefreshToken(result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix.substr(1)}`)
+			tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
+			tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix.substr(1)}`)
 		]);
 		const accessTokens: AccessTokens = {
 			resource: accessToken,
@@ -499,7 +499,7 @@ async function acquireToken(session: AzureSession) {
 async function fetchTenantDetails(session: AzureSession) {
 	const { username, clientId, tokenCache, domain } = <any>session.credentials;
 	const graphCredentials = new DeviceTokenCredentials({ username, clientId, tokenCache, domain, tokenAudience: 'graph' });
-	const client = new TenantDetailsClient(graphCredentials, session.tenantId);
+	const client = new TenantDetailsClient(graphCredentials, session.tenantId, session.environment.activeDirectoryGraphResourceId);
 	return {
 		session,
 		tenantDetails: (await client.details.get()).value[0]

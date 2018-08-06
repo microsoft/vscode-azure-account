@@ -101,6 +101,11 @@
           "type": "boolean",
           "default": true,
           "description": "Whether to show the email address (e.g., in the status bar) of the signed in account."
+        },
+        "azure.environment": {
+          "type": "string",
+          "default": "Azure",
+          "description": "Azure region to use, such as Azure US Government, Azure China and Azure Germany."
         }
       }
     }

@@ -2,6 +2,8 @@ import * as request from 'request-promise';
 import * as WS from 'ws';
 import * as http from 'http';
 import { sendData, readJSON } from './ipc';
+import HttpProxyAgent = require('http-proxy-agent');
+const HttpsProxyAgent = require('https-proxy-agent');
 
 const consoleApiVersion = '2017-08-01-preview';
 
@@ -232,7 +234,10 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 
 function connectSocket(ipcHandle: string, url: string) {
 
-	const ws = new WS(url);
+	const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
+	const ws = new WS(url, {
+		agent: proxy && (url.startsWith('ws:') ? new HttpProxyAgent(proxy) : new HttpsProxyAgent(proxy))
+	});
 
 	ws.on('open', function () {
 		process.stdin.on('data', function (data) {

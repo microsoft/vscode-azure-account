@@ -124,7 +124,7 @@
     "@types/semver": "5.4.0",
     "@types/ws": "3.0.2",
     "typescript": "2.9.2",
-    "vscode": "1.1.17"
+    "vscode": "1.1.21"
   },
   "dependencies": {
     "adal-node": "0.1.22",

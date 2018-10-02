@@ -1,0 +1,10 @@
+{
+	"azure-account.commands.azure": "Azure",
+	"azure-account.commands.login": "Autenticati",
+	"azure-account.commands.logout": "Esci",
+	"azure-account.commands.selectSubscriptions": "Seleziona Iscrizioni",
+	"azure-account.commands.createAccount": "Crea un account",
+	"azure-account.commands.openCloudConsoleLinux": "Apri Bash in Cloud Shell",
+	"azure-account.commands.openCloudConsoleWindows": "Apri PowerShell in Cloud Shell",
+	"azure-account.commands.uploadFileCloudConsole": "Carica alla Cloud Shell"
+}

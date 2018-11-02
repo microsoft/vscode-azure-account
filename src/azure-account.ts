@@ -160,18 +160,22 @@ export class AzureLoginHelper {
 	private tokenCache = new MemoryCache();
 	private delayedCache = new ProxyTokenCache(this.tokenCache);
 	private oldResourceFilter = '';
+	private doLogin = false;
 
 	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
 		const subscriptions = context.subscriptions;
 		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
+		subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));	
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
 		subscriptions.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('azure.environment') || e.affectsConfiguration('azure.tenant')) {
-				this.initialize()
+			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant')) {
+				const doLogin = this.doLogin;
+				this.doLogin = false;
+				this.initialize(doLogin)
 					.catch(console.error);
 			} else if (e.affectsConfiguration('azure.resourceFilter')) {
 				this.updateFilters(true);
@@ -269,7 +273,20 @@ export class AzureLoginHelper {
 		this.updateStatus();
 	}
 
-	private async initialize() {
+	async loginToCloud(): Promise<any>{
+		const selected = await window.showQuickPick(getEnvironmentList(), {
+			placeHolder: localize('azure-account.chooseCloudToLogin', "Choose cloud to sign in to")
+		});
+		if (selected) {
+			const config = workspace.getConfiguration('azure');
+			if (config.get('cloud') !== selected) {
+				this.doLogin = true;
+				config.update('cloud', selected, getCurrentTarget(config.inspect('cloud')));
+			}
+		}
+	}
+
+	private async initialize(doLogin?: boolean) {
 		try {
 			const timing = false;
 			const start = Date.now();
@@ -297,6 +314,9 @@ export class AzureLoginHelper {
 			await this.clearSessions(); // clear out cached data
 			if (!(err instanceof AzureLoginError)) {
 				throw err;
+			}
+			if (doLogin) {
+				this.login();
 			}
 		} finally {
 			this.updateStatus();
@@ -506,16 +526,7 @@ export class AzureLoginHelper {
 
 	private async updateConfiguration(azureConfig: WorkspaceConfiguration, resourceFilter: string[]) {
 		const resourceFilterConfig = azureConfig.inspect<string[]>('resourceFilter');
-		let target = ConfigurationTarget.Global;
-		if (resourceFilterConfig) {
-			if (resourceFilterConfig.workspaceFolderValue) {
-				target = ConfigurationTarget.WorkspaceFolder;
-			} else if (resourceFilterConfig.workspaceValue) {
-				target = ConfigurationTarget.Workspace;
-			} else if (resourceFilterConfig.globalValue) {
-				target = ConfigurationTarget.Global;
-			}
-		}
+		const target = getCurrentTarget(resourceFilterConfig);
 		await azureConfig.update('resourceFilter', resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
 	}
 
@@ -594,7 +605,7 @@ function getCredentialsService(environment: AzureEnvironment) {
 
 function getSelectedEnvironment(): AzureEnvironment {
 	const envConfig = workspace.getConfiguration('azure');
-	const envSetting = envConfig.get<string>('environment') || 'Azure';
+	const envSetting = envConfig.get<string>('cloud') || 'Azure';
 	return getEnvironment(envSetting);
 }
 
@@ -714,6 +725,19 @@ export async function listAll<T>(client: { listNext(nextPageLink: string): Promi
 		all.push(...list);
 	}
 	return all;
+}
+
+function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalValue?: unknown; workspaceValue?: unknown, workspaceFolderValue?: unknown } | undefined) {
+	if (config) {
+		if (config.workspaceFolderValue) {
+			return ConfigurationTarget.WorkspaceFolder;
+		} else if (config.workspaceValue) {
+			return ConfigurationTarget.Workspace;
+		} else if (config.globalValue) {
+			return ConfigurationTarget.Global;
+		}
+	}
+	return ConfigurationTarget.Global;
 }
 
 async function exitCode(command: string, ...args: string[]) {

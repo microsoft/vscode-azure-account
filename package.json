@@ -27,6 +27,7 @@
   "activationEvents": [
     "onCommand:azure-account.login",
     "onCommand:azure-account.logout",
+    "onCommand:azure-account.loginToCloud",
     "onCommand:azure-account.selectSubscriptions",
     "onCommand:azure-account.createAccount",
     "onCommand:azure-account.openCloudConsoleLinux",
@@ -44,6 +45,11 @@
       {
         "command": "azure-account.logout",
         "title": "%azure-account.commands.logout%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.loginToCloud",
+        "title": "%azure-account.commands.loginToCloud%",
         "category": "%azure-account.commands.azure%"
       },
       {
@@ -106,6 +112,11 @@
           "type": "string",
           "default": "",
           "description": "A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants."
+        },
+        "azure.cloud": {
+          "type": "string",
+          "default": "Azure",
+          "description": "The current Azure Cloud to connect to."
         }
       }
     }

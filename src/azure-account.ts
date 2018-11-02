@@ -169,7 +169,14 @@ export class AzureLoginHelper {
 		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
-		subscriptions.push(workspace.onDidChangeConfiguration(() => this.updateFilters(true)));
+		subscriptions.push(workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('azure.environment') || e.affectsConfiguration('azure.tenant')) {
+				this.initialize()
+					.catch(console.error);
+			} else if (e.affectsConfiguration('azure.resourceFilter')) {
+				this.updateFilters(true);
+			}
+		}));
 		this.initialize()
 			.catch(console.error);
 

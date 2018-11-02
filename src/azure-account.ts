@@ -222,9 +222,11 @@ export class AzureLoginHelper {
 	};
 
 	async login() {
+		let environmentName = 'uninitialized';
 		try {
 			this.beginLoggingIn();
 			const environment = getSelectedEnvironment();
+			environmentName = environment.name;
 			const tenantId = getTenantId();
 			const deviceLogin = await deviceLogin1(environment, tenantId);
 			const message = this.showDeviceCodeMessage(deviceLogin);
@@ -236,9 +238,13 @@ export class AzureLoginHelper {
 				await keytar.setPassword(getCredentialsService(environment), credentialsAccount, refreshToken);
 			}
 			await this.updateSessions(environment, tokenResponses);
+			this.sendLoginTelemetry(environmentName, 'success');
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				console.error(err.reason);
+				this.sendLoginTelemetry(environmentName, 'error', String(err.reason.message || err.reason));
+			} else {
+				this.sendLoginTelemetry(environmentName, 'failure', err && String(err.message || err));
 			}
 			throw err;
 		} finally {
@@ -258,8 +264,20 @@ export class AzureLoginHelper {
 			opn(deviceLogin.verificationUrl);
 			await this.showDeviceCodeMessage(deviceLogin);
 		} else {
-			return Promise.reject(null);
+			return Promise.reject('user canceled');
 		}
+	}
+
+	sendLoginTelemetry(cloud: string, outcome: string, message?: string) {
+		/* __GDPR__
+		   "login" : {
+			  "cloud" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+		   }
+		 */
+	
+		this.reporter.sendTelemetryEvent('login', message ? { cloud, outcome, message } : { cloud, outcome });
 	}
 
 	async logout() {

@@ -17,7 +17,7 @@ import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
 import * as cp from 'child_process';
 
-import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem } from 'vscode';
+import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -476,7 +476,16 @@ export class AzureLoginHelper {
 
 		const subscriptions = this.subscriptions
 			.then(list => this.asSubscriptionItems(list, resourceFilter));
-		const picks = await window.showQuickPick(subscriptions, { canPickMany: true, placeHolder: 'Select Subscriptions' });
+		const source = new CancellationTokenSource();
+		const cancellable = subscriptions.then(s => {
+			if (!s.length) {
+				source.cancel();
+				this.noSubscriptionsFound()
+					.catch(console.error);
+			}
+			return s;
+		});
+		const picks = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
 		if (picks) {
 			if (resourceFilter[0] === 'all') {
 				resourceFilter.splice(0, 1);
@@ -498,6 +507,14 @@ export class AzureLoginHelper {
 
 		if (changed) {
 			await this.updateConfiguration(azureConfig, resourceFilter);
+		}
+	}
+
+	async noSubscriptionsFound(): Promise<any> {
+		const open: MessageItem = { title: localize('azure-account.open', "Open") };
+		const response = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
+		if (response === open) {
+			opn('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account');
 		}
 	}
 

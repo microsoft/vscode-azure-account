@@ -39,32 +39,55 @@ function getNodeModule<T>(moduleName: string): T | undefined {
 	}
 	return undefined;
 }
-//List of environment names for user to choose from
-function getEnvironmentList(): string[] {
-	var list : string[];
-	list = ["Azure", "Azure US Government", "Azure China", "Azure Germany"];
-	return list;
+
+const credentialsSection = 'VS Code Azure';
+
+async function getRefreshToken(environment: AzureEnvironment, migrateToken?: boolean) {
+	if (!keytar) {
+		return;
+	}
+	if (migrateToken) {
+		const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
+		if (token) {
+			if (!await keytar.getPassword(credentialsSection, 'Azure')) {
+				await keytar.setPassword(credentialsSection, 'Azure', token);
+			}
+			await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
+		}
+	}
+	return keytar.getPassword(credentialsSection, environment.name);
 }
 
-//Returns AzureEnvironment that use has chosen
-function getEnvironment(name : string): AzureEnvironment {
-	var environmentList : { [selectedname: string]: any} = {};
-	environmentList["Azure"] = (<any>AzureEnvironment).Azure;
-	environmentList["Azure US Government"] = (<any>AzureEnvironment).AzureUSGovernment;
-	environmentList["Azure China"] = (<any>AzureEnvironment).AzureChina;
-	environmentList["Azure Germany"] = (<any>AzureEnvironment).AzureGermanCloud;
-	if (name) {
-		return environmentList[name];
-	} else {
-		return environmentList["Azure"];
+async function storeRefreshToken(environment: AzureEnvironment, token: string) {
+	if (keytar) {
+		await keytar.setPassword(credentialsSection, environment.name, token);
 	}
 }
+
+async function deleteRefreshToken(environment: AzureEnvironment) {
+	if (keytar) {
+		await keytar.deletePassword(credentialsSection, environment.name);
+	}
+}
+
+const environments: AzureEnvironment[] = [
+	<any>AzureEnvironment.Azure,
+	<any>AzureEnvironment.AzureChina,
+	<any>AzureEnvironment.AzureGermanCloud,
+	<any>AzureEnvironment.AzureUSGovernment
+];
+
+const environmentLabels: Record<string, string> = {
+	Azure: localize('azure-account.azureCloud', 'Azure'),
+	AzureChina: localize('azure-account.azureChinaCloud', 'Azure China'),
+	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
+	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
+};
 
 const logVerbose = false;
 const commonTenantId = 'common';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
 const validateAuthority = true;
-const credentialsAccount = 'Refresh Token';
 
 interface DeviceLogin {
 	userCode: string;
@@ -181,7 +204,7 @@ export class AzureLoginHelper {
 				this.updateFilters(true);
 			}
 		}));
-		this.initialize()
+		this.initialize(false, true)
 			.catch(console.error);
 
 		if (logVerbose) {
@@ -234,9 +257,7 @@ export class AzureLoginHelper {
 			const tokenResponse = await Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
 			const refreshToken = tokenResponse.refreshToken;
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
-			if (keytar) {
-				await keytar.setPassword(getCredentialsService(environment), credentialsAccount, refreshToken);
-			}
+			await storeRefreshToken(environment, refreshToken);
 			await this.updateSessions(environment, tokenResponses);
 			this.sendLoginTelemetry(environmentName, 'success');
 		} catch (err) {
@@ -282,29 +303,32 @@ export class AzureLoginHelper {
 
 	async logout() {
 		await this.api.waitForLogin();
-		if (keytar) {
-			for (const label of getEnvironmentList()){
-				await keytar.deletePassword(getCredentialsService(getEnvironment(label)), credentialsAccount);
-			}
+		for (const environment of environments){
+			await deleteRefreshToken(environment);
 		}
 		await this.clearSessions();
 		this.updateStatus();
 	}
 
 	async loginToCloud(): Promise<any>{
-		const selected = await window.showQuickPick(getEnvironmentList(), {
+		const current = getSelectedEnvironment();
+		const selected = await window.showQuickPick(environments.map(environment => ({
+			label: environmentLabels[environment.name],
+			description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
+			environment
+		})), {
 			placeHolder: localize('azure-account.chooseCloudToLogin', "Choose cloud to sign in to")
 		});
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
-			if (config.get('cloud') !== selected) {
+			if (config.get('cloud') !== selected.environment.name) {
 				this.doLogin = true;
-				config.update('cloud', selected, getCurrentTarget(config.inspect('cloud')));
+				config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
 			}
 		}
 	}
 
-	private async initialize(doLogin?: boolean) {
+	private async initialize(doLogin?: boolean, migrateToken?: boolean) {
 		try {
 			const timing = false;
 			const start = Date.now();
@@ -312,7 +336,7 @@ export class AzureLoginHelper {
 			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
 			const environment = getSelectedEnvironment();
 			const tenantId = getTenantId();
-			const refreshToken = keytar && await keytar.getPassword(getCredentialsService(environment), credentialsAccount);
+			const refreshToken = await getRefreshToken(environment, migrateToken);
 			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
 			if (!refreshToken) {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
@@ -634,14 +658,10 @@ export class AzureLoginHelper {
 	}
 }
 
-function getCredentialsService(environment: AzureEnvironment) {
-	return environment.name === 'Azure' ? 'VSCode Public Azure' : `VSCode ${environment.name}`;
-}
-
 function getSelectedEnvironment(): AzureEnvironment {
 	const envConfig = workspace.getConfiguration('azure');
-	const envSetting = envConfig.get<string>('cloud') || 'Azure';
-	return getEnvironment(envSetting);
+	const envSetting = envConfig.get<string>('cloud');
+	return environments.find(environment => environment.name === envSetting) || <any>AzureEnvironment.Azure;
 }
 
 function getTenantId() {

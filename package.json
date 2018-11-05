@@ -115,6 +115,18 @@
         },
         "azure.cloud": {
           "type": "string",
+          "enum": [
+            "Azure",
+            "AzureChina",
+            "AzureGermanCloud",
+            "AzureUSGovernment"
+          ],
+          "enumDescriptions": [
+            "Azure",
+            "Azure China",
+            "Azure Germany",
+            "Azure US Government"
+          ],
           "default": "Azure",
           "description": "The current Azure Cloud to connect to."
         }

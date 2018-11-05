@@ -7,7 +7,6 @@ import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace } 
 import { AzureLoginHelper } from './azure-account';
 import { AzureAccount } from './azure-account.api';
 import { createReporter } from './telemetry';
-import * as opn from 'opn';
 import * as nls from 'vscode-nls';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
@@ -92,7 +91,7 @@ function logDiagnostics(context: ExtensionContext, api: AzureAccount) {
 }
 
 function createAccount() {
-	opn('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account');
+	return commands.executeCommand('vscode.open', Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
 }
 
 function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {

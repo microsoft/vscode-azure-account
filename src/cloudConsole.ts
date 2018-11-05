@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, commands, MessageItem, EventEmitter, Terminal } from 'vscode';
+import { window, commands, MessageItem, EventEmitter, Terminal, Uri } from 'vscode';
 import { AzureAccount, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
 import { tokenFromRefreshToken } from './azure-account';
 import { createServer, readJSON, Queue } from './ipc';
 import { getUserSettings, provisionConsole, Errors, resetConsole, AccessTokens, connectTerminal, ConsoleUris, Size } from './cloudConsoleLauncher';
 import * as nls from 'vscode-nls';
 import * as path from 'path';
-import * as opn from 'opn';
 import * as cp from 'child_process';
 import * as semver from 'semver';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -443,7 +442,7 @@ async function requiresSetUp(reporter: TelemetryReporter) {
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresSetUpOpen');
-		opn('https://shell.azure.com');
+		commands.executeCommand('vscode.open', Uri.parse('https://shell.azure.com'));
 	} else {
 		sendTelemetryEvent(reporter, 'requiresSetUpCancel');
 	}
@@ -456,7 +455,7 @@ async function requiresNode(reporter: TelemetryReporter) {
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresNodeOpen');
-		opn('https://nodejs.org');
+		commands.executeCommand('vscode.open', Uri.parse('https://nodejs.org'));
 	} else {
 		sendTelemetryEvent(reporter, 'requiresNodeCancel');
 	}

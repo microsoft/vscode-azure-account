@@ -11,13 +11,12 @@ const createLogContext = require('adal-node/lib/log').createLogContext;
 
 import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
 import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
-import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
 import * as cp from 'child_process';
 
-import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource } from 'vscode';
+import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource, Uri } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -280,9 +279,9 @@ export class AzureLoginHelper {
 		const response = await window.showInformationMessage(deviceLogin.message, canCopy ? copyAndOpen : open);
 		if (response === copyAndOpen) {
 			copypaste.copy(deviceLogin.userCode);
-			opn(deviceLogin.verificationUrl);
+			commands.executeCommand('vscode.open', Uri.parse(deviceLogin.verificationUrl));
 		} else if (response === open) {
-			opn(deviceLogin.verificationUrl);
+			commands.executeCommand('vscode.open', Uri.parse(deviceLogin.verificationUrl));
 			await this.showDeviceCodeMessage(deviceLogin);
 		} else {
 			return Promise.reject('user canceled');
@@ -538,7 +537,7 @@ export class AzureLoginHelper {
 		const open: MessageItem = { title: localize('azure-account.open', "Open") };
 		const response = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
 		if (response === open) {
-			opn('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account');
+			commands.executeCommand('vscode.open', Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
 		}
 	}
 

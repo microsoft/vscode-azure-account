@@ -559,7 +559,7 @@ export class AzureLoginHelper {
 	private async loadSubscriptions() {
 		const lists = await Promise.all(this.api.sessions.map(session => {
 			const credentials = session.credentials;
-			const client = new SubscriptionClient(credentials, session.environment.resourceManagerEndpointUrl);
+			const client = new SubscriptionClient.SubscriptionClient(credentials, session.environment.resourceManagerEndpointUrl);
 			return listAll(client.subscriptions, client.subscriptions.list())
 				.then(list => list.map(subscription => ({
 					session,
@@ -716,7 +716,7 @@ async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse
 	const tokenCache = new MemoryCache();
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
 	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache });
-	const client = new SubscriptionClient(credentials);
+	const client = new SubscriptionClient.SubscriptionClient(credentials);
 	const tenants = await listAll(client.tenants, client.tenants.list());
 	const responses = await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {

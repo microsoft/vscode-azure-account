@@ -5,6 +5,7 @@ All notable changes to the "ms-vscode.azure-account" extension will be documente
 - Support national clouds ([#83](https://github.com/Microsoft/vscode-azure-account/issues/83)).
 - Support user-supplied tenants ([#58](https://github.com/Microsoft/vscode-azure-account/issues/58)).
 - Indicate when there are no subscriptions ([#51](https://github.com/Microsoft/vscode-azure-account/issues/51)).
+- Update dependencies.
 
 ## [0.4.3]
 - Setting to hide email ([#66](https://github.com/Microsoft/vscode-azure-account/issues/66)).

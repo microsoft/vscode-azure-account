@@ -25,7 +25,7 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN 
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-2. form-data version 2.3.2 (https://github.com/form-data/form-data)
+2. form-data version 2.3.3 (https://github.com/form-data/form-data)
 
 Copyright (c) 2012 Felix Geisendörfer (felix@debuggable.com) and contributors
 
@@ -126,7 +126,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-5. semver version 5.4.1 (https://github.com/npm/node-semver)
+5. semver version 5.6.0 (https://github.com/npm/node-semver)
 
 The ISC License
 
@@ -145,7 +145,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
-6. ws version 3.1.0 (https://github.com/websockets/ws)
+6. ws version 6.1.0 (https://github.com/websockets/ws)
 
 The MIT License (MIT)
 

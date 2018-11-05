@@ -323,6 +323,8 @@ export class AzureLoginHelper {
 			if (config.get('cloud') !== selected.environment.name) {
 				this.doLogin = true;
 				config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+			} else {
+				return this.login();
 			}
 		}
 	}
@@ -357,7 +359,7 @@ export class AzureLoginHelper {
 				throw err;
 			}
 			if (doLogin) {
-				this.login();
+				await this.login();
 			}
 		} finally {
 			this.updateStatus();

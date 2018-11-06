@@ -718,7 +718,7 @@ async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse
 	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache });
 	const client = new SubscriptionClient.SubscriptionClient(credentials);
 	const tenants = await listAll(client.tenants, client.tenants.list());
-	const responses = await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {
+	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
 			return firstTokenResponse;
 		}
@@ -727,8 +727,11 @@ async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse
 				console.error(err instanceof AzureLoginError && err.reason ? err.reason : err);
 				return null;
 			});
-	}));
-	return <TokenResponse[]>responses.filter(r => r);
+	}))).filter(r => r);
+	if (!responses.some(response => response.tenantId === firstTokenResponse.tenantId)) {
+		responses.unshift(firstTokenResponse);
+	}
+	return responses;
 }
 
 async function addTokenToCache(environment: AzureEnvironment, tokenCache: any, tokenResponse: TokenResponse) {

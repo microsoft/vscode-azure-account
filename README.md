@@ -7,6 +7,7 @@ The Azure Account extension provides a single Azure sign-in and subscription fil
 | Command |  |
 | --- |---|
 | `Azure: Sign In`  | Sign in to your Azure subscription.
+| `Azure: Sign In to Azure Cloud` | Sign in to your Azure subscription in one of the sovereign clouds.
 | `Azure: Sign Out` | Sign out of your Azure subscription.
 | `Azure: Select Subscriptions` | Pick the set of subscriptions you want to work with. Extensions should respect this list and only show resources within the filtered subscriptions.
 | `Azure: Create an Account`  | If you don't have an Azure Account, you can [sign up](https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account) for one today and receive $200 in free credits.

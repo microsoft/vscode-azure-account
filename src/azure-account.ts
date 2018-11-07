@@ -715,8 +715,8 @@ export async function tokenFromRefreshToken(environment: AzureEnvironment, refre
 async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse: TokenResponse) {
 	const tokenCache = new MemoryCache();
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
-	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache });
-	const client = new SubscriptionClient.SubscriptionClient(credentials);
+	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache, environment });
+	const client = new SubscriptionClient.SubscriptionClient(credentials, environment.resourceManagerEndpointUrl);
 	const tenants = await listAll(client.tenants, client.tenants.list());
 	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {

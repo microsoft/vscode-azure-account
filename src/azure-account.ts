@@ -262,9 +262,9 @@ export class AzureLoginHelper {
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				console.error(err.reason);
-				this.sendLoginTelemetry(environmentName, 'error', String(err.reason.message || err.reason));
+				this.sendLoginTelemetry(environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
 			} else {
-				this.sendLoginTelemetry(environmentName, 'failure', err && String(err.message || err));
+				this.sendLoginTelemetry(environmentName, 'failure', getErrorMessage(err));
 			}
 			throw err;
 		} finally {
@@ -809,4 +809,18 @@ async function exitCode(command: string, ...args: string[]) {
 
 function timeout(ms: number) {
 	return new Promise<never>((resolve, reject) => setTimeout(() => reject('timeout'), ms));
+}
+
+function getErrorMessage(err: any): string | undefined {
+	if (!err) {
+		return;
+	}
+
+	if (err.message) {
+		return err.message;
+	}
+
+	if (err.stack) {
+		return err.stack.split('\n')[0];
+	}
 }

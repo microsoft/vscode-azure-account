@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.6.0]
+- Bundle using Webpack ([#87](https://github.com/Microsoft/vscode-azure-account/issues/87)).
+
 ## [0.5.1]
 - Unable to get the subscription list from Azure China ([#103](https://github.com/Microsoft/vscode-azure-account/issues/103)).
 - Handle case where home tenant is not listed ([#102](https://github.com/Microsoft/vscode-azure-account/issues/102)).

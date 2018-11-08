@@ -251,7 +251,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		});
 
 		// open terminal
-		let shellPath = path.join(__dirname, `../../bin/node.${isWindows ? 'bat' : 'sh'}`);
+		let shellPath = path.join(__dirname, `../bin/node.${isWindows ? 'bat' : 'sh'}`);
 		let modulePath = path.join(__dirname, 'cloudConsoleLauncher');
 		if (isWindows) {
 			modulePath = modulePath.replace(/\\/g, '\\\\');

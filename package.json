@@ -34,7 +34,7 @@
     "onCommand:azure-account.openCloudConsoleWindows",
     "onCommand:azure-account.uploadFileCloudConsole"
   ],
-  "main": "./out/src/extension",
+  "main": "./dist/extension",
   "contributes": {
     "commands": [
       {
@@ -134,7 +134,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "rimraf dist && webpack --mode production",
+    "webpack": "rimraf dist && webpack --mode development",
+    "webpack-dev": "rimraf dist && webpack --mode development --watch",
     "compile": "tsc -p ./",
     "which": "which tsc",
     "watch": "tsc -watch -p ./",
@@ -150,8 +152,12 @@
     "@types/request-promise": "4.1.42",
     "@types/semver": "5.5.0",
     "@types/ws": "6.0.1",
+    "rimraf": "2.6.2",
+    "ts-loader": "5.3.0",
     "typescript": "3.1.6",
-    "vscode": "1.1.21"
+    "vscode": "1.1.21",
+    "webpack": "4.25.1",
+    "webpack-cli": "3.1.2"
   },
   "dependencies": {
     "adal-node": "0.1.28",

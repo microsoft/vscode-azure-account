@@ -819,11 +819,21 @@ function getErrorMessage(err: any): string | undefined {
 		return;
 	}
 
-	if (err.message) {
+	if (err.message && typeof err.message === 'string') {
 		return err.message;
 	}
 
-	if (err.stack) {
+	if (err.stack && typeof err.stack === 'string') {
 		return err.stack.split('\n')[0];
 	}
+
+	const str = String(err);
+	if (!str || str === '[object Object]') {
+		const ctr = err.constructor;
+		if (ctr && ctr.name && typeof ctr.name === 'string') {
+			return ctr.name;
+		}
+	}
+	
+	return str;
 }

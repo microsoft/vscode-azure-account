@@ -15,11 +15,13 @@ import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
 import * as cp from 'child_process';
+import * as dns from 'dns';
 
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource, Uri } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { promisify } from 'util';
 
 const localize = nls.loadMessageBundle();
 
@@ -191,7 +193,7 @@ export class AzureLoginHelper {
 		const subscriptions = context.subscriptions;
 		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));	
+		subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
@@ -249,8 +251,15 @@ export class AzureLoginHelper {
 	async login() {
 		let environmentName = 'uninitialized';
 		try {
-			this.beginLoggingIn();
 			const environment = getSelectedEnvironment();
+			while (!await isOnline(environment)) {
+				const login = { title: localize('azure-account.login', "Sign In") };
+				const result = await window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection and try again."), login);
+				if (result !== login) {
+					throw new AzureLoginError(localize('azure-account.offline', "Offline"));
+				}
+			}
+			this.beginLoggingIn();
 			environmentName = environment.name;
 			const tenantId = getTenantId();
 			const deviceLogin = await deviceLogin1(environment, tenantId);
@@ -299,28 +308,28 @@ export class AzureLoginHelper {
 			  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 		   }
 		 */
-	
+
 		this.reporter.sendTelemetryEvent('login', message ? { cloud, outcome, message } : { cloud, outcome });
 	}
 
 	async logout() {
 		await this.api.waitForLogin();
-		for (const environment of environments){
+		for (const environment of environments) {
 			await deleteRefreshToken(environment);
 		}
 		await this.clearSessions();
 		this.updateStatus();
 	}
 
-	async loginToCloud(): Promise<any>{
+	async loginToCloud(): Promise<any> {
 		const current = getSelectedEnvironment();
 		const selected = await window.showQuickPick(environments.map(environment => ({
 			label: environmentLabels[environment.name],
 			description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
 			environment
 		})), {
-			placeHolder: localize('azure-account.chooseCloudToLogin', "Choose cloud to sign in to")
-		});
+				placeHolder: localize('azure-account.chooseCloudToLogin', "Choose cloud to sign in to")
+			});
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
@@ -345,6 +354,7 @@ export class AzureLoginHelper {
 			if (!refreshToken) {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
+			await becomeOnline(environment);
 			this.beginLoggingIn();
 			const tokenResponse = await tokenFromRefreshToken(environment, refreshToken, tenantId);
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
@@ -419,7 +429,7 @@ export class AzureLoginHelper {
 			const key = `${environment} ${userId} ${tenantId}`;
 			if (!sessions[key]) {
 				sessions[key] = {
-					environment: (<any>AzureEnvironment) [environment],
+					environment: (<any>AzureEnvironment)[environment],
 					userId,
 					tenantId,
 					credentials: new DeviceTokenCredentials({ environment: (<any>AzureEnvironment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId })
@@ -814,6 +824,10 @@ function timeout(ms: number) {
 	return new Promise<never>((resolve, reject) => setTimeout(() => reject('timeout'), ms));
 }
 
+function delay(ms: number) {
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
 function getErrorMessage(err: any): string | undefined {
 	if (!err) {
 		return;
@@ -834,6 +848,30 @@ function getErrorMessage(err: any): string | undefined {
 			return ctr.name;
 		}
 	}
-	
+
 	return str;
+}
+
+async function becomeOnline(environment: AzureEnvironment) {
+	const interval = 5000;
+	for (let d = delay(interval); !await isOnline(environment, interval); d = delay(interval)) {
+		await d;
+	}
+}
+
+async function isOnline(environment: AzureEnvironment, ms = 10000) {
+	let host = 'login.microsoftonline.com';
+	try {
+		const uri = Uri.parse(environment.activeDirectoryEndpointUrl);
+		host = uri.authority;
+	} catch (err) {
+		// ignore
+	}
+	try {
+		const lookup = promisify(dns.resolve)(host);
+		await Promise.race([lookup, timeout(ms)]);
+		return true;
+	} catch (err) {
+		return false;
+	}
 }

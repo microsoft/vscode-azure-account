@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.6.1]
+- Check connection state before logging in ([#106](https://github.com/Microsoft/vscode-azure-account/issues/106)).
+
 ## [0.6.0]
 - Bundle using Webpack ([#87](https://github.com/Microsoft/vscode-azure-account/issues/87)).
 

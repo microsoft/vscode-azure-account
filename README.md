@@ -5,7 +5,7 @@ The Azure Account extension provides a single Azure sign-in and subscription fil
 
 
 | Command |  |
-| --- |---|
+| --- | --- |
 | `Azure: Sign In`  | Sign in to your Azure subscription.
 | `Azure: Sign In to Azure Cloud` | Sign in to your Azure subscription in one of the sovereign clouds.
 | `Azure: Sign Out` | Sign out of your Azure subscription.
@@ -15,6 +15,15 @@ The Azure Account extension provides a single Azure sign-in and subscription fil
 | `Azure: Open PowerShell in Cloud Shell`<sup>1</sup> | Open a new terminal running PowerShell in Cloud Shell.
 | `Azure: Upload to Cloud Shell`<sup>1</sup> | Upload a file to your Cloud Shell storage account
 <sup>1</sup> On Windows: Requires Node.js 6 or later to be installed (https://nodejs.org).
+
+## Settings
+
+| Name | Description | Default |
+| --- | --- | --- |
+| azure.resourceFilter | The resource filter, each element is a tenant id and a subscription id separated by a slash.	 |
+| azure.showSignedInEmail | Whether to show the email address (e.g., in the status bar) of the signed in account.	 | true
+| azure.tenant | A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants. |
+| azure.cloud | The current Azure Cloud to connect to. | Azure
 
 ## Contributing
 

@@ -7,8 +7,6 @@ sample
 src
 .gitignore
 .vscodeignore
-CHANGELOG.md
 package-lock.json
-README.md
 tsconfig.json
 webpack.config.js

@@ -250,14 +250,23 @@ export class AzureLoginHelper {
 
 	async login() {
 		let environmentName = 'uninitialized';
+		const cancelSource = new CancellationTokenSource();
 		try {
 			const environment = getSelectedEnvironment();
-			while (!await isOnline(environment)) {
-				const login = { title: localize('azure-account.login', "Sign In") };
-				const result = await window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection and try again."), login);
-				if (result !== login) {
-					throw new AzureLoginError(localize('azure-account.offline', "Offline"));
-				}
+			const online = becomeOnline(environment, 2000, cancelSource.token);
+			const timer = delay(2000, true);
+			if (await Promise.race([ online, timer ])) {
+				const cancel = { title: localize('azure-account.cancel', "Cancel") };
+				await Promise.race([
+					online,
+					window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
+						.then(result => {
+							if (result === cancel) {
+								throw new AzureLoginError(localize('azure-account.offline', "Offline"));
+							}
+						})
+				]);
+				await online;
 			}
 			this.beginLoggingIn();
 			environmentName = environment.name;
@@ -280,6 +289,8 @@ export class AzureLoginHelper {
 			}
 			throw err;
 		} finally {
+			cancelSource.cancel();
+			cancelSource.dispose();
 			this.updateStatus();
 		}
 	}
@@ -354,7 +365,7 @@ export class AzureLoginHelper {
 			if (!refreshToken) {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
-			await becomeOnline(environment);
+			await becomeOnline(environment, 5000);
 			this.beginLoggingIn();
 			const tokenResponse = await tokenFromRefreshToken(environment, refreshToken, tenantId);
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
@@ -820,12 +831,12 @@ async function exitCode(command: string, ...args: string[]) {
 	});
 }
 
-function timeout(ms: number) {
-	return new Promise<never>((resolve, reject) => setTimeout(() => reject('timeout'), ms));
+function timeout(ms: number, result: any = 'timeout') {
+	return new Promise<never>((_, reject) => setTimeout(() => reject(result), ms));
 }
 
-function delay(ms: number) {
-	return new Promise<void>(resolve => setTimeout(resolve, ms));
+function delay<T = void>(ms: number, result?: T) {
+	return new Promise<T>(resolve => setTimeout(() => resolve(result), ms));
 }
 
 function getErrorMessage(err: any): string | undefined {
@@ -852,14 +863,17 @@ function getErrorMessage(err: any): string | undefined {
 	return str;
 }
 
-async function becomeOnline(environment: AzureEnvironment) {
-	const interval = 5000;
-	for (let d = delay(interval); !await isOnline(environment, interval); d = delay(interval)) {
+async function becomeOnline(environment: AzureEnvironment, interval: number, token = new CancellationTokenSource().token) {
+	let o = isOnline(environment);
+	let d = delay(interval, false);
+	while (!token.isCancellationRequested && !await Promise.race([o, d])) {
 		await d;
+		o = asyncOr(o, isOnline(environment));
+		d = delay(interval, false);
 	}
 }
 
-async function isOnline(environment: AzureEnvironment, ms = 10000) {
+async function isOnline(environment: AzureEnvironment) {
 	let host = 'login.microsoftonline.com';
 	try {
 		const uri = Uri.parse(environment.activeDirectoryEndpointUrl);
@@ -868,10 +882,17 @@ async function isOnline(environment: AzureEnvironment, ms = 10000) {
 		// ignore
 	}
 	try {
-		const lookup = promisify(dns.resolve)(host);
-		await Promise.race([lookup, timeout(ms)]);
+		await promisify(dns.resolve)(host);
 		return true;
 	} catch (err) {
 		return false;
 	}
+}
+
+async function asyncOr<A, B>(a: Promise<A>, b: Promise<B>) {
+	return Promise.race([awaitAOrB(a, b), awaitAOrB(b, a)]);
+}
+
+async function awaitAOrB<A, B>(a: Promise<A>, b: Promise<B>) {
+	return (await a) || b;
 }

@@ -172,6 +172,8 @@ class ProxyTokenCache {
 	}
 }
 
+type LoginTrigger = 'activation' | 'login' | 'loginToCloud' | 'cloudChange' | 'tenantChange';
+
 export class AzureLoginHelper {
 
 	private onStatusChanged = new EventEmitter<AzureLoginStatus>();
@@ -191,7 +193,7 @@ export class AzureLoginHelper {
 
 	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
 		const subscriptions = context.subscriptions;
-		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login().catch(console.error)));
+		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
@@ -202,13 +204,13 @@ export class AzureLoginHelper {
 			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant')) {
 				const doLogin = this.doLogin;
 				this.doLogin = false;
-				this.initialize(doLogin)
+				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : 'tenantChange', doLogin)
 					.catch(console.error);
 			} else if (e.affectsConfiguration('azure.resourceFilter')) {
 				this.updateFilters(true);
 			}
 		}));
-		this.initialize(false, true)
+		this.initialize('activation', false, true)
 			.catch(console.error);
 
 		if (logVerbose) {
@@ -248,11 +250,12 @@ export class AzureLoginHelper {
 		createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
 	};
 
-	async login() {
+	async login(trigger: LoginTrigger) {
 		let environmentName = 'uninitialized';
 		const cancelSource = new CancellationTokenSource();
 		try {
 			const environment = getSelectedEnvironment();
+			environmentName = environment.name;
 			const online = becomeOnline(environment, 2000, cancelSource.token);
 			const timer = delay(2000, true);
 			if (await Promise.race([ online, timer ])) {
@@ -269,7 +272,6 @@ export class AzureLoginHelper {
 				await online;
 			}
 			this.beginLoggingIn();
-			environmentName = environment.name;
 			const tenantId = getTenantId();
 			const deviceLogin = await deviceLogin1(environment, tenantId);
 			const message = this.showDeviceCodeMessage(deviceLogin);
@@ -279,13 +281,13 @@ export class AzureLoginHelper {
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			await storeRefreshToken(environment, refreshToken);
 			await this.updateSessions(environment, tokenResponses);
-			this.sendLoginTelemetry(environmentName, 'success');
+			this.sendLoginTelemetry(trigger, 'newLogin', environmentName, 'success');
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				console.error(err.reason);
-				this.sendLoginTelemetry(environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
+				this.sendLoginTelemetry(trigger, 'newLogin', environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
 			} else {
-				this.sendLoginTelemetry(environmentName, 'failure', getErrorMessage(err));
+				this.sendLoginTelemetry(trigger, 'newLogin', environmentName, 'failure', getErrorMessage(err));
 			}
 			throw err;
 		} finally {
@@ -311,16 +313,21 @@ export class AzureLoginHelper {
 		}
 	}
 
-	sendLoginTelemetry(cloud: string, outcome: string, message?: string) {
+	sendLoginTelemetry(trigger: LoginTrigger, path: 'tryExisting' | 'newLogin', cloud: string, outcome: string, message?: string) {
 		/* __GDPR__
 		   "login" : {
+			  "trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "cloud" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 		   }
 		 */
-
-		this.reporter.sendTelemetryEvent('login', message ? { cloud, outcome, message } : { cloud, outcome });
+		const event: Record<string, string> = { trigger, path, cloud, outcome };
+		if (message) {
+			event.message = message;
+		}
+		this.reporter.sendTelemetryEvent('login', event);
 	}
 
 	async logout() {
@@ -347,18 +354,20 @@ export class AzureLoginHelper {
 				this.doLogin = true;
 				config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
 			} else {
-				return this.login();
+				return this.login('loginToCloud');
 			}
 		}
 	}
 
-	private async initialize(doLogin?: boolean, migrateToken?: boolean) {
+	private async initialize(trigger: LoginTrigger, doLogin?: boolean, migrateToken?: boolean) {
+		let environmentName = 'uninitialized';
 		try {
 			const timing = false;
 			const start = Date.now();
 			this.loadCache();
 			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
 			const environment = getSelectedEnvironment();
+			environmentName = environment.name;
 			const tenantId = getTenantId();
 			const refreshToken = await getRefreshToken(environment, migrateToken);
 			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
@@ -377,13 +386,16 @@ export class AzureLoginHelper {
 			timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
 			await this.updateSessions(environment, tokenResponses);
 			timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
+			this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success');
 		} catch (err) {
 			await this.clearSessions(); // clear out cached data
-			if (!(err instanceof AzureLoginError)) {
-				throw err;
+			if (err instanceof AzureLoginError && err.reason) {
+				this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
+			} else {
+				this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'failure', getErrorMessage(err));
 			}
 			if (doLogin) {
-				await this.login();
+				await this.login(trigger);
 			}
 		} finally {
 			this.updateStatus();

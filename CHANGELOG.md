@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.7.0]
+- Test system proxy support ([#27](https://github.com/Microsoft/vscode-azure-account/issues/27)).
+
 ## [0.6.2]
 - Update README with settings ([#107](https://github.com/Microsoft/vscode-azure-account/pull/107)).
 - Add README and CHANGELOG back to packaged extension.

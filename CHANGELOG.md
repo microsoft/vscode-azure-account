@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.6.2]
+- Update README with settings ([#107](https://github.com/Microsoft/vscode-azure-account/pull/107)).
+- Add README and CHANGELOG back to packaged extension.
+
 ## [0.6.1]
 - Check connection state before logging in ([#106](https://github.com/Microsoft/vscode-azure-account/issues/106)).
 

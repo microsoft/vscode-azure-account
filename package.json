@@ -16,9 +16,8 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "publisher": "ms-vscode",
   "engines": {
-    "vscode": "^1.30.0"
+    "vscode": "^1.28.0"
   },
-  "systemProxy": "force",
   "categories": [
     "Azure"
   ],

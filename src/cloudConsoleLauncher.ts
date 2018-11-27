@@ -236,7 +236,7 @@ function connectSocket(ipcHandle: string, url: string) {
 
 	const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
 	const ws = new WS(url, {
-		agent: proxy && (url.startsWith('ws:') ? new HttpProxyAgent(proxy) : new HttpsProxyAgent(proxy))
+		agent: proxy && (url.startsWith('ws:') || url.startsWith('http:') ? new HttpProxyAgent(proxy) : new HttpsProxyAgent(proxy))
 	});
 
 	ws.on('open', function () {

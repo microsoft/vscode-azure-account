@@ -12,7 +12,7 @@
     "color": "#0072c6",
     "theme": "dark"
   },
-  "version": "0.7.0",
+  "version": "0.7.1",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "publisher": "ms-vscode",
   "engines": {
@@ -34,7 +34,7 @@
     "onCommand:azure-account.openCloudConsoleWindows",
     "onCommand:azure-account.uploadFileCloudConsole"
   ],
-  "main": "./out/extension",
+  "main": "./dist/extension",
   "contributes": {
     "commands": [
       {

@@ -11,10 +11,8 @@ const createLogContext = require('adal-node/lib/log').createLogContext;
 
 import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
 import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
-import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
-import * as cp from 'child_process';
 import * as dns from 'dns';
 
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource, Uri } from 'vscode';
@@ -299,15 +297,10 @@ export class AzureLoginHelper {
 
 	async showDeviceCodeMessage(deviceLogin: DeviceLogin): Promise<any> {
 		const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
-		const open: MessageItem = { title: localize('azure-account.open', "Open") };
-		const canCopy = process.platform !== 'linux' || (await exitCode('xclip', '-version')) === 0;
-		const response = await window.showInformationMessage(deviceLogin.message, canCopy ? copyAndOpen : open);
+		const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen);
 		if (response === copyAndOpen) {
-			copypaste.copy(deviceLogin.userCode);
+			env.clipboard.writeText(deviceLogin.userCode);
 			commands.executeCommand('vscode.open', Uri.parse(deviceLogin.verificationUrl));
-		} else if (response === open) {
-			commands.executeCommand('vscode.open', Uri.parse(deviceLogin.verificationUrl));
-			await this.showDeviceCodeMessage(deviceLogin);
 		} else {
 			return Promise.reject('user canceled');
 		}
@@ -835,13 +828,6 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 	return ConfigurationTarget.Global;
 }
 
-async function exitCode(command: string, ...args: string[]) {
-	return new Promise<number | undefined>(resolve => {
-		cp.spawn(command, args)
-			.on('error', err => resolve())
-			.on('exit', code => resolve(code));
-	});
-}
 
 function timeout(ms: number, result: any = 'timeout') {
 	return new Promise<never>((_, reject) => setTimeout(() => reject(result), ms));

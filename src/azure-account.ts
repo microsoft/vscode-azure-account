@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const adal = require('adal-node');
-const MemoryCache = adal.MemoryCache;
-const AuthenticationContext = adal.AuthenticationContext;
 const CacheDriver = require('adal-node/lib/cache-driver');
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
+import { MemoryCache, AuthenticationContext, Logging, UserCodeInfo } from 'adal-node';
 import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
 import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
 import * as nls from 'vscode-nls';
@@ -18,8 +16,10 @@ import * as dns from 'dns';
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource, Uri } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
+import * as codeFlowLogin from './codeFlowLogin';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { promisify } from 'util';
+import { TokenResponse } from 'adal-node';
 
 const localize = nls.loadMessageBundle();
 
@@ -73,10 +73,10 @@ async function deleteRefreshToken(environment: AzureEnvironment) {
 }
 
 const environments: AzureEnvironment[] = [
-	<any>AzureEnvironment.Azure,
-	<any>AzureEnvironment.AzureChina,
-	<any>AzureEnvironment.AzureGermanCloud,
-	<any>AzureEnvironment.AzureUSGovernment
+	AzureEnvironment.Azure,
+	AzureEnvironment.AzureChina,
+	AzureEnvironment.AzureGermanCloud,
+	AzureEnvironment.AzureUSGovernment
 ];
 
 const environmentLabels: Record<string, string> = {
@@ -90,33 +90,6 @@ const logVerbose = false;
 const commonTenantId = 'common';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
 const validateAuthority = true;
-
-interface DeviceLogin {
-	userCode: string;
-	deviceCode: string;
-	verificationUrl: string;
-	expiresIn: number;
-	interval: number;
-	message: string;
-}
-
-interface TokenResponse {
-	tokenType: string;
-	expiresIn: number;
-	expiresOn: string;
-	resource: string;
-	accessToken: string;
-	refreshToken: string;
-	userId: string;
-	isUserIdDisplayable: boolean;
-	familyName: string;
-	givenName: string;
-	oid: string;
-	tenantId: string;
-	isMRRT: boolean;
-	_clientId: string;
-	_authority: string;
-}
 
 interface AzureAccountWriteable extends AzureAccount {
 	status: AzureLoginStatus;
@@ -170,7 +143,8 @@ class ProxyTokenCache {
 	}
 }
 
-type LoginTrigger = 'activation' | 'login' | 'loginToCloud' | 'cloudChange' | 'tenantChange';
+type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange';
+type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
 
 export class AzureLoginHelper {
 
@@ -192,6 +166,7 @@ export class AzureLoginHelper {
 	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
 		const subscriptions = context.subscriptions;
 		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
+		subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));
 		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
@@ -219,9 +194,8 @@ export class AzureLoginHelper {
 	}
 
 	private enableLogging(channel: OutputChannel) {
-		const log = adal.Logging;
-		log.setLoggingOptions({
-			level: log.LOGGING_LEVEL.VERBOSE,
+		Logging.setLoggingOptions({
+			level: 3 /* Logging.LOGGING_LEVEL.VERBOSE */,
 			log: (level: any, message: any, error: any) => {
 				if (message) {
 					channel.appendLine(message);
@@ -249,6 +223,7 @@ export class AzureLoginHelper {
 	};
 
 	async login(trigger: LoginTrigger) {
+		let path: CodePath = 'newLogin';
 		let environmentName = 'uninitialized';
 		const cancelSource = new CancellationTokenSource();
 		try {
@@ -271,21 +246,20 @@ export class AzureLoginHelper {
 			}
 			this.beginLoggingIn();
 			const tenantId = getTenantId();
-			const deviceLogin = await deviceLogin1(environment, tenantId);
-			const message = this.showDeviceCodeMessage(deviceLogin);
-			const login2 = deviceLogin2(environment, tenantId, deviceLogin);
-			const tokenResponse = await Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
-			const refreshToken = tokenResponse.refreshToken;
+			const useCodeFlow = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer();
+			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
+			const tokenResponse = await (useCodeFlow ? codeFlowLogin.login(clientId, environment, tenantId, openUri) : deviceLogin(environment, tenantId));
+			const refreshToken = tokenResponse.refreshToken!;
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			await storeRefreshToken(environment, refreshToken);
 			await this.updateSessions(environment, tokenResponses);
-			this.sendLoginTelemetry(trigger, 'newLogin', environmentName, 'success');
+			this.sendLoginTelemetry(trigger, path, environmentName, 'success');
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				console.error(err.reason);
-				this.sendLoginTelemetry(trigger, 'newLogin', environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
+				this.sendLoginTelemetry(trigger, path, environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
 			} else {
-				this.sendLoginTelemetry(trigger, 'newLogin', environmentName, 'failure', getErrorMessage(err));
+				this.sendLoginTelemetry(trigger, path, environmentName, 'failure', getErrorMessage(err));
 			}
 			throw err;
 		} finally {
@@ -295,18 +269,7 @@ export class AzureLoginHelper {
 		}
 	}
 
-	async showDeviceCodeMessage(deviceLogin: DeviceLogin): Promise<any> {
-		const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
-		const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen);
-		if (response === copyAndOpen) {
-			env.clipboard.writeText(deviceLogin.userCode);
-			commands.executeCommand('vscode.open', Uri.parse(deviceLogin.verificationUrl));
-		} else {
-			return Promise.reject('user canceled');
-		}
-	}
-
-	sendLoginTelemetry(trigger: LoginTrigger, path: 'tryExisting' | 'newLogin', cloud: string, outcome: string, message?: string) {
+	sendLoginTelemetry(trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string) {
 		/* __GDPR__
 		   "login" : {
 			  "trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -332,7 +295,7 @@ export class AzureLoginHelper {
 		this.updateStatus();
 	}
 
-	async loginToCloud(): Promise<any> {
+	async loginToCloud(): Promise<void> {
 		const current = getSelectedEnvironment();
 		const selected = await window.showQuickPick(environments.map(environment => ({
 			label: environmentLabels[environment.name],
@@ -465,8 +428,8 @@ export class AzureLoginHelper {
 		const sessions = this.api.sessions;
 		sessions.splice(0, sessions.length, ...tokenResponses.map<AzureSession>(tokenResponse => ({
 			environment,
-			userId: tokenResponse.userId,
-			tenantId: tokenResponse.tenantId,
+			userId: tokenResponse.userId!,
+			tenantId: tokenResponse.tenantId!,
 			credentials: new DeviceTokenCredentials({ environment: environment, username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId })
 		})));
 		this.onSessionsChanged.fire();
@@ -564,7 +527,7 @@ export class AzureLoginHelper {
 		}
 	}
 
-	async noSubscriptionsFound(): Promise<any> {
+	async noSubscriptionsFound(): Promise<void> {
 		const open: MessageItem = { title: localize('azure-account.open', "Open") };
 		const response = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
 		if (response === open) {
@@ -691,7 +654,7 @@ export class AzureLoginHelper {
 function getSelectedEnvironment(): AzureEnvironment {
 	const envConfig = workspace.getConfiguration('azure');
 	const envSetting = envConfig.get<string>('cloud');
-	return environments.find(environment => environment.name === envSetting) || <any>AzureEnvironment.Azure;
+	return environments.find(environment => environment.name === envSetting) || AzureEnvironment.Azure;
 }
 
 function getTenantId() {
@@ -699,11 +662,29 @@ function getTenantId() {
 	return envConfig.get<string>('tenant') || commonTenantId;
 }
 
-async function deviceLogin1(environment: AzureEnvironment, tenantId: string): Promise<DeviceLogin> {
-	return new Promise<DeviceLogin>((resolve, reject) => {
+async function deviceLogin(environment: AzureEnvironment, tenantId: string) {
+	const deviceLogin = await deviceLogin1(environment, tenantId);
+	const message = showDeviceCodeMessage(deviceLogin);
+	const login2 = deviceLogin2(environment, tenantId, deviceLogin);
+	return Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
+}
+
+async function showDeviceCodeMessage(deviceLogin: UserCodeInfo): Promise<void> {
+	const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
+	const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen);
+	if (response === copyAndOpen) {
+		env.clipboard.writeText(deviceLogin.userCode);
+		await openUri(deviceLogin.verificationUrl);
+	} else {
+		return Promise.reject('user canceled');
+	}
+}
+
+async function deviceLogin1(environment: AzureEnvironment, tenantId: string): Promise<UserCodeInfo> {
+	return new Promise<UserCodeInfo>((resolve, reject) => {
 		const cache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, cache);
-		context.acquireUserCode(environment.activeDirectoryResourceId, clientId, 'en-us', function (err: any, response: any) {
+		context.acquireUserCode(environment.activeDirectoryResourceId, clientId, 'en-us', (err, response) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Acquiring user code failed"), err));
 			} else {
@@ -713,29 +694,33 @@ async function deviceLogin1(environment: AzureEnvironment, tenantId: string): Pr
 	});
 }
 
-async function deviceLogin2(environment: AzureEnvironment, tenantId: string, deviceLogin: DeviceLogin) {
+async function deviceLogin2(environment: AzureEnvironment, tenantId: string, deviceLogin: UserCodeInfo) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
-		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, deviceLogin, function (err: any, tokenResponse: TokenResponse) {
+		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, deviceLogin, (err, tokenResponse) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
+			} else if (tokenResponse.error) {
+				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), tokenResponse));
 			} else {
-				resolve(tokenResponse);
+				resolve(<TokenResponse>tokenResponse);
 			}
 		});
 	});
 }
 
-export async function tokenFromRefreshToken(environment: AzureEnvironment, refreshToken: string, tenantId: string, resource: string | null = null) {
+export async function tokenFromRefreshToken(environment: AzureEnvironment, refreshToken: string, tenantId: string, resource?: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
-		context.acquireTokenWithRefreshToken(refreshToken, clientId, resource, function (err: any, tokenResponse: TokenResponse) {
+		context.acquireTokenWithRefreshToken(refreshToken, clientId, <any>resource, (err, tokenResponse) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Acquiring token with refresh token failed"), err));
+			} else if (tokenResponse.error) {
+				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Acquiring token with refresh token failed"), tokenResponse));
 			} else {
-				resolve(tokenResponse);
+				resolve(<TokenResponse>tokenResponse);
 			}
 		});
 	});
@@ -751,7 +736,7 @@ async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
 			return firstTokenResponse;
 		}
-		return tokenFromRefreshToken(environment, firstTokenResponse.refreshToken, tenant.tenantId!)
+		return tokenFromRefreshToken(environment, firstTokenResponse.refreshToken!, tenant.tenantId!)
 			.catch(err => {
 				console.error(err instanceof AzureLoginError && err.reason ? err.reason : err);
 				return null;
@@ -893,4 +878,8 @@ async function asyncOr<A, B>(a: Promise<A>, b: Promise<B>) {
 
 async function awaitAOrB<A, B>(a: Promise<A>, b: Promise<B>) {
 	return (await a) || b;
+}
+
+async function openUri(uri: string) {
+	return commands.executeCommand<void>('vscode.open', Uri.parse(uri));
 }

@@ -7,6 +7,7 @@ The Azure Account extension provides a single Azure sign-in and subscription fil
 | Command |  |
 | --- | --- |
 | `Azure: Sign In`  | Sign in to your Azure subscription.
+| `Azure: Sign In with Device Code` | Sign in to your Azure subscription with a device code. Use this in setups where the Sign In command does not work.
 | `Azure: Sign In to Azure Cloud` | Sign in to your Azure subscription in one of the sovereign clouds.
 | `Azure: Sign Out` | Sign out of your Azure subscription.
 | `Azure: Select Subscriptions` | Pick the set of subscriptions you want to work with. Extensions should respect this list and only show resources within the filtered subscriptions.
@@ -41,3 +42,5 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 ## License
 [MIT](LICENSE.md)
+
+The Visual Studio Code logo is under the [license](https://code.visualstudio.com/license) of the Visual Studio Code product.

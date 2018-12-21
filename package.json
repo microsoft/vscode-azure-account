@@ -26,6 +26,7 @@
   ],
   "activationEvents": [
     "onCommand:azure-account.login",
+    "onCommand:azure-account.loginWithDeviceCode",
     "onCommand:azure-account.logout",
     "onCommand:azure-account.loginToCloud",
     "onCommand:azure-account.selectSubscriptions",
@@ -40,6 +41,11 @@
       {
         "command": "azure-account.login",
         "title": "%azure-account.commands.login%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.loginWithDeviceCode",
+        "title": "%azure-account.commands.loginWithDeviceCode%",
         "category": "%azure-account.commands.azure%"
       },
       {

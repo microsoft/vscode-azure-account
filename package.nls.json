@@ -1,6 +1,7 @@
 {
 	"azure-account.commands.azure": "Azure",
 	"azure-account.commands.login": "Sign In",
+	"azure-account.commands.loginWithDeviceCode": "Sign In with Device Code",
 	"azure-account.commands.logout": "Sign Out",
 	"azure-account.commands.loginToCloud": "Sign In to Azure Cloud",
 	"azure-account.commands.selectSubscriptions": "Select Subscriptions",

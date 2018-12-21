@@ -3146,3 +3146,30 @@ For more information, please refer to <http://unlicense.org>
 
 
 -------------------------------------------------------------------
+
+-------------------------------------------------------------------
+
+json-schema 0.2.3 - AFL-2.1 OR BSD-3-Clause
+https://github.com/kriszyp/json-schema#readme
+Copyright (c) 2007 Kris Zyp SitePen (www.sitepen.com)
+
+AFL-2.1 OR BSD-3-Clause
+
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+
+xmldom 0.1.27 - LGPL-2.0 OR MIT
+https://github.com/jindw/xmldom
+
+You can choose any one of those:
+
+The MIT License (MIT):
+
+link:http://opensource.org/licenses/MIT
+
+LGPL:
+http://www.gnu.org/licenses/lgpl.html
+
+
+-------------------------------------------------------------------

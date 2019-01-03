@@ -135,6 +135,64 @@
           ],
           "default": "Azure",
           "description": "The current Azure Cloud to connect to."
+        },
+        "azure.ppe": {
+          "type": "object",
+          "properties": {
+            "portalUrl": {
+              "type": "string"
+            },
+            "publishingProfileUrl": {
+              "type": "string"
+            },
+            "managementEndpointUrl": {
+              "type": "string"
+            },
+            "resourceManagerEndpointUrl": {
+              "type": "string"
+            },
+            "sqlManagementEndpointUrl": {
+              "type": "string"
+            },
+            "sqlServerHostnameSuffix": {
+              "type": "string"
+            },
+            "galleryEndpointUrl": {
+              "type": "string"
+            },
+            "activeDirectoryEndpointUrl": {
+              "type": "string"
+            },
+            "activeDirectoryResourceId": {
+              "type": "string"
+            },
+            "activeDirectoryGraphResourceId": {
+              "type": "string"
+            },
+            "batchResourceId": {
+              "type": "string"
+            },
+            "activeDirectoryGraphApiVersion": {
+              "type": "string"
+            },
+            "storageEndpointSuffix": {
+              "type": "string"
+            },
+            "keyVaultDnsSuffix": {
+              "type": "string"
+            },
+            "azureDataLakeStoreFileSystemEndpointSuffix": {
+              "type": "string"
+            },
+            "azureDataLakeAnalyticsCatalogAndJobEndpointSuffix": {
+              "type": "string"
+            },
+            "validateAuthority": {
+              "type": "boolean"
+            }
+          },
+          "default": null,
+          "description": "Development setting: The PPE environment for testing."
         }
       }
     }

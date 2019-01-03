@@ -66,17 +66,24 @@ async function storeRefreshToken(environment: AzureEnvironment, token: string) {
 	}
 }
 
-async function deleteRefreshToken(environment: AzureEnvironment) {
+async function deleteRefreshToken(environmentName: string) {
 	if (keytar) {
-		await keytar.deletePassword(credentialsSection, environment.name);
+		await keytar.deletePassword(credentialsSection, environmentName);
 	}
 }
 
-const environments: AzureEnvironment[] = [
+const staticEnvironments: AzureEnvironment[] = [
 	AzureEnvironment.Azure,
 	AzureEnvironment.AzureChina,
 	AzureEnvironment.AzureGermanCloud,
 	AzureEnvironment.AzureUSGovernment
+];
+
+const azurePPE = 'AzurePPE';
+
+const staticEnvironmentNames = [
+	...staticEnvironments.map(environment => environment.name),
+	azurePPE
 ];
 
 const environmentLabels: Record<string, string> = {
@@ -84,6 +91,7 @@ const environmentLabels: Record<string, string> = {
 	AzureChina: localize('azure-account.azureChinaCloud', 'Azure China'),
 	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
 	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
+	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
 
 const logVerbose = false;
@@ -288,8 +296,8 @@ export class AzureLoginHelper {
 
 	async logout() {
 		await this.api.waitForLogin();
-		for (const environment of environments) {
-			await deleteRefreshToken(environment);
+		for (const name of staticEnvironmentNames) {
+			await deleteRefreshToken(name);
 		}
 		await this.clearSessions();
 		this.updateStatus();
@@ -297,7 +305,7 @@ export class AzureLoginHelper {
 
 	async loginToCloud(): Promise<void> {
 		const current = getSelectedEnvironment();
-		const selected = await window.showQuickPick(environments.map(environment => ({
+		const selected = await window.showQuickPick(getEnvironments().map(environment => ({
 			label: environmentLabels[environment.name],
 			description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
 			environment
@@ -654,7 +662,23 @@ export class AzureLoginHelper {
 function getSelectedEnvironment(): AzureEnvironment {
 	const envConfig = workspace.getConfiguration('azure');
 	const envSetting = envConfig.get<string>('cloud');
-	return environments.find(environment => environment.name === envSetting) || AzureEnvironment.Azure;
+	return getEnvironments().find(environment => environment.name === envSetting) || AzureEnvironment.Azure;
+}
+
+function getEnvironments() {
+	const config = workspace.getConfiguration('azure');
+	const ppe = config.get<AzureEnvironment>('ppe');
+	if (ppe) {
+		return [
+			...staticEnvironments,
+			{
+				...ppe,
+				name: azurePPE
+			}
+		]
+	} else {
+		return staticEnvironments;
+	}
 }
 
 function getTenantId() {

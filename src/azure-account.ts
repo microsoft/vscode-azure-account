@@ -48,27 +48,43 @@ async function getRefreshToken(environment: AzureEnvironment, migrateToken?: boo
 	if (!keytar) {
 		return;
 	}
-	if (migrateToken) {
-		const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
-		if (token) {
-			if (!await keytar.getPassword(credentialsSection, 'Azure')) {
-				await keytar.setPassword(credentialsSection, 'Azure', token);
+	try {
+		if (migrateToken) {
+			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
+			if (token) {
+				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
+					await keytar.setPassword(credentialsSection, 'Azure', token);
+				}
+				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
 			}
-			await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
 		}
+	} catch (err) {
+		// ignore
 	}
-	return keytar.getPassword(credentialsSection, environment.name);
+	try {
+		return keytar.getPassword(credentialsSection, environment.name);
+	} catch (err) {
+		// ignore
+	}
 }
 
 async function storeRefreshToken(environment: AzureEnvironment, token: string) {
 	if (keytar) {
-		await keytar.setPassword(credentialsSection, environment.name, token);
+		try {
+			await keytar.setPassword(credentialsSection, environment.name, token);
+		} catch (err) {
+			// ignore
+		}
 	}
 }
 
 async function deleteRefreshToken(environmentName: string) {
 	if (keytar) {
-		await keytar.deletePassword(credentialsSection, environmentName);
+		try {
+			await keytar.deletePassword(credentialsSection, environmentName);
+		} catch (err) {
+			// ignore
+		}
 	}
 }
 

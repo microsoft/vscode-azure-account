@@ -555,7 +555,7 @@ export class AzureLoginHelper {
 		const open: MessageItem = { title: localize('azure-account.open', "Open") };
 		const response = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
 		if (response === open) {
-			commands.executeCommand('vscode.open', Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
+			env.openExternal(Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
 		}
 	}
 
@@ -921,5 +921,5 @@ async function awaitAOrB<A, B>(a: Promise<A>, b: Promise<B>) {
 }
 
 async function openUri(uri: string) {
-	return commands.executeCommand<void>('vscode.open', Uri.parse(uri));
+	await env.openExternal(Uri.parse(uri));
 }

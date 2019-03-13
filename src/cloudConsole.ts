@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, commands, MessageItem, EventEmitter, Terminal, Uri } from 'vscode';
+import { window, commands, MessageItem, EventEmitter, Terminal, Uri, env, QuickPickItem } from 'vscode';
 import { AzureAccount, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
 import { tokenFromRefreshToken } from './azure-account';
 import { createServer, readJSON, Queue } from './ipc';
@@ -315,7 +315,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 					return undefined;
 				})))
 				.then(tenantDetails => tenantDetails.filter(details => details));
-			const pick = await window.showQuickPick(fetchingDetails
+			const pick = await window.showQuickPick<QuickPickItem & { session: AzureSession }>(fetchingDetails
 				.then(tenantDetails => tenantDetails.map(details => {
 					const tenantDetails = details!.tenantDetails;
 					const defaultDomain = tenantDetails.verifiedDomains.find(domain => domain.default);
@@ -442,7 +442,7 @@ async function requiresSetUp(reporter: TelemetryReporter) {
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresSetUpOpen');
-		commands.executeCommand('vscode.open', Uri.parse('https://shell.azure.com'));
+		env.openExternal(Uri.parse('https://shell.azure.com'));
 	} else {
 		sendTelemetryEvent(reporter, 'requiresSetUpCancel');
 	}
@@ -455,7 +455,7 @@ async function requiresNode(reporter: TelemetryReporter) {
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresNodeOpen');
-		commands.executeCommand('vscode.open', Uri.parse('https://nodejs.org'));
+		env.openExternal(Uri.parse('https://nodejs.org'));
 	} else {
 		sendTelemetryEvent(reporter, 'requiresNodeCancel');
 	}

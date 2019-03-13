@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ExtensionContext, env, window, extensions, Uri, commands } from 'vscode';
+import { ExtensionContext, env, window, extensions, Uri } from 'vscode';
 import * as nls from 'vscode-nls';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -63,7 +63,7 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 					"nps.survey/takeShortSurvey" : {}
 				*/
 				reporter.sendTelemetryEvent('nps.survey/takeShortSurvey');
-				commands.executeCommand('vscode.open', Uri.parse(`${NPS_SURVEY_URL}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(extensionVersion)}&m=${encodeURIComponent(env.machineId)}`));
+				env.openExternal(Uri.parse(`${NPS_SURVEY_URL}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(extensionVersion)}&m=${encodeURIComponent(env.machineId)}`));
 				await globalState.update(IS_CANDIDATE_KEY, false);
 				await globalState.update(SKIP_VERSION_KEY, extensionVersion);
 			}

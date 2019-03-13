@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace } from 'vscode';
+import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace, env } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
 import { AzureAccount } from './azure-account.api';
 import { createReporter } from './telemetry';
@@ -91,7 +91,7 @@ function logDiagnostics(context: ExtensionContext, api: AzureAccount) {
 }
 
 function createAccount() {
-	return commands.executeCommand('vscode.open', Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
+	return env.openExternal(Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
 }
 
 function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {

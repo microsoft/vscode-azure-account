@@ -1,6 +1,12 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.8.1]
+- Ignore errors from keytar ([#59](https://github.com/Microsoft/vscode-azure-account/issues/59)).
+- Use openExternal API for opening URIs ([#110](https://github.com/Microsoft/vscode-azure-account/issues/110)).
+- Use GET to see if login endpoint is reachable ([#121](https://github.com/Microsoft/vscode-azure-account/issues/121)).
+- Use localhost for redirect with ADFS ([#105](https://github.com/Microsoft/vscode-azure-account/issues/105)).
+
 ## [0.8.0]
 - Simplified sign in ([#75](https://github.com/Microsoft/vscode-azure-account/issues/75)).
 - Setting for specifying PPE environment.

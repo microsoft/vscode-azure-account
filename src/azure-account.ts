@@ -11,14 +11,14 @@ import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
 import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
-import * as dns from 'dns';
+import * as http from 'http';
+import * as https from 'https';
 
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource, Uri } from 'vscode';
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { promisify } from 'util';
 import { TokenResponse } from 'adal-node';
 
 const localize = nls.loadMessageBundle();
@@ -897,15 +897,12 @@ async function becomeOnline(environment: AzureEnvironment, interval: number, tok
 }
 
 async function isOnline(environment: AzureEnvironment) {
-	let host = 'login.microsoftonline.com';
 	try {
-		const uri = Uri.parse(environment.activeDirectoryEndpointUrl);
-		host = uri.authority;
-	} catch (err) {
-		// ignore
-	}
-	try {
-		await promisify(dns.resolve)(host);
+		await new Promise<http.IncomingMessage | https.IncomingMessage>((resolve, reject) => {
+			const url = environment.activeDirectoryEndpointUrl;
+			(url.startsWith('https:') ? https : http).get(url, resolve)
+				.on('error', reject);
+		});
 		return true;
 	} catch (err) {
 		return false;

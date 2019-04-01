@@ -13,13 +13,23 @@ import * as crypto from 'crypto';
 import { AzureEnvironment } from 'ms-rest-azure';
 import { TokenResponse, AuthenticationContext } from 'adal-node';
 
-const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
+const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
+const redirectUrlADFS = 'http://127.0.0.1:9472/';
 
-export async function checkRedirectServer() {
+export function isADFS(environment: AzureEnvironment) {
+	const u = url.parse(environment.activeDirectoryEndpointUrl);
+	const pathname = (u.pathname || '').toLowerCase();
+	return pathname === '/adfs' || pathname.startsWith('/adfs/');
+}
+
+export async function checkRedirectServer(adfs: boolean) {
+	if (adfs) {
+		return true;
+	}
 	let timer: NodeJS.Timer | undefined;
 	const promise = new Promise<boolean>(resolve => {
 		const req = https.get({
-			...url.parse(`${redirectUrl}?state=3333,cccc`),
+			...url.parse(`${redirectUrlAAD}?state=3333,cccc`),
 		}, res => {
 			const key = Object.keys(res.headers)
 				.find(key => key.toLowerCase() === 'location');
@@ -47,13 +57,14 @@ export async function checkRedirectServer() {
 	return promise;
 }
 
-export async function login(clientId: string, environment: AzureEnvironment, tenantId: string, openUri: (url: string) => Promise<void>) {
+export async function login(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>) {
 	const nonce = crypto.randomBytes(16).toString('base64');
 	const { server, codePromise } = createServer(nonce);
 
 	try {
 		const port = await startServer(server);
 		const state = `${port},${encodeURIComponent(nonce)}`;
+		const redirectUrl = adfs ? redirectUrlADFS : redirectUrlAAD;
 		await openUri(`${environment.activeDirectoryEndpointUrl}${tenantId}/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`);
 
 		const codeRes = await codePromise;
@@ -62,7 +73,7 @@ export async function login(clientId: string, environment: AzureEnvironment, ten
 			if ('err' in codeRes) {
 				throw codeRes.err;
 			}
-			const tokenResponse = await tokenWithAuthorizationCode(clientId, environment, tenantId, codeRes.code);
+			const tokenResponse = await tokenWithAuthorizationCode(clientId, environment, redirectUrl, tenantId, codeRes.code);
 			res.writeHead(302, { Location: '/' });
 			res.end();
 			return tokenResponse;
@@ -172,7 +183,7 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 	throw new Error(error || 'No code received.');
 }
 
-async function tokenWithAuthorizationCode(clientId: string, environment: AzureEnvironment, tenantId: string, code: string) {
+async function tokenWithAuthorizationCode(clientId: string, environment: AzureEnvironment, redirectUrl: string, tenantId: string, code: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`);
 		context.acquireTokenWithAuthorizationCode(code, redirectUrl, environment.activeDirectoryResourceId, clientId, <any>undefined, (err, response) => {
@@ -188,6 +199,6 @@ async function tokenWithAuthorizationCode(clientId: string, environment: AzureEn
 }
 
 if (require.main === module) {
-	login('aebc6443-996d-45c2-90f0-388ff96faa56', AzureEnvironment.Azure, 'common', async uri => console.log(`Open: ${uri}`))
+	login('aebc6443-996d-45c2-90f0-388ff96faa56', AzureEnvironment.Azure, false, 'common', async uri => console.log(`Open: ${uri}`))
 		.catch(console.error);
 }

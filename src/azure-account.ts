@@ -270,9 +270,10 @@ export class AzureLoginHelper {
 			}
 			this.beginLoggingIn();
 			const tenantId = getTenantId();
-			const useCodeFlow = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer();
+			const adfs = codeFlowLogin.isADFS(environment);
+			const useCodeFlow = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer(adfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			const tokenResponse = await (useCodeFlow ? codeFlowLogin.login(clientId, environment, tenantId, openUri) : deviceLogin(environment, tenantId));
+			const tokenResponse = await (useCodeFlow ? codeFlowLogin.login(clientId, environment, adfs, tenantId, openUri) : deviceLogin(environment, tenantId));
 			const refreshToken = tokenResponse.refreshToken!;
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			await storeRefreshToken(environment, refreshToken);

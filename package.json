@@ -217,7 +217,7 @@
     "@types/ws": "6.0.1",
     "rimraf": "2.6.2",
     "ts-loader": "5.3.0",
-    "typescript": "3.1.6",
+    "typescript": "3.3.4000",
     "vscode": "1.1.30",
     "webpack": "4.25.1",
     "webpack-cli": "3.1.2"

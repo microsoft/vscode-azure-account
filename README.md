@@ -15,6 +15,7 @@ The Azure Account extension provides a single Azure sign-in and subscription fil
 | `Azure: Open Bash in Cloud Shell`<sup>1</sup> | Open a new terminal running Bash in Cloud Shell.
 | `Azure: Open PowerShell in Cloud Shell`<sup>1</sup> | Open a new terminal running PowerShell in Cloud Shell.
 | `Azure: Upload to Cloud Shell`<sup>1</sup> | Upload a file to your Cloud Shell storage account
+
 <sup>1</sup> On Windows: Requires Node.js 6 or later to be installed (https://nodejs.org).
 
 ## Settings

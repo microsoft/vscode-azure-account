@@ -57,15 +57,26 @@ export async function checkRedirectServer(adfs: boolean) {
 	return promise;
 }
 
-export async function login(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>) {
+export async function login(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>) {
 	const nonce = crypto.randomBytes(16).toString('base64');
-	const { server, codePromise } = createServer(nonce);
+	const { server, redirectPromise, codePromise } = createServer(nonce);
 
 	try {
 		const port = await startServer(server);
-		const state = `${port},${encodeURIComponent(nonce)}`;
+		await openUri(`http://localhost:${port}/signin`);
+		const redirectTimer = setTimeout(() => redirectTimeout().catch(console.error), 10*1000);
+
+		const redirectReq = await redirectPromise;
+		clearTimeout(redirectTimer);
+		const host = redirectReq.req.headers.host || '';
+		const updatedPortStr = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
+		const updatedPort = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
+
+		const state = `${updatedPort},${encodeURIComponent(nonce)}`;
 		const redirectUrl = adfs ? redirectUrlADFS : redirectUrlAAD;
-		await openUri(`${environment.activeDirectoryEndpointUrl}${tenantId}/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`);
+		const signInUrl = `${environment.activeDirectoryEndpointUrl}${tenantId}/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`;
+		redirectReq.res.writeHead(302, { Location: signInUrl })
+		redirectReq.res.end();
 
 		const codeRes = await codePromise;
 		const res = codeRes.res;
@@ -89,39 +100,52 @@ export async function login(clientId: string, environment: AzureEnvironment, adf
 	}
 }
 
+interface Deferred<T> {
+	resolve: (result: T | Promise<T>) => void;
+	reject: (reason: any) => void;
+}
+
 function createServer(nonce: string) {
-	let codeTimer: NodeJS.Timer;
-	let server: http.Server;
+	type RedirectResult = { req: http.ServerRequest; res: http.ServerResponse; };
+	let deferredRedirect: Deferred<RedirectResult>;
+	const redirectPromise = new Promise<RedirectResult>((resolve, reject) => deferredRedirect = { resolve, reject });
+
+	type CodeResult = { code: string; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
+	let deferredCode: Deferred<CodeResult>;
+	const codePromise = new Promise<CodeResult>((resolve, reject) => deferredCode = { resolve, reject });
+
+	const codeTimer = setTimeout(() => {
+		deferredCode.reject(new Error('Timeout waiting for code'));
+	}, 5 * 60 * 1000);
 	function cancelCodeTimer() {
 		clearTimeout(codeTimer);
 	}
-	const codePromise = new Promise<{ code: string; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; }>((resolve, reject) => {
-		codeTimer = setTimeout(() => {
-			reject(new Error('Timeout waiting for code'));
-		}, 5 * 60 * 1000);
-		server = http.createServer(function (req, res) {
-			const reqUrl = url.parse(req.url!, /* parseQueryString */ true);
-			switch (reqUrl.pathname) {
-				case '/':
-					sendFile(res, path.join(__dirname, '../codeFlowResult/index.html'), 'text/html; charset=utf-8');
-					break;
-				case '/main.css':
-					sendFile(res, path.join(__dirname, '../codeFlowResult/main.css'), 'text/css; charset=utf-8');
-					break;
-				case '/callback':
-					resolve(callback(nonce, reqUrl)
-						.then(code => ({ code, res }), err => ({ err, res })));
-					break;
-				default:
-					res.writeHead(404);
-					res.end();
-					break;
-			}
-		});
+	const server = http.createServer(function (req, res) {
+		const reqUrl = url.parse(req.url!, /* parseQueryString */ true);
+		switch (reqUrl.pathname) {
+			case '/signin':
+				deferredRedirect.resolve({ req, res });
+				break;
+			case '/':
+				sendFile(res, path.join(__dirname, '../codeFlowResult/index.html'), 'text/html; charset=utf-8');
+				break;
+			case '/main.css':
+				sendFile(res, path.join(__dirname, '../codeFlowResult/main.css'), 'text/css; charset=utf-8');
+				break;
+			case '/callback':
+				deferredCode.resolve(callback(nonce, reqUrl)
+					.then(code => ({ code, res }), err => ({ err, res })));
+				break;
+			default:
+				res.writeHead(404);
+				res.end();
+				break;
+		}
 	});
 	codePromise.then(cancelCodeTimer, cancelCodeTimer);
 	return {
-		server: server!,
+		server,
+		redirectPromise,
 		codePromise
 	};
 }
@@ -199,6 +223,6 @@ async function tokenWithAuthorizationCode(clientId: string, environment: AzureEn
 }
 
 if (require.main === module) {
-	login('aebc6443-996d-45c2-90f0-388ff96faa56', AzureEnvironment.Azure, false, 'common', async uri => console.log(`Open: ${uri}`))
+	login('aebc6443-996d-45c2-90f0-388ff96faa56', AzureEnvironment.Azure, false, 'common', async uri => console.log(`Open: ${uri}`), async () => console.log('Browser did not connect to local server within 10 seconds.'))
 		.catch(console.error);
 }

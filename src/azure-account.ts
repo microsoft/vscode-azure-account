@@ -273,7 +273,7 @@ export class AzureLoginHelper {
 			const adfs = codeFlowLogin.isADFS(environment);
 			const useCodeFlow = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer(adfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			const tokenResponse = await (useCodeFlow ? codeFlowLogin.login(clientId, environment, adfs, tenantId, openUri) : deviceLogin(environment, tenantId));
+			const tokenResponse = await (useCodeFlow ? codeFlowLogin.login(clientId, environment, adfs, tenantId, openUri, () => redirectTimeout()) : deviceLogin(environment, tenantId));
 			const refreshToken = tokenResponse.refreshToken!;
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			await storeRefreshToken(environment, refreshToken);
@@ -749,6 +749,13 @@ async function deviceLogin2(environment: AzureEnvironment, tenantId: string, dev
 			}
 		});
 	});
+}
+
+async function redirectTimeout() {
+	const response = await window.showInformationMessage('Browser did not connect to local server within 10 seconds. Do you want to try the alternate sign in using a device code instead?', 'Use Device Code');
+	if (response) {
+		await commands.executeCommand('azure-account.loginWithDeviceCode');
+	}
 }
 
 export async function tokenFromRefreshToken(environment: AzureEnvironment, refreshToken: string, tenantId: string, resource?: string) {

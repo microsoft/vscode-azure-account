@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.8.2]
+- Detect when local server cannot be connected to ([#136](https://github.com/Microsoft/vscode-azure-account/issues/136)).
+- Update dependencies.
+
 ## [0.8.1]
 - Ignore errors from keytar ([#59](https://github.com/Microsoft/vscode-azure-account/issues/59)).
 - Use openExternal API for opening URIs ([#110](https://github.com/Microsoft/vscode-azure-account/issues/110)).

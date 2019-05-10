@@ -278,7 +278,7 @@ export class AzureLoginHelper {
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			await storeRefreshToken(environment, refreshToken);
 			await this.updateSessions(environment, tokenResponses);
-			this.sendLoginTelemetry(trigger, path, environmentName, 'success');
+			this.sendLoginTelemetry(trigger, path, environmentName, 'success', undefined, true);
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				console.error(err.reason);
@@ -294,21 +294,27 @@ export class AzureLoginHelper {
 		}
 	}
 
-	sendLoginTelemetry(trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string) {
+	async sendLoginTelemetry(trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string, includeSubscriptions?: boolean) {
 		/* __GDPR__
 		   "login" : {
 			  "trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "cloud" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+			  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+			  "subscriptions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		const event: Record<string, string> = { trigger, path, cloud, outcome };
 		if (message) {
 			event.message = message;
 		}
+		if (includeSubscriptions) {
+			await this.waitForSubscriptions();
+			event.subscriptions = JSON.stringify((await this.subscriptions).map(s => s.subscription.subscriptionId!));
+		}
 		this.reporter.sendTelemetryEvent('login', event);
+		console.log(event);
 	}
 
 	async logout() {
@@ -367,7 +373,7 @@ export class AzureLoginHelper {
 			timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
 			await this.updateSessions(environment, tokenResponses);
 			timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
-			this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success');
+			this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success', undefined, true);
 		} catch (err) {
 			await this.clearSessions(); // clear out cached data
 			if (err instanceof AzureLoginError && err.reason) {

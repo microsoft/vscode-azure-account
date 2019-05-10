@@ -35,7 +35,7 @@
     "onCommand:azure-account.openCloudConsoleWindows",
     "onCommand:azure-account.uploadFileCloudConsole"
   ],
-  "main": "./dist/extension",
+  "main": "./out/extension",
   "contributes": {
     "commands": [
       {

@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.8.3]
+- Telemetry now includes the Azure subscription IDs.
+
 ## [0.8.2]
 - Detect when local server cannot be connected to ([#136](https://github.com/Microsoft/vscode-azure-account/issues/136)).
 - Update dependencies.

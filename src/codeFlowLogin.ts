@@ -10,6 +10,7 @@ import * as url from 'url';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as net from 'net';
 import { AzureEnvironment } from 'ms-rest-azure';
 import { TokenResponse, AuthenticationContext } from 'adal-node';
 
@@ -58,9 +59,19 @@ export async function checkRedirectServer(adfs: boolean) {
 	return promise;
 }
 
+let terminateServer: () => Promise<void>;
+
 export async function login(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>) {
+	if (adfs && terminateServer) {
+		await terminateServer();
+	}
+
 	const nonce = crypto.randomBytes(16).toString('base64');
 	const { server, redirectPromise, codePromise } = createServer(nonce);
+
+	if (adfs) {
+		terminateServer = createTerminateServer(server);
+	}
 
 	try {
 		const port = await startServer(server, adfs);
@@ -99,6 +110,25 @@ export async function login(clientId: string, environment: AzureEnvironment, adf
 			server.close();
 		}, 5000);
 	}
+}
+
+function createTerminateServer(server: http.Server) {
+	const sockets: Record<number, net.Socket> = {};
+	let socketCount = 0;
+	server.on('connection', socket => {
+		const id = socketCount++;
+		sockets[id] = socket;
+		socket.on('close', () => {
+			delete sockets[id];
+		});
+	});
+	return async () => {
+		const result = new Promise<void>(resolve => server.close(resolve));
+		for (const id in sockets) {
+			sockets[id].destroy();
+		}
+		return result;
+	};
 }
 
 interface Deferred<T> {

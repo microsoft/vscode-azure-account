@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.8.4]
+- Fixes for ADFS ([#105](https://github.com/Microsoft/vscode-azure-account/issues/105)).
+- Pass nonce through initial redirect ([#136](https://github.com/Microsoft/vscode-azure-account/issues/136)).
+
 ## [0.8.3]
 - Telemetry now includes the Azure subscription IDs.
 

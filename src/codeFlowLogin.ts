@@ -75,10 +75,17 @@ export async function login(clientId: string, environment: AzureEnvironment, adf
 
 	try {
 		const port = await startServer(server, adfs);
-		await openUri(`http://localhost:${port}/signin`);
+		await openUri(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`);
 		const redirectTimer = setTimeout(() => redirectTimeout().catch(console.error), 10*1000);
 
 		const redirectReq = await redirectPromise;
+		if ('err' in redirectReq) {
+			const { err, res } = redirectReq;
+			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
+			res.end();
+			throw err;
+		}
+
 		clearTimeout(redirectTimer);
 		const host = redirectReq.req.headers.host || '';
 		const updatedPortStr = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
@@ -137,7 +144,7 @@ interface Deferred<T> {
 }
 
 function createServer(nonce: string) {
-	type RedirectResult = { req: http.ServerRequest; res: http.ServerResponse; };
+	type RedirectResult = { req: http.ServerRequest; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
 	let deferredRedirect: Deferred<RedirectResult>;
 	const redirectPromise = new Promise<RedirectResult>((resolve, reject) => deferredRedirect = { resolve, reject });
 
@@ -155,7 +162,13 @@ function createServer(nonce: string) {
 		const reqUrl = url.parse(req.url!, /* parseQueryString */ true);
 		switch (reqUrl.pathname) {
 			case '/signin':
-				deferredRedirect.resolve({ req, res });
+				const receivedNonce = (reqUrl.query.nonce || '').replace(/ /g, '+');
+				if (receivedNonce === nonce) {
+					deferredRedirect.resolve({ req, res });
+				} else {
+					const err = new Error('Nonce does not match.');
+					deferredRedirect.resolve({ err, res });
+				}
 				break;
 			case '/':
 				sendFile(res, path.join(__dirname, '../codeFlowResult/index.html'), 'text/html; charset=utf-8');

@@ -14,7 +14,8 @@ import { AzureEnvironment } from 'ms-rest-azure';
 import { TokenResponse, AuthenticationContext } from 'adal-node';
 
 const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
-const redirectUrlADFS = 'http://127.0.0.1:9472/';
+const portADFS = 19472;
+const redirectUrlADFS = `http://127.0.0.1:${portADFS}/`;
 
 export function isADFS(environment: AzureEnvironment) {
 	const u = url.parse(environment.activeDirectoryEndpointUrl);
@@ -62,7 +63,7 @@ export async function login(clientId: string, environment: AzureEnvironment, adf
 	const { server, redirectPromise, codePromise } = createServer(nonce);
 
 	try {
-		const port = await startServer(server);
+		const port = await startServer(server, adfs);
 		await openUri(`http://localhost:${port}/signin`);
 		const redirectTimer = setTimeout(() => redirectTimeout().catch(console.error), 10*1000);
 
@@ -74,7 +75,7 @@ export async function login(clientId: string, environment: AzureEnvironment, adf
 
 		const state = `${updatedPort},${encodeURIComponent(nonce)}`;
 		const redirectUrl = adfs ? redirectUrlADFS : redirectUrlAAD;
-		const signInUrl = `${environment.activeDirectoryEndpointUrl}${tenantId}/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`;
+		const signInUrl = `${environment.activeDirectoryEndpointUrl}${adfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`;
 		redirectReq.res.writeHead(302, { Location: signInUrl })
 		redirectReq.res.end();
 
@@ -164,7 +165,7 @@ function sendFile(res: http.ServerResponse, filepath: string, contentType: strin
 	});
 }
 
-async function startServer(server: http.Server) {
+async function startServer(server: http.Server, adfs: boolean) {
 	let portTimer: NodeJS.Timer;
 	function cancelPortTimer() {
 		clearTimeout(portTimer);
@@ -183,7 +184,7 @@ async function startServer(server: http.Server) {
 		server.on('close', () => {
 			reject(new Error('Closed'));
 		});
-		server.listen(0, '127.0.0.1');
+		server.listen(adfs ? portADFS : 0, '127.0.0.1');
 	});
 	port.then(cancelPortTimer, cancelPortTimer);
 	return port;

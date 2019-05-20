@@ -27,7 +27,7 @@ module.exports = (_, argv) => {
 		node: {
 			__dirname: false, // leave the __dirname-behaviour intact
 		},
-		devtool: argv.mode === 'development' ? 'source-map' : undefined,
+		devtool: argv.mode === 'none' ? 'source-map' : undefined,
 		externals: {
 			vscode: 'commonjs vscode',
 			bufferutil: 'commonjs bufferutil',
@@ -51,8 +51,13 @@ module.exports = (_, argv) => {
 				test: /\.ts$/,
 				exclude: /node_modules/,
 				use: [{
-					loader: 'ts-loader',
-				}]
+						loader: 'ts-loader',
+						options: {
+							compilerOptions: {
+								sourceMap: true,
+							}
+						}
+					}]
 			}]
 		},
 	}

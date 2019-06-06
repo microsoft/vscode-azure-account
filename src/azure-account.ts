@@ -302,7 +302,7 @@ export class AzureLoginHelper {
 			  "cloud" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-			  "subscriptions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "subscriptions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "endPoint": "AzureSubscriptionId" }
 		   }
 		 */
 		const event: Record<string, string> = { trigger, path, cloud, outcome };

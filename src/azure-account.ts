@@ -9,8 +9,9 @@ const AuthenticationContext = adal.AuthenticationContext;
 const CacheDriver = require('adal-node/lib/cache-driver');
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
-import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
-import { SubscriptionClient } from 'azure-arm-resource';
+import { Environment } from '@azure/ms-rest-azure-env';
+import { DeviceTokenCredentials } from '@azure/ms-rest-nodeauth';
+import { SubscriptionClient } from '@azure/arm-subscriptions';
 import * as opn from 'opn';
 import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
@@ -29,7 +30,7 @@ try {
 }
 
 const logVerbose = false;
-const defaultEnvironment = (<any>AzureEnvironment).Azure;
+const defaultEnvironment = (<any>Environment).Azure;
 const commonTenantId = 'common';
 const authorityHostUrl = defaultEnvironment.activeDirectoryEndpointUrl; // Testing: 'https://login.windows-ppe.net/'
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
@@ -93,7 +94,7 @@ export class AzureLoginHelper {
 	private onSessionsChanged = new EventEmitter<void>();
 	private onFiltersChanged = new EventEmitter<void>();
 	private tokenCache = new MemoryCache();
-	private oldResourceFilter: string;
+	private oldResourceFilter: string | undefined;
 
 	constructor(context: ExtensionContext) {
 		const subscriptions = context.subscriptions;
@@ -214,7 +215,7 @@ export class AzureLoginHelper {
 			environment: defaultEnvironment,
 			userId: tokenResponse.userId,
 			tenantId: tokenResponse.tenantId,
-			credentials: new DeviceTokenCredentials({ username: tokenResponse.userId, clientId, tokenCache: this.tokenCache, domain: tokenResponse.tenantId })
+			credentials: new DeviceTokenCredentials(clientId, tokenResponse.tenantId, tokenResponse.userId, undefined, defaultEnvironment, this.tokenCache)
 		})));
 		this.onSessionsChanged.fire();
 	}
@@ -506,7 +507,7 @@ async function tokensFromToken(firstTokenResponse: TokenResponse) {
 	const tokenResponses = [firstTokenResponse];
 	const tokenCache = new MemoryCache();
 	await addTokenToCache(tokenCache, firstTokenResponse);
-	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache });
+	const credentials = new DeviceTokenCredentials(clientId, undefined, firstTokenResponse.userId, undefined, undefined, tokenCache);
 	const client = new SubscriptionClient(credentials);
 	const tenants = await listAll(client.tenants, client.tenants.list());
 	for (const tenant of tenants) {

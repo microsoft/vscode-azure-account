@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vscode';
+import { Event, Terminal, Progress, CancellationToken } from 'vscode';
 import { ServiceClientCredentials } from '@azure/ms-rest-js';
 import { Environment } from '@azure/ms-rest-azure-env';
+import { ReadStream } from 'fs';
 import { SubscriptionModels } from '@azure/arm-subscriptions';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
@@ -16,9 +17,13 @@ export interface AzureAccount {
 	readonly waitForLogin: () => Promise<boolean>;
 	readonly sessions: AzureSession[];
 	readonly onSessionsChanged: Event<void>;
+	readonly subscriptions: AzureSubscription[];
+	readonly onSubscriptionsChanged: Event<void>;
+	readonly waitForSubscriptions: () => Promise<boolean>;
 	readonly filters: AzureResourceFilter[];
 	readonly onFiltersChanged: Event<void>;
 	readonly waitForFilters: () => Promise<boolean>;
+	createCloudShell(os: 'Linux' | 'Windows'): CloudShell;
 }
 
 export interface AzureSession {
@@ -28,13 +33,26 @@ export interface AzureSession {
 	readonly credentials: ServiceClientCredentials;
 }
 
-export interface AzureResourceFilter {
+export interface AzureSubscription {
 	readonly session: AzureSession;
 	readonly subscription: SubscriptionModels.Subscription;
 }
 
-export interface Credentials {
-	readSecret(service: string, account: string): Thenable<string | undefined>;
-	writeSecret(service: string, account: string, secret: string): Thenable<void>;
-	deleteSecret(service: string, account: string): Thenable<boolean>;
+export type AzureResourceFilter = AzureSubscription;
+
+export type CloudShellStatus = 'Connecting' | 'Connected' | 'Disconnected';
+
+export interface UploadOptions {
+	contentLength?: number;
+	progress?: Progress<{ message?: string; increment?: number }>;
+	token?: CancellationToken;
+}
+
+export interface CloudShell {
+	readonly status: CloudShellStatus;
+	readonly onStatusChanged: Event<CloudShellStatus>;
+	readonly waitForConnection: () => Promise<boolean>;
+	readonly terminal: Promise<Terminal>;
+	readonly session: Promise<AzureSession>;
+	readonly uploadFile: (filename: string, stream: ReadStream, options?: UploadOptions) => Promise<void>;
 }

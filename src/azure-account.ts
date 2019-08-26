@@ -918,6 +918,7 @@ async function isOnline(environment: AzureEnvironment) {
 		});
 		return true;
 	} catch (err) {
+		console.warn(err);
 		return false;
 	}
 }

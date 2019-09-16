@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as net from 'net';
+import * as vscode from 'vscode';
 import { AzureEnvironment } from 'ms-rest-azure';
 import { TokenResponse, AuthenticationContext } from 'adal-node';
 
@@ -61,7 +62,72 @@ export async function checkRedirectServer(adfs: boolean) {
 
 let terminateServer: () => Promise<void>;
 
+function parseQuery(uri: vscode.Uri) {
+	return uri.query.split('&').reduce((prev: any, current) => {
+		const queryString = current.split('=');
+		prev[queryString[0]] = queryString[1];
+		return prev;
+	}, {});
+}
+
+class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
+	public handleUri(uri: vscode.Uri) {
+		this.fire(uri);
+	}
+}
+
+const handler = new UriEventHandler();
+
+vscode.window.registerUriHandler(handler);
+
+async function exchangeCodeForToken(clientId: string, environment: AzureEnvironment, tenantId: string, callbackUri: string, state: string) {
+	let uriEventListener: vscode.Disposable;
+	return new Promise((resolve: (value: TokenResponse) => void , reject) => {
+		uriEventListener = handler.event(async (uri: vscode.Uri) => {
+			try {
+				const query = parseQuery(uri);
+				const code = query.code;
+	
+				if (query.state !== state) {
+					throw new Error('State does not match.');
+				}
+	
+				resolve(await tokenWithAuthorizationCode(clientId, environment, callbackUri, tenantId, code));
+			} catch (err) {
+				reject(err);
+			}
+		});
+	}).then(result => {
+		uriEventListener.dispose()
+		return result;
+	}).catch(err => {
+		uriEventListener.dispose();
+		throw err;
+	});
+}
+
+async function loginWithoutLocalServer(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string): Promise<TokenResponse> {
+	const callbackUri = (await vscode.env.createAppUri()).toString();
+	const nonce = crypto.randomBytes(16).toString('base64');
+	const signInUrl = `${environment.activeDirectoryEndpointUrl}${adfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(callbackUri)}&state=${nonce}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`;
+	const uri = vscode.Uri.parse(signInUrl);
+	vscode.env.openExternal(uri);
+
+	const timeoutPromise = new Promise((resolve: (value: TokenResponse) => void, reject) => {
+		const wait = setTimeout(() => {
+			clearTimeout(wait);
+			reject('Login timed out.');
+		}, 1000 * 60 * 5)
+	});
+
+	return Promise.race([exchangeCodeForToken(clientId, environment, tenantId, callbackUri, nonce), timeoutPromise]);
+}
+
 export async function login(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>) {
+	if (vscode.env.uiKind === vscode.UIKind.Web) {
+		return loginWithoutLocalServer(clientId, environment, adfs, tenantId);
+	}
+
 	if (adfs && terminateServer) {
 		await terminateServer();
 	}

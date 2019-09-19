@@ -3,6 +3,7 @@
 .vscode
 out
 node_modules
+redirect
 sample
 src
 .gitignore

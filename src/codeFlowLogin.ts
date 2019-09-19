@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as net from 'net';
+import * as vscode from 'vscode';
 import { AzureEnvironment } from 'ms-rest-azure';
 import { TokenResponse, AuthenticationContext } from 'adal-node';
 
@@ -75,7 +76,8 @@ export async function login(clientId: string, environment: AzureEnvironment, adf
 
 	try {
 		const port = await startServer(server, adfs);
-		await openUri(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`);
+		const resolvedUri = await vscode.env.resolveExternalUri(vscode.Uri.parse(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`))
+		vscode.env.openExternal(resolvedUri.resolved);
 		const redirectTimer = setTimeout(() => redirectTimeout().catch(console.error), 10*1000);
 
 		const redirectReq = await redirectPromise;
@@ -111,6 +113,8 @@ export async function login(clientId: string, environment: AzureEnvironment, adf
 			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
 			res.end();
 			throw err;
+		} finally {
+			resolvedUri.dispose();
 		}
 	} finally {
 		setTimeout(() => {

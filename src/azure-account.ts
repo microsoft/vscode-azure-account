@@ -932,5 +932,5 @@ async function awaitAOrB<A, B>(a: Promise<A>, b: Promise<B>) {
 }
 
 async function openUri(uri: string) {
-	await env.openExternal(Uri.parse(uri));
+	await env.openExternal((await env.resolveExternalUri(Uri.parse(uri))).resolved);
 }

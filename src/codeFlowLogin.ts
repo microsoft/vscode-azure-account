@@ -108,12 +108,15 @@ async function exchangeCodeForToken(clientId: string, environment: AzureEnvironm
 
 async function loginWithoutLocalServer(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string): Promise<TokenResponse> {
 	const callbackUri = await vscode.env.createAppUri();
-	const query = parseQuery(callbackUri);
-	const callback = `${redirectUrlAAD}?vscode-requestId=${query['vscode-requestId']}&vscode-authority=${query['vscode-authority']}`;
+	const callback = redirectUrlAAD;
 	const nonce = crypto.randomBytes(16).toString('base64');
-	const state = `9888,${encodeURIComponent(nonce)}`;
-	const signInUrl = `${environment.activeDirectoryEndpointUrl}${adfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(callback)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`;
-	const uri = vscode.Uri.parse(signInUrl);
+	const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
+	const state = `${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+	const signInUrl = `${environment.activeDirectoryEndpointUrl}${adfs ? '' : `${tenantId}/`}oauth2/authorize`;
+	let uri = vscode.Uri.parse(signInUrl);
+	uri = uri.with({
+		query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${callback}&state=${state}&resource=${environment.activeDirectoryResourceId}&prompt=select_account`
+	});
 	vscode.env.openExternal(uri);
 
 	const timeoutPromise = new Promise((resolve: (value: TokenResponse) => void, reject) => {

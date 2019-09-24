@@ -16,7 +16,6 @@ module.exports = (_, argv) => {
 
 		entry: {
 			extension: './src/extension.ts',
-			cloudConsoleLauncher: './src/cloudConsoleLauncher.ts',
 		},
 		output: {
 			path: path.join(__dirname, 'dist'),

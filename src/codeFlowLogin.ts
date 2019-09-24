@@ -11,12 +11,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as net from 'net';
-import { AzureEnvironment } from 'ms-rest-azure';
 import { TokenResponse, AuthenticationContext } from 'adal-node';
 
 const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
 const portADFS = 19472;
 const redirectUrlADFS = `http://127.0.0.1:${portADFS}/`;
+
+export interface AzureEnvironment {
+	activeDirectoryEndpointUrl: string;
+	activeDirectoryResourceId: string;
+}
 
 export function isADFS(environment: AzureEnvironment) {
 	const u = url.parse(environment.activeDirectoryEndpointUrl);
@@ -30,7 +34,7 @@ export async function checkRedirectServer(adfs: boolean) {
 	}
 	let timer: NodeJS.Timer | undefined;
 	const promise = new Promise<boolean>(resolve => {
-		const req = https.get({
+		const req = https.get(<any>{
 			...url.parse(`${redirectUrlAAD}?state=3333,cccc`),
 		}, res => {
 			const key = Object.keys(res.headers)
@@ -264,9 +268,4 @@ async function tokenWithAuthorizationCode(clientId: string, environment: AzureEn
 			}
 		});
 	});
-}
-
-if (require.main === module) {
-	login('aebc6443-996d-45c2-90f0-388ff96faa56', AzureEnvironment.Azure, false, 'common', async uri => console.log(`Open: ${uri}`), async () => console.log('Browser did not connect to local server within 10 seconds.'))
-		.catch(console.error);
 }

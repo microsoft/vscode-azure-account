@@ -8,6 +8,10 @@
 		"lib": [
 			"es6"
 		],
+		"typeRoots": [
+			"node_modules/@types",
+			"src/typings"
+		],
 		"sourceMap": true,
 		"rootDir": "src"
 	},

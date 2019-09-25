@@ -88,7 +88,7 @@ async function exchangeCodeForToken(clientId: string, environment: AzureEnvironm
 				const query = parseQuery(uri);
 				const code = query.code;
 	
-				if (decodeURIComponent(query.state) !== state) {
+				if (query.state !== state) {
 					throw new Error('State does not match.');
 				}
 	
@@ -106,28 +106,14 @@ async function exchangeCodeForToken(clientId: string, environment: AzureEnvironm
 	});
 }
 
-function getCallbackEnvironment(callbackUri: vscode.Uri): string {
-	switch (callbackUri.authority) {
-		case 'online.visualstudio.com':
-			return 'vso,';
-		case 'online-ppe.core.vsengsaas.visualstudio.com':
-			return 'vsoppe,';
-		default:
-			return '';
-	}
-}
-
 async function loginWithoutLocalServer(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string): Promise<TokenResponse> {
-	const callbackUri = await vscode.env.createAppUri();
-	const callback = redirectUrlAAD;
-	const nonce = crypto.randomBytes(16).toString('base64');
-	const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
-	const callbackEnvironment = getCallbackEnvironment(callbackUri);
-	const state = `${callbackEnvironment}${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+	const state = crypto.randomBytes(16).toString('base64');
+	const callbackUri = await vscode.env.createAppUri({ payload: { query: `state=${state}`} });
+	const callback = callbackUri.toString(true);
 	const signInUrl = `${environment.activeDirectoryEndpointUrl}${adfs ? '' : `${tenantId}/`}oauth2/authorize`;
 	let uri = vscode.Uri.parse(signInUrl);
 	uri = uri.with({
-		query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${callback}&state=${state}&resource=${environment.activeDirectoryResourceId}&prompt=select_account`
+		query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(callback)}&state=${state}&resource=${environment.activeDirectoryResourceId}&prompt=select_account`
 	});
 	vscode.env.openExternal(uri);
 

@@ -88,7 +88,8 @@ async function exchangeCodeForToken(clientId: string, environment: AzureEnvironm
 				const query = parseQuery(uri);
 				const code = query.code;
 	
-				if (decodeURIComponent(query.state) !== state) {
+				// Workaround double encoding issues of state
+				if (query.state !== state && decodeURIComponent(query.state) !== state) {
 					throw new Error('State does not match.');
 				}
 	

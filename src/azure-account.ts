@@ -44,7 +44,7 @@ function getNodeModule<T>(moduleName: string): T | undefined {
 
 const credentialsSection = 'VS Code Azure';
 
-async function getRefreshToken(environment: AzureEnvironment, migrateToken?: boolean) {
+async function getStoredCredentials(environment: AzureEnvironment, migrateToken?: boolean) {
 	if (!keytar) {
 		return;
 	}
@@ -355,14 +355,36 @@ export class AzureLoginHelper {
 			const environment = getSelectedEnvironment();
 			environmentName = environment.name;
 			const tenantId = getTenantId();
-			const refreshToken = await getRefreshToken(environment, migrateToken);
+			const storedCreds = await getStoredCredentials(environment, migrateToken);
+
 			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
-			if (!refreshToken) {
+			if (!storedCreds) {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
 			await becomeOnline(environment, 5000);
 			this.beginLoggingIn();
-			const tokenResponse = await tokenFromRefreshToken(environment, refreshToken, tenantId);
+
+			let tokenResponse: TokenResponse | undefined;
+			let parsedCreds;
+			try {
+				parsedCreds = JSON.parse(storedCreds);
+			} catch (_) {
+				tokenResponse = await tokenFromRefreshToken(environment, storedCreds, tenantId);
+			}
+
+			if (parsedCreds) {
+				const { clientId, tenantId, code } = parsedCreds;
+				if (!clientId || !tenantId || !code ) {
+					throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
+				}
+				
+				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, AzureEnvironment.Azure, codeFlowLogin.redirectUrlAAD, tenantId, code);
+			}
+
+			if (!tokenResponse) {
+				throw new AzureLoginError(localize('azure-account.missingTokenResponse', "Using stored credentials failed"));
+			}
+
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
 			// For testing
 			if (workspace.getConfiguration('azure').get('testTokenFailure')) {

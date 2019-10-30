@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.8.7]
+- Update dependencies
+- Read formatted JSON in addition to refresh tokens stored in credential manager
+
 ## [0.8.6]
 - Fix query state handling for url handler based authentication flow
 

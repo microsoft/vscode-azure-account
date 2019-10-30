@@ -113,6 +113,8 @@ function getCallbackEnvironment(callbackUri: vscode.Uri): string {
 			return 'vso,';
 		case 'online-ppe.core.vsengsaas.visualstudio.com':
 			return 'vsoppe,';
+		case 'online.dev.core.vsengsaas.visualstudio.com':
+			return 'vsodev,';
 		default:
 			return '';
 	}

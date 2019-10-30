@@ -15,7 +15,7 @@ import * as vscode from 'vscode';
 import { AzureEnvironment } from 'ms-rest-azure';
 import { TokenResponse, AuthenticationContext } from 'adal-node';
 
-const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
+export const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
 const portADFS = 19472;
 const redirectUrlADFS = `http://127.0.0.1:${portADFS}/`;
 
@@ -338,7 +338,7 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 	throw new Error(error || 'No code received.');
 }
 
-async function tokenWithAuthorizationCode(clientId: string, environment: AzureEnvironment, redirectUrl: string, tenantId: string, code: string) {
+export async function tokenWithAuthorizationCode(clientId: string, environment: AzureEnvironment, redirectUrl: string, tenantId: string, code: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`);
 		context.acquireTokenWithAuthorizationCode(code, redirectUrl, environment.activeDirectoryResourceId, clientId, <any>undefined, (err, response) => {

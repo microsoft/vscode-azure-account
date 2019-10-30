@@ -373,12 +373,12 @@ export class AzureLoginHelper {
 			}
 
 			if (parsedCreds) {
-				const { clientId, tenantId, code } = parsedCreds;
-				if (!clientId || !tenantId || !code ) {
+				const { redirectionUrl, code } = parsedCreds;
+				if (!redirectionUrl || !code ) {
 					throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
 				}
 				
-				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, AzureEnvironment.Azure, codeFlowLogin.redirectUrlAAD, tenantId, code);
+				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, AzureEnvironment.Azure, redirectionUrl, tenantId, code);
 			}
 
 			if (!tokenResponse) {

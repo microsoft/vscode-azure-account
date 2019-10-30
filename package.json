@@ -226,7 +226,7 @@
     "azure-arm-resource": "7.0.1",
     "form-data": "2.3.3",
     "http-proxy-agent": "2.1.0",
-    "https-proxy-agent": "2.2.1",
+    "https-proxy-agent": "2.2.3",
     "ms-rest-azure": "2.5.9",
     "request": "2.88.0",
     "request-promise": "4.2.2",

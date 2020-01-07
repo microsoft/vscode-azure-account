@@ -121,7 +121,7 @@ function getCallbackEnvironment(callbackUri: vscode.Uri): string {
 }
 
 async function loginWithoutLocalServer(clientId: string, environment: AzureEnvironment, adfs: boolean, tenantId: string): Promise<TokenResponse> {
-	const callbackUri = await vscode.env.createAppUri();
+	const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://ms-vscode.azure-account`));
 	const callback = redirectUrlAAD;
 	const nonce = crypto.randomBytes(16).toString('base64');
 	const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);

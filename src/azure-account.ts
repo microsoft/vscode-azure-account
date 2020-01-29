@@ -530,7 +530,7 @@ export class AzureLoginHelper {
 			return;
 		}
 		const login = { title: localize('azure-account.login', "Sign In") };
-		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "Not signed in, sign in first."), login);
+		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "You are not signed in. Sign in to continue."), login);
 		return result === login && commands.executeCommand('azure-account.login');
 	}
 

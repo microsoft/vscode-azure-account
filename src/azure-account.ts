@@ -18,7 +18,7 @@ import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspac
 import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import { TelemetryReporter } from './telemetry';
 import { TokenResponse } from 'adal-node';
 
 const localize = nls.loadMessageBundle();
@@ -313,7 +313,7 @@ export class AzureLoginHelper {
 			await this.waitForSubscriptions();
 			event.subscriptions = JSON.stringify((await this.subscriptions).map(s => s.subscription.subscriptionId!));
 		}
-		this.reporter.sendTelemetryEvent('login', event);
+		this.reporter.sendSanitizedEvent('login', event);
 	}
 
 	async logout() {

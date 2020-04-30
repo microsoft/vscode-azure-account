@@ -12,7 +12,7 @@ import * as nls from 'vscode-nls';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as semver from 'semver';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import { TelemetryReporter } from './telemetry';
 import { TenantDetailsClient } from './tenantDetailsClient';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { ReadStream } from 'fs';
@@ -71,7 +71,7 @@ function sendTelemetryEvent(reporter: TelemetryReporter, outcome: string, messag
 	   }
 	 */
 
-	reporter.sendTelemetryEvent('openCloudConsole', message ? { outcome, message } : { outcome });
+	reporter.sendSanitizedEvent('openCloudConsole', message ? { outcome, message } : { outcome });
 }
 
 async function waitForConnection(this: CloudShell) {

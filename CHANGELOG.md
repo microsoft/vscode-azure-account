@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.8.11]
+- Add support for codespaces
+
 ## [0.8.9]
 - Update dependencies
 - Change sign in notification text [#168](https://github.com/Microsoft/vscode-azure-account/issues/168)

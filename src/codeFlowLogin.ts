@@ -108,6 +108,10 @@ async function exchangeCodeForToken(clientId: string, environment: AzureEnvironm
 }
 
 function getCallbackEnvironment(callbackUri: vscode.Uri): string {
+	if (callbackUri.authority.endsWith('.workspaces.github.com')) {
+		return `${callbackUri.authority},`;
+	}
+
 	switch (callbackUri.authority) {
 		case 'online.visualstudio.com':
 			return 'vso,';

@@ -26,6 +26,7 @@ The Azure Account extension provides a single Azure sign-in and subscription fil
 | azure.showSignedInEmail | Whether to show the email address (e.g., in the status bar) of the signed in account.	 | true
 | azure.tenant | A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants. |
 | azure.cloud | The current Azure Cloud to connect to. | Azure
+| azure.credentialsSection | The credentials section used for storing logged in Azure accounts in the system keychain. | VS Code Azure
 | azure.ppe | Development setting: The PPE environment for testing. |
 
 ## Contributing

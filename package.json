@@ -137,6 +137,11 @@
           "default": "Azure",
           "description": "The current Azure Cloud to connect to."
         },
+        "azure.credentialsSection": {
+          "type": "string",
+          "default": "VS Code Azure",
+          "description": "The credentials section used for storing logged in Azure accounts in the system keychain."
+        },
         "azure.ppe": {
           "type": "object",
           "properties": {

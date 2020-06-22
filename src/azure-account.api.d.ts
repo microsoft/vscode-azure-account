@@ -5,10 +5,10 @@
 
 import { Event, Terminal, Progress, CancellationToken } from 'vscode';
 import { ServiceClientCredentials } from 'ms-rest';
-import { SubscriptionModels } from 'azure-arm-resource';
 import { ReadStream } from 'fs';
 import { DeviceTokenCredentials } from '@azure/ms-rest-nodeauth';
 import { Environment } from '@azure/ms-rest-azure-env';
+import { SubscriptionModels } from '@azure/arm-subscriptions';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 

@@ -1,7 +1,8 @@
 import { window, ExtensionContext, commands, QuickPickItem, extensions } from 'vscode';
 import { AzureAccount, AzureSession } from '../../src/azure-account.api'; // Other extensions need to copy this .d.ts to their repository.
-import { SubscriptionClient, ResourceManagementClient, SubscriptionModels } from 'azure-arm-resource';
-import WebSiteManagementClient = require('azure-arm-website');
+import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
+import { ResourceManagementClient } from '@azure/arm-resources';
+import { WebSiteManagementClient } from '@azure/arm-appservice';
 
 export function activate(context: ExtensionContext) {
     const azureAccount = extensions.getExtension<AzureAccount>('ms-vscode.azure-account')!.exports;
@@ -35,7 +36,7 @@ async function loadSubscriptionItems(api: AzureAccount) {
     await api.waitForFilters();
     const subscriptionItems: SubscriptionItem[] = [];
     for (const session of api.sessions) {
-        const credentials = session.credentials;
+        const credentials = session.credentialsV2;
         const subscriptionClient = new SubscriptionClient(credentials);
         const subscriptions = await listAll(subscriptionClient.subscriptions, subscriptionClient.subscriptions.list());
         subscriptionItems.push(...subscriptions.map(subscription => ({
@@ -51,7 +52,7 @@ async function loadSubscriptionItems(api: AzureAccount) {
 
 async function loadResourceGroupItems(subscriptionItem: SubscriptionItem) {
     const { session, subscription } = subscriptionItem;
-    const resources = new ResourceManagementClient(session.credentials, subscription.subscriptionId!);
+    const resources = new ResourceManagementClient(session.credentialsV2, subscription.subscriptionId!);
     const resourceGroups = await listAll(resources.resourceGroups, resources.resourceGroups.list());
     resourceGroups.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return resourceGroups.map(resourceGroup => ({

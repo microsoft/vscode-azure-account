@@ -8,7 +8,7 @@ const createLogContext = require('adal-node/lib/log').createLogContext;
 
 import { MemoryCache, AuthenticationContext, Logging, UserCodeInfo } from 'adal-node';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
-import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
+import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
 import * as http from 'http';
@@ -606,8 +606,8 @@ export class AzureLoginHelper {
 
 	private async loadSubscriptions() {
 		const lists = await Promise.all(this.api.sessions.map(session => {
-			const credentials = session.credentials;
-			const client = new SubscriptionClient.SubscriptionClient(credentials, session.environment.resourceManagerEndpointUrl);
+			const credentials = session.credentialsV2;
+			const client = new SubscriptionClient(credentials, { baseUri: session.environment.resourceManagerEndpointUrl });
 			return listAll(client.subscriptions, client.subscriptions.list())
 				.then(list => list.map(subscription => ({
 					session,
@@ -808,8 +808,8 @@ export async function tokenFromRefreshToken(environment: Environment, refreshTok
 async function tokensFromToken(environment: Environment, firstTokenResponse: TokenResponse) {
 	const tokenCache = new MemoryCache();
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
-	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache, environment: (<any>environment) });
-	const client = new SubscriptionClient.SubscriptionClient(credentials, environment.resourceManagerEndpointUrl);
+	const credentials = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment);
+	const client = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
 	const tenants = await listAll(client.tenants, client.tenants.list());
 	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {

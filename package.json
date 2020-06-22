@@ -222,10 +222,13 @@
     "webpack-cli": "3.1.2"
   },
   "dependencies": {
+    "@azure/arm-appservice": "^6.0.0",
+    "@azure/arm-resources": "^3.0.0",
+    "@azure/arm-subscriptions": "^2.0.0",
+    "@azure/arm-webservices": "^0.1.1",
     "@azure/ms-rest-azure-env": "^2.0.0",
     "@azure/ms-rest-nodeauth": "3.0.5",
     "adal-node": "0.1.28",
-    "azure-arm-resource": "7.0.1",
     "form-data": "2.3.3",
     "http-proxy-agent": "2.1.0",
     "https-proxy-agent": "2.2.3",

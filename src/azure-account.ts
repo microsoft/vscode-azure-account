@@ -20,6 +20,7 @@ import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
 import { TelemetryReporter } from './telemetry';
 import { TokenResponse } from 'adal-node';
+import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 
 const localize = nls.loadMessageBundle();
 
@@ -463,7 +464,8 @@ export class AzureLoginHelper {
 					environment: (<any>AzureEnvironment)[environment],
 					userId,
 					tenantId,
-					credentials: new DeviceTokenCredentials({ environment: (<any>AzureEnvironment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId })
+					credentials: new DeviceTokenCredentials({ environment: (<any>AzureEnvironment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId }),
+					credentialsV2: new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, (<any>AzureEnvironment)[environment], this.delayedCache)
 				};
 				this.api.sessions.push(sessions[key]);
 			}
@@ -482,7 +484,8 @@ export class AzureLoginHelper {
 			environment,
 			userId: tokenResponse.userId!,
 			tenantId: tokenResponse.tenantId!,
-			credentials: new DeviceTokenCredentials({ environment: environment, username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId })
+			credentials: new DeviceTokenCredentials({ environment: environment, username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId }),
+			credentialsV2: new DeviceTokenCredentials2(clientId, tokenResponse.tenantId, tokenResponse.userId, undefined, environment, this.delayedCache)
 		})));
 		this.onSessionsChanged.fire();
 	}

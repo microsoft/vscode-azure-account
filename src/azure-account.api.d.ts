@@ -8,6 +8,7 @@ import { ServiceClientCredentials } from 'ms-rest';
 import { AzureEnvironment } from 'ms-rest-azure';
 import { SubscriptionModels } from 'azure-arm-resource';
 import { ReadStream } from 'fs';
+import { DeviceTokenCredentials } from '@azure/ms-rest-nodeauth';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
@@ -31,6 +32,7 @@ export interface AzureSession {
 	readonly userId: string;
 	readonly tenantId: string;
 	readonly credentials: ServiceClientCredentials;
+	readonly credentialsV2: DeviceTokenCredentials;
 }
 
 export interface AzureSubscription {

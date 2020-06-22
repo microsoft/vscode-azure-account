@@ -76,7 +76,7 @@ async function loadWebAppItems(api: AzureAccount) {
     await api.waitForFilters();
     const webAppsPromises: Promise<QuickPickItem[]>[] = [];
     for (const filter of api.filters) {
-        const client = new WebSiteManagementClient(filter.session.credentials, filter.subscription.subscriptionId!);
+        const client = new WebSiteManagementClient(filter.session.credentialsV2, filter.subscription.subscriptionId!);
         webAppsPromises.push(listAll(client.webApps, client.webApps.list())
             .then(webApps => webApps.map(webApp => {
                 return {

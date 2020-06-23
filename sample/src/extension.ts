@@ -36,7 +36,7 @@ async function loadSubscriptionItems(api: AzureAccount) {
     await api.waitForFilters();
     const subscriptionItems: SubscriptionItem[] = [];
     for (const session of api.sessions) {
-        const credentials = session.credentialsV2;
+        const credentials = session.credentials2;
         const subscriptionClient = new SubscriptionClient(credentials);
         const subscriptions = await listAll(subscriptionClient.subscriptions, subscriptionClient.subscriptions.list());
         subscriptionItems.push(...subscriptions.map(subscription => ({
@@ -52,7 +52,7 @@ async function loadSubscriptionItems(api: AzureAccount) {
 
 async function loadResourceGroupItems(subscriptionItem: SubscriptionItem) {
     const { session, subscription } = subscriptionItem;
-    const resources = new ResourceManagementClient(session.credentialsV2, subscription.subscriptionId!);
+    const resources = new ResourceManagementClient(session.credentials2, subscription.subscriptionId!);
     const resourceGroups = await listAll(resources.resourceGroups, resources.resourceGroups.list());
     resourceGroups.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return resourceGroups.map(resourceGroup => ({
@@ -76,7 +76,7 @@ async function loadWebAppItems(api: AzureAccount) {
     await api.waitForFilters();
     const webAppsPromises: Promise<QuickPickItem[]>[] = [];
     for (const filter of api.filters) {
-        const client = new WebSiteManagementClient(filter.session.credentialsV2, filter.subscription.subscriptionId!);
+        const client = new WebSiteManagementClient(filter.session.credentials2, filter.subscription.subscriptionId!);
         webAppsPromises.push(listAll(client.webApps, client.webApps.list())
             .then(webApps => webApps.map(webApp => {
                 return {

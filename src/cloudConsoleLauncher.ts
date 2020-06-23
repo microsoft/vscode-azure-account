@@ -29,7 +29,7 @@ export interface UserSettings {
 export interface AccessTokens {
 	resource: string;
 	graph: string;
-	keyVault: string;
+	keyVault?: string;
 }
 
 export interface ConsoleUris {
@@ -180,7 +180,7 @@ async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string
 		resolveWithFullResponse: true,
 		json: true,
 		body: {
-			tokens: [accessTokens.graph, accessTokens.keyVault]
+			tokens: accessTokens.keyVault ? [accessTokens.graph, accessTokens.keyVault] : [accessTokens.graph]
 		}
 	});
 }

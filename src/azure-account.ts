@@ -466,7 +466,7 @@ export class AzureLoginHelper {
 					userId,
 					tenantId,
 					credentials: new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId }),
-					credentialsV2: new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, (<any>Environment)[environment], this.delayedCache)
+					credentials2: new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, (<any>Environment)[environment], this.delayedCache)
 				};
 				this.api.sessions.push(sessions[key]);
 			}
@@ -486,7 +486,7 @@ export class AzureLoginHelper {
 			userId: tokenResponse.userId!,
 			tenantId: tokenResponse.tenantId!,
 			credentials: new DeviceTokenCredentials({ environment: (<any>environment), username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId }),
-			credentialsV2: new DeviceTokenCredentials2(clientId, tokenResponse.tenantId, tokenResponse.userId, undefined, environment, this.delayedCache)
+			credentials2: new DeviceTokenCredentials2(clientId, tokenResponse.tenantId, tokenResponse.userId, undefined, environment, this.delayedCache)
 		})));
 		this.onSessionsChanged.fire();
 	}
@@ -606,7 +606,7 @@ export class AzureLoginHelper {
 
 	private async loadSubscriptions() {
 		const lists = await Promise.all(this.api.sessions.map(session => {
-			const credentials = session.credentialsV2;
+			const credentials = session.credentials2;
 			const client = new SubscriptionClient(credentials, { baseUri: session.environment.resourceManagerEndpointUrl });
 			return listAll(client.subscriptions, client.subscriptions.list())
 				.then(list => list.map(subscription => ({

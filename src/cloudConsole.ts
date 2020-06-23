@@ -380,12 +380,14 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		// Additional tokens
 		const [graphToken, keyVaultToken] = await Promise.all([
 			tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
-			tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
+			session.environment.keyVaultDnsSuffix
+				? tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
+				: Promise.resolve(undefined)
 		]);
 		const accessTokens: AccessTokens = {
 			resource: accessToken,
 			graph: graphToken.accessToken,
-			keyVault: keyVaultToken.accessToken
+			keyVault: keyVaultToken && keyVaultToken.accessToken
 		};
 		deferredTokens!.resolve(accessTokens);
 

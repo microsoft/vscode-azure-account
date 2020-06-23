@@ -808,7 +808,7 @@ export async function tokenFromRefreshToken(environment: Environment, refreshTok
 async function tokensFromToken(environment: Environment, firstTokenResponse: TokenResponse) {
 	const tokenCache = new MemoryCache();
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
-	const credentials = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment);
+	const credentials = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
 	const client = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
 	const tenants = await listAll(client.tenants, client.tenants.list());
 	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {

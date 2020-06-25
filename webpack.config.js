@@ -60,6 +60,11 @@ module.exports = (_, argv) => {
 					}]
 			}]
 		},
+
+		// Workaround for https://github.com/node-fetch/node-fetch/issues/784
+		optimization: {
+			minimize: false
+		}
 	}
 
 	return config;

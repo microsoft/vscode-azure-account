@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as msRest from 'ms-rest';
-import * as msRestAzure from 'ms-rest-azure';
+import * as msRest from 'ms-rest-js';
 
 // Copied and adapted from the Azue SDK.
 
-export class TenantDetailsClient extends msRestAzure.AzureServiceClient {
+export class TenantDetailsClient extends msRest.ServiceClient {
 
 	acceptLanguage = 'en-US';
 	longRunningOperationRetryTimeout = 30;
@@ -17,11 +16,6 @@ export class TenantDetailsClient extends msRestAzure.AzureServiceClient {
 
 	constructor(public credentials: any, public tenantID: string, public baseUri = 'https://graph.windows.net') {
 		super(credentials, {});
-
-		let packageInfo = this.getPackageJsonInfo(__dirname);
-		this.addUserAgentInfo(`${packageInfo.name}/${packageInfo.version}`);
-
-		(<any>msRest).addSerializationMixin(this);
 	}
 
 }
@@ -34,18 +28,6 @@ export interface TenantDetails {
 
 class Details {
 	constructor(private client: TenantDetailsClient) {
-	}
-
-	getWithHttpOperationResponse() {
-		return new Promise((resolve, reject) => {
-			this._get((err, result, request, response) => {
-				let httpOperationResponse = new (<any>msRest).HttpOperationResponse(request, response);
-				httpOperationResponse.body = result;
-				if (err) { reject(err); }
-				else { resolve(httpOperationResponse); }
-				return;
-			});
-		});
 	}
 
 	get() {
@@ -74,7 +56,7 @@ class Details {
 		httpRequest.url = requestUrl;
 		// Set Headers
 		if (this.client.generateClientRequestId) {
-			httpRequest.headers['x-ms-client-request-id'] = (<any>msRestAzure).generateUuid();
+			httpRequest.headers['x-ms-client-request-id'] = msRest.generateUuid();
 		}
 		if (this.client.acceptLanguage !== undefined && this.client.acceptLanguage !== null) {
 			httpRequest.headers['accept-language'] = this.client.acceptLanguage;
@@ -90,8 +72,8 @@ class Details {
 			if (statusCode !== 200) {
 				let error: any = new Error(responseBody);
 				error.statusCode = response.statusCode;
-				error.request = (<any>msRest).stripRequest(httpRequest);
-				error.response = (<any>msRest).stripResponse(response);
+				error.request = msRest.stripRequest(httpRequest);
+				error.response = msRest.stripResponse(response);
 				if (responseBody === '') responseBody = null;
 				let parsedErrorResponse;
 				try {
@@ -126,8 +108,8 @@ class Details {
 					}
 				} catch (error) {
 					let deserializationError: any = new Error(`Error ${error} occurred in deserializing the responseBody - ${responseBody}`);
-					deserializationError.request = (<any>msRest).stripRequest(httpRequest);
-					deserializationError.response = (<any>msRest).stripResponse(response);
+					deserializationError.request = msRest.stripRequest(httpRequest);
+					deserializationError.response = msRest.stripResponse(response);
 					return callback(deserializationError);
 				}
 			}

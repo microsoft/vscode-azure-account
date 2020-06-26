@@ -8,6 +8,7 @@
 'use strict';
 
 const path = require('path');
+const TerserPlugin = require('terser-webpack-plugin');
 
 module.exports = (_, argv) => {
 	/**@type {import('webpack').Configuration}*/
@@ -59,6 +60,18 @@ module.exports = (_, argv) => {
 						}
 					}]
 			}]
+		},
+
+		// Workaround for https://github.com/node-fetch/node-fetch/issues/784
+		optimization: {
+			minimizer: [
+				new TerserPlugin({
+					extractComments: false,
+					terserOptions: {
+						keep_classnames: /^AbortSignal$/,
+					},
+				}),
+			],
 		},
 	}
 

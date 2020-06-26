@@ -7,8 +7,8 @@ const CacheDriver = require('adal-node/lib/cache-driver');
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
 import { MemoryCache, AuthenticationContext, Logging, UserCodeInfo } from 'adal-node';
-import { DeviceTokenCredentials, AzureEnvironment } from 'ms-rest-azure';
-import { SubscriptionClient, SubscriptionModels } from 'azure-arm-resource';
+import { DeviceTokenCredentials } from 'ms-rest-azure';
+import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
 import * as nls from 'vscode-nls';
 import * as keytarType from 'keytar';
 import * as http from 'http';
@@ -20,6 +20,8 @@ import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
 import { TelemetryReporter } from './telemetry';
 import { TokenResponse } from 'adal-node';
+import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
+import { Environment } from '@azure/ms-rest-azure-env';
 
 const localize = nls.loadMessageBundle();
 
@@ -44,7 +46,7 @@ function getNodeModule<T>(moduleName: string): T | undefined {
 
 const credentialsSection = 'VS Code Azure';
 
-async function getStoredCredentials(environment: AzureEnvironment, migrateToken?: boolean) {
+async function getStoredCredentials(environment: Environment, migrateToken?: boolean) {
 	if (!keytar) {
 		return;
 	}
@@ -68,7 +70,7 @@ async function getStoredCredentials(environment: AzureEnvironment, migrateToken?
 	}
 }
 
-async function storeRefreshToken(environment: AzureEnvironment, token: string) {
+async function storeRefreshToken(environment: Environment, token: string) {
 	if (keytar) {
 		try {
 			await keytar.setPassword(credentialsSection, environment.name, token);
@@ -88,11 +90,11 @@ async function deleteRefreshToken(environmentName: string) {
 	}
 }
 
-const staticEnvironments: AzureEnvironment[] = [
-	AzureEnvironment.Azure,
-	AzureEnvironment.AzureChina,
-	AzureEnvironment.AzureGermanCloud,
-	AzureEnvironment.AzureUSGovernment
+const staticEnvironments: Environment[] = [
+	Environment.AzureCloud,
+	Environment.ChinaCloud,
+	Environment.GermanCloud,
+	Environment.USGovernment
 ];
 
 const azurePPE = 'AzurePPE';
@@ -378,7 +380,7 @@ export class AzureLoginHelper {
 					throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
 				}
 				
-				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, AzureEnvironment.Azure, redirectionUrl, tenantId, code);
+				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, Environment.AzureCloud, redirectionUrl, tenantId, code);
 			}
 
 			if (!tokenResponse) {
@@ -460,10 +462,11 @@ export class AzureLoginHelper {
 			const key = `${environment} ${userId} ${tenantId}`;
 			if (!sessions[key]) {
 				sessions[key] = {
-					environment: (<any>AzureEnvironment)[environment],
+					environment: (<any>Environment)[environment],
 					userId,
 					tenantId,
-					credentials: new DeviceTokenCredentials({ environment: (<any>AzureEnvironment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId })
+					credentials: new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId }),
+					credentials2: new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, (<any>Environment)[environment], this.delayedCache)
 				};
 				this.api.sessions.push(sessions[key]);
 			}
@@ -471,7 +474,7 @@ export class AzureLoginHelper {
 		return sessions;
 	}
 
-	private async updateSessions(environment: AzureEnvironment, tokenResponses: TokenResponse[]) {
+	private async updateSessions(environment: Environment, tokenResponses: TokenResponse[]) {
 		await clearTokenCache(this.tokenCache);
 		for (const tokenResponse of tokenResponses) {
 			await addTokenToCache(environment, this.tokenCache, tokenResponse);
@@ -482,7 +485,8 @@ export class AzureLoginHelper {
 			environment,
 			userId: tokenResponse.userId!,
 			tenantId: tokenResponse.tenantId!,
-			credentials: new DeviceTokenCredentials({ environment: environment, username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId })
+			credentials: new DeviceTokenCredentials({ environment: (<any>environment), username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId }),
+			credentials2: new DeviceTokenCredentials2(clientId, tokenResponse.tenantId, tokenResponse.userId, undefined, environment, this.delayedCache)
 		})));
 		this.onSessionsChanged.fire();
 	}
@@ -602,8 +606,8 @@ export class AzureLoginHelper {
 
 	private async loadSubscriptions() {
 		const lists = await Promise.all(this.api.sessions.map(session => {
-			const credentials = session.credentials;
-			const client = new SubscriptionClient.SubscriptionClient(credentials, session.environment.resourceManagerEndpointUrl);
+			const credentials = session.credentials2;
+			const client = new SubscriptionClient(credentials, { baseUri: session.environment.resourceManagerEndpointUrl });
 			return listAll(client.subscriptions, client.subscriptions.list())
 				.then(list => list.map(subscription => ({
 					session,
@@ -703,15 +707,15 @@ export class AzureLoginHelper {
 	}
 }
 
-function getSelectedEnvironment(): AzureEnvironment {
+function getSelectedEnvironment(): Environment {
 	const envConfig = workspace.getConfiguration('azure');
 	const envSetting = envConfig.get<string>('cloud');
-	return getEnvironments().find(environment => environment.name === envSetting) || AzureEnvironment.Azure;
+	return getEnvironments().find(environment => environment.name === envSetting) || Environment.AzureCloud;
 }
 
 function getEnvironments() {
 	const config = workspace.getConfiguration('azure');
-	const ppe = config.get<AzureEnvironment>('ppe');
+	const ppe = config.get<Environment>('ppe');
 	if (ppe) {
 		return [
 			...staticEnvironments,
@@ -730,7 +734,7 @@ function getTenantId() {
 	return envConfig.get<string>('tenant') || commonTenantId;
 }
 
-async function deviceLogin(environment: AzureEnvironment, tenantId: string) {
+async function deviceLogin(environment: Environment, tenantId: string) {
 	const deviceLogin = await deviceLogin1(environment, tenantId);
 	const message = showDeviceCodeMessage(deviceLogin);
 	const login2 = deviceLogin2(environment, tenantId, deviceLogin);
@@ -748,7 +752,7 @@ async function showDeviceCodeMessage(deviceLogin: UserCodeInfo): Promise<void> {
 	}
 }
 
-async function deviceLogin1(environment: AzureEnvironment, tenantId: string): Promise<UserCodeInfo> {
+async function deviceLogin1(environment: Environment, tenantId: string): Promise<UserCodeInfo> {
 	return new Promise<UserCodeInfo>((resolve, reject) => {
 		const cache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, cache);
@@ -762,7 +766,7 @@ async function deviceLogin1(environment: AzureEnvironment, tenantId: string): Pr
 	});
 }
 
-async function deviceLogin2(environment: AzureEnvironment, tenantId: string, deviceLogin: UserCodeInfo) {
+async function deviceLogin2(environment: Environment, tenantId: string, deviceLogin: UserCodeInfo) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
@@ -785,7 +789,7 @@ async function redirectTimeout() {
 	}
 }
 
-export async function tokenFromRefreshToken(environment: AzureEnvironment, refreshToken: string, tenantId: string, resource?: string) {
+export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
@@ -801,11 +805,11 @@ export async function tokenFromRefreshToken(environment: AzureEnvironment, refre
 	});
 }
 
-async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse: TokenResponse) {
+async function tokensFromToken(environment: Environment, firstTokenResponse: TokenResponse) {
 	const tokenCache = new MemoryCache();
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
-	const credentials = new DeviceTokenCredentials({ username: firstTokenResponse.userId, clientId, tokenCache, environment });
-	const client = new SubscriptionClient.SubscriptionClient(credentials, environment.resourceManagerEndpointUrl);
+	const credentials = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
+	const client = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
 	const tenants = await listAll(client.tenants, client.tenants.list());
 	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
@@ -823,7 +827,7 @@ async function tokensFromToken(environment: AzureEnvironment, firstTokenResponse
 	return responses;
 }
 
-async function addTokenToCache(environment: AzureEnvironment, tokenCache: any, tokenResponse: TokenResponse) {
+async function addTokenToCache(environment: Environment, tokenCache: any, tokenResponse: TokenResponse) {
 	return new Promise<any>((resolve, reject) => {
 		const driver = new CacheDriver(
 			{ _logContext: createLogContext('') },
@@ -921,7 +925,7 @@ function getErrorMessage(err: any): string | undefined {
 	return str;
 }
 
-async function becomeOnline(environment: AzureEnvironment, interval: number, token = new CancellationTokenSource().token) {
+async function becomeOnline(environment: Environment, interval: number, token = new CancellationTokenSource().token) {
 	let o = isOnline(environment);
 	let d = delay(interval, false);
 	while (!token.isCancellationRequested && !await Promise.race([o, d])) {
@@ -931,7 +935,7 @@ async function becomeOnline(environment: AzureEnvironment, interval: number, tok
 	}
 }
 
-async function isOnline(environment: AzureEnvironment) {
+async function isOnline(environment: Environment) {
 	try {
 		await new Promise<http.IncomingMessage | https.IncomingMessage>((resolve, reject) => {
 			const url = environment.activeDirectoryEndpointUrl;

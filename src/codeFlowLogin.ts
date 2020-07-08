@@ -17,7 +17,7 @@ import { TokenResponse, AuthenticationContext } from 'adal-node';
 
 export const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
 const portADFS = 19472;
-const redirectUrlADFS = `http://127.0.0.1:${portADFS}/`;
+const redirectUrlADFS = `http://127.0.0.1:${portADFS}/callback`;
 
 export function isADFS(environment: Environment) {
 	const u = url.parse(environment.activeDirectoryEndpointUrl);
@@ -346,7 +346,7 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 
 export async function tokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`);
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, !isADFS(environment));
 		context.acquireTokenWithAuthorizationCode(code, redirectUrl, environment.activeDirectoryResourceId, clientId, <any>undefined, (err, response) => {
 			if (err) {
 				reject(err);

@@ -13,11 +13,11 @@
     "theme": "dark"
   },
   "enableProposedApi": true,
-  "version": "0.8.11",
+  "version": "0.9.0",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "publisher": "ms-vscode",
   "engines": {
-    "vscode": "^1.40.0"
+    "vscode": "^1.48.0"
   },
   "categories": [
     "Azure"

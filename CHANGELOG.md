@@ -1,6 +1,11 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.9.0]
+- Migrate to new Azure SDK packages and expose new credentials object [#140](https://github.com/microsoft/vscode-azure-account/issues/140)
+- Fix sign in for ADFS based Azure Stack environment [#190](https://github.com/microsoft/vscode-azure-account/issues/190)
+- Update sign in page styles to use new product icon [#184](https://github.com/microsoft/vscode-azure-account/issues/184)
+
 ## [0.8.11]
 - Add support for codespaces
 

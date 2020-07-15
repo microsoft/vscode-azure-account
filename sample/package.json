@@ -49,8 +49,8 @@
     "vscode": "^1.0.0"
   },
   "dependencies": {
-    "azure-arm-resource": "^2.0.0-preview",
-    "azure-arm-website": "^1.0.0-preview",
-    "ms-rest-azure": "^2.2.3"
+    "@azure/arm-subscriptions": "^2.0.0",
+    "@azure/arm-resources": "^3.0.0",
+    "@azure/arm-appservice": "^6.0.0"
   }
 }

@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.9.2]
+- Update callback urls for Codespaces
+
 ## [0.9.1]
 - Update lodash dependency
 

@@ -105,8 +105,8 @@ const staticEnvironmentNames = [
 ];
 
 const environmentLabels: Record<string, string> = {
-	Azure: localize('azure-account.azureCloud', 'Azure'),
-	AzureChina: localize('azure-account.azureChinaCloud', 'Azure China'),
+	AzureCloud: localize('azure-account.azureCloud', 'Azure'),
+	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
 	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
 	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),

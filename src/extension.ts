@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace, env } from 'vscode';
+import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace, env, ConfigurationTarget } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
 import { AzureAccount } from './azure-account.api';
 import { createReporter } from './telemetry';
@@ -16,7 +16,8 @@ import { survey } from './nps';
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
 
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
+	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
 	const azureLogin = new AzureLoginHelper(context, reporter);
 	if (enableLogging) {
@@ -30,6 +31,27 @@ export function activate(context: ExtensionContext) {
 	subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
 	survey(context, reporter);
 	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
+}
+
+async function migrateEnvironmentSetting() {
+	const configuration = workspace.getConfiguration('azure');
+	const CLOUD_SETTING = 'cloud';
+	const configInfo = configuration.inspect(CLOUD_SETTING);
+
+	async function migrateSetting(oldValue: string, newValue: string): Promise<void> {
+		if (configInfo?.globalValue === oldValue) {
+			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.Global);
+		}
+		if (configInfo?.workspaceValue === oldValue) {
+			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.Workspace);
+		}
+		if (configInfo?.workspaceFolderValue === oldValue) {
+			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.WorkspaceFolder);
+		}
+	}
+
+	await migrateSetting('Azure', 'AzureCloud');
+	await migrateSetting('AzureChina', 'AzureChinaCloud');
 }
 
 function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {

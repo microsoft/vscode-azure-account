@@ -13,7 +13,7 @@
     "theme": "dark"
   },
   "enableProposedApi": true,
-  "version": "0.9.2",
+  "version": "0.9.3",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "publisher": "ms-vscode",
   "engines": {

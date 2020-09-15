@@ -22,6 +22,7 @@ import { TelemetryReporter } from './telemetry';
 import { TokenResponse } from 'adal-node';
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { Environment } from '@azure/ms-rest-azure-env';
+import fetch from 'node-fetch';
 
 const localize = nls.loadMessageBundle();
 
@@ -111,6 +112,27 @@ const environmentLabels: Record<string, string> = {
 	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
+
+interface ICloudMetadata {
+	portal: string;
+	authentication: {
+		loginEndpoint: string;
+		audiences: string[];
+	};
+	graphAudience: string;
+	graph: string;
+	name: string;
+	suffixes: {
+		acrLoginServer: string;
+		keyVaultDns: string;
+		sqlServerHostname: string;
+		storage: string;
+	}
+	batch: string;
+	resourceManager: string;
+	sqlManagement: string;
+	gallery: string;
+}
 
 const logVerbose = false;
 const commonTenantId = 'common';
@@ -253,11 +275,11 @@ export class AzureLoginHelper {
 		let environmentName = 'uninitialized';
 		const cancelSource = new CancellationTokenSource();
 		try {
-			const environment = getSelectedEnvironment();
+			const environment = await getSelectedEnvironment();
 			environmentName = environment.name;
 			const online = becomeOnline(environment, 2000, cancelSource.token);
 			const timer = delay(2000, true);
-			if (await Promise.race([ online, timer ])) {
+			if (await Promise.race([online, timer])) {
 				const cancel = { title: localize('azure-account.cancel', "Cancel") };
 				await Promise.race([
 					online,
@@ -328,18 +350,21 @@ export class AzureLoginHelper {
 	}
 
 	async loginToCloud(): Promise<void> {
-		const current = getSelectedEnvironment();
-		const selected = await window.showQuickPick(getEnvironments().map(environment => ({
-			label: environmentLabels[environment.name],
-			description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
-			environment
-		})), {
-				placeHolder: localize('azure-account.chooseCloudToLogin', "Choose cloud to sign in to")
-			});
+		const current = await getSelectedEnvironment();
+		const selected = await window.showQuickPick<{ label: string, description?: string, environment: Environment }>(getEnvironments()
+			.then(environments => environments.map(environment => ({
+				label: environmentLabels[environment.name],
+				description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
+				environment
+			}))), {
+			placeHolder: localize('azure-account.chooseCloudToLogin', "Choose cloud to sign in to")
+		});
+
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
 				this.doLogin = true;
+				// if outside of normal range, set ppe setting
 				config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
 			} else {
 				return this.login('loginToCloud');
@@ -354,7 +379,7 @@ export class AzureLoginHelper {
 			const start = Date.now();
 			this.loadCache();
 			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
-			const environment = getSelectedEnvironment();
+			const environment = await getSelectedEnvironment();
 			environmentName = environment.name;
 			const tenantId = getTenantId();
 			const storedCreds = await getStoredCredentials(environment, migrateToken);
@@ -376,10 +401,10 @@ export class AzureLoginHelper {
 
 			if (parsedCreds) {
 				const { redirectionUrl, code } = parsedCreds;
-				if (!redirectionUrl || !code ) {
+				if (!redirectionUrl || !code) {
 					throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
 				}
-				
+
 				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, Environment.AzureCloud, redirectionUrl, tenantId, code);
 			}
 
@@ -707,13 +732,42 @@ export class AzureLoginHelper {
 	}
 }
 
-function getSelectedEnvironment(): Environment {
+async function getSelectedEnvironment(): Promise<Environment> {
 	const envConfig = workspace.getConfiguration('azure');
 	const envSetting = envConfig.get<string>('cloud');
-	return getEnvironments().find(environment => environment.name === envSetting) || Environment.AzureCloud;
+	return (await getEnvironments()).find(environment => environment.name === envSetting) || Environment.AzureCloud;
 }
 
-function getEnvironments() {
+async function getEnvironments(): Promise<Environment[]> {
+	const metadataDiscoveryUrl = process.env['ARM_CLOUD_METADATA_URL'];
+	if (metadataDiscoveryUrl) {
+		try {
+			const response = await fetch(metadataDiscoveryUrl);
+			if (response.ok) {
+				const endpoints: ICloudMetadata[] = await response.json();
+				return endpoints.map(endpoint => {
+					return {
+						name: endpoint.name,
+						portalUrl: endpoint.portal,
+						managementEndpointUrl: endpoint.authentication.audiences[0],
+						resourceManagerEndpointUrl: endpoint.resourceManager,
+						activeDirectoryEndpointUrl: endpoint.authentication.loginEndpoint,
+						activeDirectoryResourceId: endpoint.authentication.audiences[0],
+						sqlManagementEndpointUrl: endpoint.sqlManagement,
+						sqlServerHostnameSuffix: endpoint.suffixes.sqlServerHostname,
+						galleryEndpointUrl: endpoint.gallery,
+						batchResourceId: endpoint.batch,
+						storageEndpointSuffix: endpoint.suffixes.storage,
+						keyVaultDnsSuffix: endpoint.suffixes.keyVaultDns,
+						validateAuthority: true
+					}
+				})
+			}
+		} catch (e) {
+			// ignore, fallback to static environments
+		}
+	}
+
 	const config = workspace.getConfiguration('azure');
 	const ppe = config.get<Environment>('ppe');
 	if (ppe) {

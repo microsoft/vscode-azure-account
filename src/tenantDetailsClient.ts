@@ -5,7 +5,7 @@
 
 import * as msRest from 'ms-rest-js';
 
-// Copied and adapted from the Azue SDK.
+// Copied and adapted from the Azure SDK.
 
 export class TenantDetailsClient extends msRest.ServiceClient {
 

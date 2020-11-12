@@ -342,7 +342,9 @@ export class AzureLoginHelper {
 
 	async logout() {
 		await this.api.waitForLogin();
-		for (const name of staticEnvironmentNames) {
+		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
+		const allEnvironmentNames: string[] = staticEnvironmentNames.concat(['Azure', 'AzureChina'])
+		for (const name of allEnvironmentNames) {
 			await deleteRefreshToken(name);
 		}
 		await this.clearSessions();

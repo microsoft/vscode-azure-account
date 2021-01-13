@@ -134,6 +134,18 @@ interface ICloudMetadata {
 	gallery: string;
 }
 
+interface IPPEMetaData {
+    galleryEndpoint: string;
+    graphEndpoint: string;
+    portalEndpoint: string;
+    authentication: {
+        loginEndpoint: string,
+        audiences: [
+            string
+        ]
+    };
+}
+
 const logVerbose = false;
 const commonTenantId = 'common';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
@@ -774,6 +786,30 @@ async function getEnvironments(): Promise<Environment[]> {
 	const config = workspace.getConfiguration('azure');
 	const ppe = config.get<Environment>('ppe');
 	if (ppe) {
+		try {
+			let resourceMangerUrl = ppe['resourceManagerEndpointUrl'];
+			resourceMangerUrl = resourceMangerUrl.endsWith('/') ? resourceMangerUrl.slice(0,-1) : resourceMangerUrl;
+			const endpointSuffix = '/metadata/endpoints';
+			const apiVersion = '2018-05-01';
+			const ppeResponse = await fetch(`${resourceMangerUrl}${endpointSuffix}?api-version=${apiVersion}`);
+			if (ppeResponse.ok) {
+				const ppeMetadata: IPPEMetaData = await ppeResponse.json();
+				return [
+					...staticEnvironments,
+					{
+						...ppe,
+						name: azurePPE,
+						portalUrl: ppeMetadata.portalEndpoint,
+						galleryEndpointUrl: ppeMetadata.galleryEndpoint,
+						activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
+						storageEndpointSuffix: resourceMangerUrl.substring(resourceMangerUrl.indexOf('.')),
+						keyVaultDnsSuffix: '.vault'.concat(resourceMangerUrl.substring(resourceMangerUrl.indexOf('.'))),
+						managementEndpointUrl: ppeMetadata.authentication.audiences[0],
+					}]
+			}
+		} catch (error) {
+			throw error
+		}
 		return [
 			...staticEnvironments,
 			{

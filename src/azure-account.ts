@@ -785,41 +785,50 @@ async function getEnvironments(): Promise<Environment[]> {
 
 	const config = workspace.getConfiguration('azure');
 	const ppe = config.get<Environment>('ppe');
-	if (ppe) {
-		try {
-			let resourceMangerUrl = ppe['resourceManagerEndpointUrl'];
-			resourceMangerUrl = resourceMangerUrl.endsWith('/') ? resourceMangerUrl.slice(0,-1) : resourceMangerUrl;
-			const endpointSuffix = '/metadata/endpoints';
-			const apiVersion = '2018-05-01';
-			const ppeResponse = await fetch(`${resourceMangerUrl}${endpointSuffix}?api-version=${apiVersion}`);
-			if (ppeResponse.ok) {
-				const ppeMetadata: IPPEMetaData = await ppeResponse.json();
+	const apiProfile = config.get<Boolean>('target_azurestack_api_profile');
+	try {
+		if (ppe) {
+			const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
+			const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
+			if (!apiProfile && (config.get<string>('cloud') === azurePPE)) {
+				throw new Error(localize('Unmatch setting parameters','target_azure_api_profile cannot be false with Azure PPE'));
+			}
+			if (apiProfile) {
+				let resourceMangerUrl = ppe.resourceManagerEndpointUrl;
+				resourceMangerUrl = resourceMangerUrl.endsWith('/') ? resourceMangerUrl.slice(0,-1) : resourceMangerUrl;
+				const endpointSuffix = '/metadata/endpoints';
+				const apiVersion = '2018-05-01';
+				const ppeResponse = await fetch(`${resourceMangerUrl}${endpointSuffix}?api-version=${apiVersion}`);
+				if (ppeResponse.ok) {
+					const ppeMetadata: IPPEMetaData = await ppeResponse.json();
+					return [
+						...staticEnvironments,
+						{
+							...ppe,
+							name: azurePPE,
+							portalUrl: ppeMetadata.portalEndpoint,
+							galleryEndpointUrl: ppeMetadata.galleryEndpoint,
+							activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
+							storageEndpointSuffix: resourceMangerUrl.substring(resourceMangerUrl.indexOf('.')),
+							keyVaultDnsSuffix: '.vault'.concat(resourceMangerUrl.substring(resourceMangerUrl.indexOf('.'))),
+							managementEndpointUrl: ppeMetadata.authentication.audiences[0],
+							validateAuthority: validateAuthority
+						}]
+				}
 				return [
 					...staticEnvironments,
 					{
 						...ppe,
 						name: azurePPE,
-						portalUrl: ppeMetadata.portalEndpoint,
-						galleryEndpointUrl: ppeMetadata.galleryEndpoint,
-						activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
-						storageEndpointSuffix: resourceMangerUrl.substring(resourceMangerUrl.indexOf('.')),
-						keyVaultDnsSuffix: '.vault'.concat(resourceMangerUrl.substring(resourceMangerUrl.indexOf('.'))),
-						managementEndpointUrl: ppeMetadata.authentication.audiences[0],
-					}]
-			}
-		} catch (error) {
-			throw error
-		}
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE
-			}
-		]
-	} else {
-		return staticEnvironments;
+						validateAuthority: validateAuthority,
+					}
+				]
+			} 
+		} 
+	} catch (error){
+		throw error
 	}
+	return staticEnvironments;
 }
 
 function getTenantId() {

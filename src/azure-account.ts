@@ -785,6 +785,7 @@ async function getEnvironments(): Promise<Environment[]> {
 
 	const config = workspace.getConfiguration('azure');
 	const ppe = config.get<Environment>('ppe');
+	// get api profile from user setting, this needs to be true for running azure stack
 	const apiProfile = config.get<Boolean>('target_azurestack_api_profile');
 	try {
 		if (ppe) {

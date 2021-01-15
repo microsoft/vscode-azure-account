@@ -790,9 +790,6 @@ async function getEnvironments(): Promise<Environment[]> {
 		if (ppe) {
 			const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
 			const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
-			if (!apiProfile && (config.get<string>('cloud') === azurePPE)) {
-				throw new Error(localize('Unmatch setting parameters','target_azure_api_profile cannot be false with Azure PPE'));
-			}
 			if (apiProfile) {
 				let resourceMangerUrl = ppe.resourceManagerEndpointUrl;
 				resourceMangerUrl = resourceMangerUrl.endsWith('/') ? resourceMangerUrl.slice(0,-1) : resourceMangerUrl;

@@ -789,6 +789,7 @@ async function getEnvironments(): Promise<Environment[]> {
 	const apiProfile = config.get<Boolean>('target_azurestack_api_profile');
 	try {
 		if (ppe) {
+			// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
 			const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
 			const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
 			if (apiProfile) {

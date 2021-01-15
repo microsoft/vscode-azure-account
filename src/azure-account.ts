@@ -793,11 +793,11 @@ async function getEnvironments(): Promise<Environment[]> {
 			const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
 			const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
 			if (apiProfile) {
-				let resourceMangerUrl = ppe.resourceManagerEndpointUrl;
-				resourceMangerUrl = resourceMangerUrl.endsWith('/') ? resourceMangerUrl.slice(0,-1) : resourceMangerUrl;
+				let resourceManagerUrl = ppe.resourceManagerEndpointUrl;
+				resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0,-1) : resourceManagerUrl;
 				const endpointSuffix = '/metadata/endpoints';
 				const apiVersion = '2018-05-01';
-				const ppeResponse = await fetch(`${resourceMangerUrl}${endpointSuffix}?api-version=${apiVersion}`);
+				const ppeResponse = await fetch(`${resourceManagerUrl}${endpointSuffix}?api-version=${apiVersion}`);
 				if (ppeResponse.ok) {
 					const ppeMetadata: IPPEMetaData = await ppeResponse.json();
 					return [
@@ -808,8 +808,8 @@ async function getEnvironments(): Promise<Environment[]> {
 							portalUrl: ppeMetadata.portalEndpoint,
 							galleryEndpointUrl: ppeMetadata.galleryEndpoint,
 							activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
-							storageEndpointSuffix: resourceMangerUrl.substring(resourceMangerUrl.indexOf('.')),
-							keyVaultDnsSuffix: '.vault'.concat(resourceMangerUrl.substring(resourceMangerUrl.indexOf('.'))),
+							storageEndpointSuffix: resourceManagerUrl.substring(resourceManagerUrl.indexOf('.')),
+							keyVaultDnsSuffix: '.vault'.concat(resourceManagerUrl.substring(resourceManagerUrl.indexOf('.'))),
 							managementEndpointUrl: ppeMetadata.authentication.audiences[0],
 							validateAuthority: validateAuthority
 						}]

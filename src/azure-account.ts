@@ -134,7 +134,7 @@ interface ICloudMetadata {
 	gallery: string;
 }
 
-interface IPPEMetaData {
+interface IResourceManagerMetaData {
     galleryEndpoint: string;
     graphEndpoint: string;
     portalEndpoint: string;
@@ -842,7 +842,7 @@ async function getPpeEnvironments(ppe: Environment, apiProfile: boolean|undefine
 }
 
 async function getAzureStackEnvironments(ppe: Environment, ppeResponse: Response, validateAuthority: boolean, resourceManagerUrl: string ) {
-	const ppeMetadata: IPPEMetaData = await ppeResponse.json();
+	const ppeMetadata: IResourceManagerMetaData = await ppeResponse.json();
 	return [
 		...staticEnvironments,
 		{

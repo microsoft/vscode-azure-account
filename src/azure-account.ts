@@ -134,7 +134,7 @@ interface ICloudMetadata {
 	gallery: string;
 }
 
-interface IResourceManagerMetaData {
+interface IResourceManagerMetadata {
     galleryEndpoint: string;
     graphEndpoint: string;
     portalEndpoint: string;
@@ -798,7 +798,7 @@ async function getPpeEnvironments(ppe: Environment, apiProfile: boolean|undefine
 	const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
 	const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
 	let resourceManagerUrl = ppe.resourceManagerEndpointUrl;
-	let endpointsUrl = getMetaDataEndpoints(resourceManagerUrl, apiProfile);
+	let endpointsUrl = getMetadataEndpoints(resourceManagerUrl, apiProfile);
 	const ppeResponse = await fetch(endpointsUrl);
 	if (ppeResponse.ok) {
 		if (apiProfile) {
@@ -807,20 +807,20 @@ async function getPpeEnvironments(ppe: Environment, apiProfile: boolean|undefine
 		} else {
 			const ppeMetadatas: ICloudMetadata[] = await ppeResponse.json();
 			const ppeEnvironments: Environment[] = [];
-			ppeEnvironments.concat(ppeMetadatas.map(metaData => {
+			ppeEnvironments.concat(ppeMetadatas.map(metadata => {
 				return {
-					name: metaData.name,
-					portalUrl: metaData.portal,
-					managementEndpointUrl: metaData.authentication.audiences[0],
-					resourceManagerEndpointUrl: metaData.resourceManager,
-					activeDirectoryEndpointUrl: metaData.authentication.loginEndpoint,
-					activeDirectoryResourceId: metaData.authentication.audiences[0],
-					sqlManagementEndpointUrl: metaData.sqlManagement,
-					sqlServerHostnameSuffix: metaData.suffixes.sqlServerHostname,
-					galleryEndpointUrl: metaData.gallery,
-					batchResourceId: metaData.batch,
-					storageEndpointSuffix: metaData.suffixes.storage,
-					keyVaultDnsSuffix: metaData.suffixes.keyVaultDns,
+					name: metadata.name,
+					portalUrl: metadata.portal,
+					managementEndpointUrl: metadata.authentication.audiences[0],
+					resourceManagerEndpointUrl: metadata.resourceManager,
+					activeDirectoryEndpointUrl: metadata.authentication.loginEndpoint,
+					activeDirectoryResourceId: metadata.authentication.audiences[0],
+					sqlManagementEndpointUrl: metadata.sqlManagement,
+					sqlServerHostnameSuffix: metadata.suffixes.sqlServerHostname,
+					galleryEndpointUrl: metadata.gallery,
+					batchResourceId: metadata.batch,
+					storageEndpointSuffix: metadata.suffixes.storage,
+					keyVaultDnsSuffix: metadata.suffixes.keyVaultDns,
 					validateAuthority: validateAuthority
 				}
 			}))
@@ -842,7 +842,7 @@ async function getPpeEnvironments(ppe: Environment, apiProfile: boolean|undefine
 }
 
 async function getAzureStackEnvironments(ppe: Environment, ppeResponse: Response, validateAuthority: boolean, resourceManagerUrl: string ) {
-	const ppeMetadata: IResourceManagerMetaData = await ppeResponse.json();
+	const ppeMetadata: IResourceManagerMetadata = await ppeResponse.json();
 	return [
 		...staticEnvironments,
 		{
@@ -859,7 +859,7 @@ async function getAzureStackEnvironments(ppe: Environment, ppeResponse: Response
 	]
 }
 
-function getMetaDataEndpoints(resourceManagerUrl: string, apiProfile: boolean|undefined): string {
+function getMetadataEndpoints(resourceManagerUrl: string, apiProfile: boolean|undefined): string {
 	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0,-1) : resourceManagerUrl;
 	const endpointSuffix = '/metadata/endpoints';
 	const apiVersion = apiProfile === false || apiProfile === undefined ? '2020-06-01' : '2018-05-01';

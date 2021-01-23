@@ -22,7 +22,7 @@ import { TelemetryReporter } from './telemetry';
 import { TokenResponse } from 'adal-node';
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { Environment } from '@azure/ms-rest-azure-env';
-import fetch, { Response } from 'node-fetch';
+import fetch from 'node-fetch';
 
 const localize = nls.loadMessageBundle();
 
@@ -797,72 +797,57 @@ async function getPpeEnvironments(ppe: Environment, apiProfile: boolean|undefine
 	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
 	const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
 	const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
-	let resourceManagerUrl = ppe.resourceManagerEndpointUrl;
-	let endpointsUrl = getMetadataEndpoints(resourceManagerUrl, apiProfile);
-	const ppeResponse = await fetch(endpointsUrl);
-	if (ppeResponse.ok) {
-		if (apiProfile) {
-			// get azure stack environments
-			return await getAzureStackEnvironments(ppe, ppeResponse, validateAuthority, resourceManagerUrl);
-		} else {
-			const ppeMetadatas: ICloudMetadata[] = await ppeResponse.json();
-			const ppeEnvironments: Environment[] = [];
-			ppeEnvironments.concat(ppeMetadatas.map(metadata => {
-				return {
-					name: metadata.name,
-					portalUrl: metadata.portal,
-					managementEndpointUrl: metadata.authentication.audiences[0],
-					resourceManagerEndpointUrl: metadata.resourceManager,
-					activeDirectoryEndpointUrl: metadata.authentication.loginEndpoint,
-					activeDirectoryResourceId: metadata.authentication.audiences[0],
-					sqlManagementEndpointUrl: metadata.sqlManagement,
-					sqlServerHostnameSuffix: metadata.suffixes.sqlServerHostname,
-					galleryEndpointUrl: metadata.gallery,
-					batchResourceId: metadata.batch,
-					storageEndpointSuffix: metadata.suffixes.storage,
-					keyVaultDnsSuffix: metadata.suffixes.keyVaultDns,
-					validateAuthority: validateAuthority
-				}
-			}))
-				return [
-					...staticEnvironments,
-					...ppeEnvironments
-				]			
-		}
+	if (apiProfile) {
+		return await getAzureStackEnvironments(ppe, validateAuthority)
 	} else {
 		return [
 			...staticEnvironments,
 			{
 				...ppe,
 				name: azurePPE,
-				validateAuthority: validateAuthority,
+				validateAuthority: validateAuthority
 			}
 		]
 	}
 }
 
-async function getAzureStackEnvironments(ppe: Environment, ppeResponse: Response, validateAuthority: boolean, resourceManagerUrl: string ) {
-	const ppeMetadata: IResourceManagerMetadata = await ppeResponse.json();
-	return [
-		...staticEnvironments,
-		{
-			...ppe,
-			name: azurePPE,
-			portalUrl: ppeMetadata.portalEndpoint,
-			galleryEndpointUrl: ppeMetadata.galleryEndpoint,
-			activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
-			storageEndpointSuffix: resourceManagerUrl.substring(resourceManagerUrl.indexOf('.')),
-			keyVaultDnsSuffix: '.vault'.concat(resourceManagerUrl.substring(resourceManagerUrl.indexOf('.'))),
-			managementEndpointUrl: ppeMetadata.authentication.audiences[0],
-			validateAuthority: validateAuthority
-		}
-	]
+async function getAzureStackEnvironments(ppe: Environment, validateAuthority: boolean) {
+	const resourceManagerUrl = ppe.resourceManagerEndpointUrl;
+	const endpointsUrl = getMetadataEndpoints(resourceManagerUrl);
+	const ppeResponse = await fetch(endpointsUrl);
+	if (ppeResponse.ok) {
+		const ppeMetadata: IResourceManagerMetadata = await ppeResponse.json();
+		return [
+			...staticEnvironments,
+			{
+				...ppe,
+				name: azurePPE,
+				portalUrl: ppeMetadata.portalEndpoint,
+				galleryEndpointUrl: ppeMetadata.galleryEndpoint,
+				activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
+				storageEndpointSuffix: resourceManagerUrl.substring(resourceManagerUrl.indexOf('.')),
+				keyVaultDnsSuffix: '.vault'.concat(resourceManagerUrl.substring(resourceManagerUrl.indexOf('.'))),
+				managementEndpointUrl: ppeMetadata.authentication.audiences[0],
+				validateAuthority: validateAuthority
+			}
+		]
+	} else {
+		return [
+			...staticEnvironments,
+			{
+				...ppe,
+				name: azurePPE,
+				validateAuthority: validateAuthority
+			}
+		]
+	}
+	
 }
 
-function getMetadataEndpoints(resourceManagerUrl: string, apiProfile: boolean|undefined): string {
+function getMetadataEndpoints(resourceManagerUrl: string): string {
 	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0,-1) : resourceManagerUrl;
 	const endpointSuffix = '/metadata/endpoints';
-	const apiVersion = apiProfile === false || apiProfile === undefined ? '2020-06-01' : '2018-05-01';
+	const apiVersion = '2018-05-01';
 	// return ppe metadata endpoints Url
 	return `${resourceManagerUrl}${endpointSuffix}?api-version=${apiVersion}`
 }

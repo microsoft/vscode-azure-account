@@ -785,15 +785,15 @@ async function getEnvironments(): Promise<Environment[]> {
 
 	const config = workspace.getConfiguration('azure');
 	const ppe = config.get<Environment>('ppe');
-	// get api profile from user setting, this needs to be true for running azure stack
-	const apiProfile = config.get<boolean>('target_azurestack_api_profile');
 	if (ppe) {
-		return await getPpeEnvironments(ppe, apiProfile);
+		return await getPpeEnvironments(ppe, config);
 	}
 	return staticEnvironments;
 }
 
-async function getPpeEnvironments(ppe: Environment, apiProfile: boolean|undefined): Promise<Environment[]> {
+async function getPpeEnvironments(ppe: Environment, config: WorkspaceConfiguration): Promise<Environment[]> {
+	// get api profile from user setting, this needs to be true for running azure stack
+	const apiProfile = config.get<boolean>('target_azurestack_api_profile');
 	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
 	const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
 	const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;

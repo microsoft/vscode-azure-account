@@ -134,6 +134,18 @@ interface ICloudMetadata {
 	gallery: string;
 }
 
+interface IResourceManagerMetadata {
+    galleryEndpoint: string;
+    graphEndpoint: string;
+    portalEndpoint: string;
+    authentication: {
+        loginEndpoint: string,
+        audiences: [
+            string
+        ]
+    };
+}
+
 const logVerbose = false;
 const commonTenantId = 'common';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
@@ -774,16 +786,70 @@ async function getEnvironments(): Promise<Environment[]> {
 	const config = workspace.getConfiguration('azure');
 	const ppe = config.get<Environment>('ppe');
 	if (ppe) {
+		return await getPpeEnvironments(ppe, config);
+	}
+	return staticEnvironments;
+}
+
+async function getPpeEnvironments(ppe: Environment, config: WorkspaceConfiguration): Promise<Environment[]> {
+	// get api profile from user setting, this needs to be true for running azure stack
+	const apiProfile = config.get<boolean>('target_azurestack_api_profile');
+	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
+	const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
+	const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
+	if (apiProfile) {
+		return await getAzureStackEnvironments(ppe, validateAuthority)
+	} else {
 		return [
 			...staticEnvironments,
 			{
 				...ppe,
-				name: azurePPE
+				name: azurePPE,
+				validateAuthority: validateAuthority
+			}
+		]
+	}
+}
+
+async function getAzureStackEnvironments(ppe: Environment, validateAuthority: boolean) {
+	const resourceManagerUrl = ppe.resourceManagerEndpointUrl;
+	const endpointsUrl = getMetadataEndpoints(resourceManagerUrl);
+	const ppeResponse = await fetch(endpointsUrl);
+	if (ppeResponse.ok) {
+		const ppeMetadata: IResourceManagerMetadata = await ppeResponse.json();
+		return [
+			...staticEnvironments,
+			{
+				...ppe,
+				name: azurePPE,
+				portalUrl: ppeMetadata.portalEndpoint,
+				galleryEndpointUrl: ppeMetadata.galleryEndpoint,
+				activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
+				storageEndpointSuffix: resourceManagerUrl.substring(resourceManagerUrl.indexOf('.')),
+				keyVaultDnsSuffix: '.vault'.concat(resourceManagerUrl.substring(resourceManagerUrl.indexOf('.'))),
+				managementEndpointUrl: ppeMetadata.authentication.audiences[0],
+				validateAuthority: validateAuthority
 			}
 		]
 	} else {
-		return staticEnvironments;
+		return [
+			...staticEnvironments,
+			{
+				...ppe,
+				name: azurePPE,
+				validateAuthority: validateAuthority
+			}
+		]
 	}
+	
+}
+
+function getMetadataEndpoints(resourceManagerUrl: string): string {
+	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0,-1) : resourceManagerUrl;
+	const endpointSuffix = '/metadata/endpoints';
+	const apiVersion = '2018-05-01';
+	// return ppe metadata endpoints Url
+	return `${resourceManagerUrl}${endpointSuffix}?api-version=${apiVersion}`
 }
 
 function getTenantId() {

@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.9.5]
+- Add support for Azure Stack.
+
 ## [0.9.4]
 - Fix removal of old refresh tokens using previous environment names [#234](https://github.com/microsoft/vscode-azure-account/issues/234)
 - Use cloud metadata for endpoint discovery [#188](https://github.com/microsoft/vscode-azure-account/issues/188)

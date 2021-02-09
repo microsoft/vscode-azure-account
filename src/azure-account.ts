@@ -23,7 +23,6 @@ import { TokenResponse } from 'adal-node';
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { Environment } from '@azure/ms-rest-azure-env';
 import fetch from 'node-fetch';
-import { accountAzureChina, accountAzureCloud, accountAzureGerman, accountAzureUSGovernment } from './accountEnvironmentsList';
 
 const localize = nls.loadMessageBundle();
 
@@ -93,10 +92,10 @@ async function deleteRefreshToken(environmentName: string) {
 }
 
 const staticEnvironments: AzureAccountEnvironment[] = [
-	accountAzureCloud,
-	accountAzureChina,
-	accountAzureGerman,
-	accountAzureUSGovernment
+	Environment.AzureCloud,
+	Environment.ChinaCloud,
+	Environment.GermanCloud,
+	Environment.USGovernment
 ];
 
 const azurePPE = 'AzurePPE';
@@ -419,7 +418,7 @@ export class AzureLoginHelper {
 					throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
 				}
 
-				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, accountAzureCloud, redirectionUrl, tenantId, code);
+				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, Environment.AzureCloud, redirectionUrl, tenantId, code);
 			}
 
 			if (!tokenResponse) {
@@ -751,7 +750,7 @@ export class AzureLoginHelper {
 async function getSelectedEnvironment(): Promise<AzureAccountEnvironment> {
 	const envConfig = workspace.getConfiguration('azure');
 	const envSetting = envConfig.get<string>('cloud');
-	return (await getEnvironments()).find(environment => environment.name === envSetting) || accountAzureCloud;
+	return (await getEnvironments()).find(environment => environment.name === envSetting) || Environment.AzureCloud;
 }
 
 async function getEnvironments(): Promise<AzureAccountEnvironment[]> {
@@ -775,8 +774,7 @@ async function getEnvironments(): Promise<AzureAccountEnvironment[]> {
 						batchResourceId: endpoint.batch,
 						storageEndpointSuffix: endpoint.suffixes.storage,
 						keyVaultDnsSuffix: endpoint.suffixes.keyVaultDns,
-						validateAuthority: true,
-						azureStackApiProfile: false
+						validateAuthority: true
 					}
 				})
 			}
@@ -807,8 +805,7 @@ async function getPpeEnvironments(ppe: AzureAccountEnvironment, config: Workspac
 			{
 				...ppe,
 				name: azurePPE,
-				validateAuthority: validateAuthority,
-				azureStackApiProfile: false
+				validateAuthority: validateAuthority
 			}
 		]
 	}
@@ -832,7 +829,7 @@ async function getAzureStackEnvironments(ppe: Environment, validateAuthority: bo
 				keyVaultDnsSuffix: '.vault'.concat(resourceManagerUrl.substring(resourceManagerUrl.indexOf('.'))),
 				managementEndpointUrl: ppeMetadata.authentication.audiences[0],
 				validateAuthority: validateAuthority,
-				azureStackApiProfile: true,
+				azureStackApiProfile: true
 			}
 		]
 	} else {

@@ -28,7 +28,7 @@ export interface AzureAccount {
 }
 
 export interface AzureAccountEnvironment extends Environment {
-	azureStackApiProfile: boolean;
+	azureStackApiProfile?: boolean;
 }
 
 export interface AzureSession {

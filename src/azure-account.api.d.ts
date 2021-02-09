@@ -27,8 +27,12 @@ export interface AzureAccount {
 	createCloudShell(os: 'Linux' | 'Windows'): CloudShell;
 }
 
+export interface AzureAccountEnvironment extends Environment {
+	azureStackApiProfile: boolean;
+}
+
 export interface AzureSession {
-	readonly environment: Environment;
+	readonly environment: AzureAccountEnvironment;
 	readonly userId: string;
 	readonly tenantId: string;
 

@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.9.6]
+- Add `azureStackApiProfile` property to environments.
+
 ## [0.9.5]
 - Add support for Azure Stack.
 

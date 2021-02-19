@@ -28,7 +28,7 @@ export interface AzureAccount {
 }
 
 export interface AzureAccountEnvironment extends Environment {
-	azureStackApiProfile?: boolean;
+	// No need for "azureStackApiProfile" if we just check Environment.name === 'AzureStack'
 }
 
 export interface AzureSession {

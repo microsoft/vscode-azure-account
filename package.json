@@ -126,16 +126,22 @@
             "AzureCloud",
             "AzureChinaCloud",
             "AzureGermanCloud",
-            "AzureUSGovernment"
+            "AzureUSGovernment",
+            "AzureStack"
           ],
           "enumDescriptions": [
             "Azure",
             "Azure China",
             "Azure Germany",
-            "Azure US Government"
+            "Azure US Government",
+            "Azure Stack"
           ],
           "default": "Azure",
           "description": "The current Azure Cloud to connect to."
+        },
+        "azure.stack.resourceManagerEndpointUrl": {
+          "type": "string",
+          "description": "The management endpoint for your Azure Stack environment."
         },
         "azure.ppe": {
           "type": "object",

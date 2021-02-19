@@ -99,9 +99,12 @@ const staticEnvironments: AzureAccountEnvironment[] = [
 ];
 
 const azurePPE = 'AzurePPE';
+const azureStack = 'AzureStack';
+const stackArmUrlKey = 'stack.resourceManagerEndpointUrl';
 
 const staticEnvironmentNames = [
 	...staticEnvironments.map(environment => environment.name),
+	azureStack,
 	azurePPE
 ];
 
@@ -110,6 +113,7 @@ const environmentLabels: Record<string, string> = {
 	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
 	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
 	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
+	[azureStack]: localize('azure-account.azureStack', 'Azure Stack'),
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
 
@@ -135,15 +139,15 @@ interface ICloudMetadata {
 }
 
 interface IResourceManagerMetadata {
-    galleryEndpoint: string;
-    graphEndpoint: string;
-    portalEndpoint: string;
-    authentication: {
-        loginEndpoint: string,
-        audiences: [
-            string
-        ]
-    };
+	galleryEndpoint: string;
+	graphEndpoint: string;
+	portalEndpoint: string;
+	authentication: {
+		loginEndpoint: string,
+		audiences: [
+			string
+		]
+	};
 }
 
 const logVerbose = false;
@@ -364,7 +368,7 @@ export class AzureLoginHelper {
 
 	async loginToCloud(): Promise<void> {
 		const current = await getSelectedEnvironment();
-		const selected = await window.showQuickPick<{ label: string, description?: string, environment: AzureAccountEnvironment }>(getEnvironments()
+		const selected = await window.showQuickPick<{ label: string, description?: string, environment: AzureAccountEnvironment }>(getEnvironments(true /* includePartial */)
 			.then(environments => environments.map(environment => ({
 				label: environmentLabels[environment.name],
 				description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
@@ -376,9 +380,21 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
+				if (selected.environment.name === azureStack) {
+					const armUrl = await window.showInputBox({
+						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
+						placeHolder: 'https://management.local.azurestack.external'
+					});
+					if (armUrl) {
+						await config.update(stackArmUrlKey, armUrl, getCurrentTarget(config.inspect(stackArmUrlKey)));
+					} else {
+						return;
+					}
+				}
+
 				this.doLogin = true;
 				// if outside of normal range, set ppe setting
-				config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+				await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
 			} else {
 				return this.login('loginToCloud');
 			}
@@ -753,7 +769,10 @@ async function getSelectedEnvironment(): Promise<AzureAccountEnvironment> {
 	return (await getEnvironments()).find(environment => environment.name === envSetting) || Environment.AzureCloud;
 }
 
-async function getEnvironments(): Promise<AzureAccountEnvironment[]> {
+/**
+ * @param includePartial Include partial environments for the sake of UI (i.e. Azure Stack). Endpoint data will be filled in later
+ */
+async function getEnvironments(includePartial: boolean = false): Promise<AzureAccountEnvironment[]> {
 	const metadataDiscoveryUrl = process.env['ARM_CLOUD_METADATA_URL'];
 	if (metadataDiscoveryUrl) {
 		try {
@@ -783,71 +802,63 @@ async function getEnvironments(): Promise<AzureAccountEnvironment[]> {
 		}
 	}
 
+	const result = [...staticEnvironments]; // make a clone
+
 	const config = workspace.getConfiguration('azure');
 	const ppe = config.get<AzureAccountEnvironment>('ppe');
 	if (ppe) {
-		return await getPpeEnvironments(ppe, config);
+		result.push({
+			...ppe,
+			name: azurePPE,
+			validateAuthority: getValidateAuthority(ppe.activeDirectoryEndpointUrl)
+		});
 	}
-	return staticEnvironments;
+
+	const stackEnvironment: AzureAccountEnvironment | undefined = await getAzureStackEnvironment(config, includePartial);
+	if (stackEnvironment) {
+		result.push(stackEnvironment);
+	}
+
+	return result;
 }
 
-async function getPpeEnvironments(ppe: AzureAccountEnvironment, config: WorkspaceConfiguration): Promise<AzureAccountEnvironment[]> {
-	// get api profile from user setting, this needs to be true for running azure stack
-	const apiProfile = config.get<boolean>('target_azurestack_api_profile');
+async function getAzureStackEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<AzureAccountEnvironment | undefined> {
+	const armUrl = config.get<string>(stackArmUrlKey);
+	if (armUrl) {
+		try {
+			const endpointsUrl = getMetadataEndpoints(armUrl);
+			const endpointsResponse = await fetch(endpointsUrl);
+			if (endpointsResponse.ok) {
+				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();
+				return <AzureAccountEnvironment>{
+					name: azureStack,
+					resourceManagerEndpointUrl: armUrl,
+					activeDirectoryEndpointUrl: endpoints.authentication.loginEndpoint,
+					portalUrl: endpoints.portalEndpoint,
+					galleryEndpointUrl: endpoints.galleryEndpoint,
+					activeDirectoryGraphResourceId: endpoints.graphEndpoint,
+					storageEndpointSuffix: armUrl.substring(armUrl.indexOf('.')),
+					keyVaultDnsSuffix: '.vault'.concat(armUrl.substring(armUrl.indexOf('.'))),
+					managementEndpointUrl: endpoints.authentication.audiences[0],
+					validateAuthority: getValidateAuthority(endpoints.authentication.loginEndpoint)
+				};
+			}
+		} catch {
+			// ignore
+		}
+	}
+
+	return includePartial ? <AzureAccountEnvironment>{ name: azureStack } : undefined;
+}
+
+function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {
 	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
-	const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
-	const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
-	if (apiProfile) {
-		return await getAzureStackEnvironments(ppe, validateAuthority)
-	} else {
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE,
-				validateAuthority: validateAuthority
-			}
-		]
-	}
-}
-
-async function getAzureStackEnvironments(ppe: Environment, validateAuthority: boolean) {
-	const resourceManagerUrl = ppe.resourceManagerEndpointUrl;
-	const endpointsUrl = getMetadataEndpoints(resourceManagerUrl);
-	const ppeResponse = await fetch(endpointsUrl);
-	if (ppeResponse.ok) {
-		const ppeMetadata: IResourceManagerMetadata = await ppeResponse.json();
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE,
-				portalUrl: ppeMetadata.portalEndpoint,
-				galleryEndpointUrl: ppeMetadata.galleryEndpoint,
-				activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
-				storageEndpointSuffix: resourceManagerUrl.substring(resourceManagerUrl.indexOf('.')),
-				keyVaultDnsSuffix: '.vault'.concat(resourceManagerUrl.substring(resourceManagerUrl.indexOf('.'))),
-				managementEndpointUrl: ppeMetadata.authentication.audiences[0],
-				validateAuthority: validateAuthority,
-				azureStackApiProfile: true
-			}
-		]
-	} else {
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE,
-				validateAuthority: validateAuthority,
-				azureStackApiProfile: true
-			}
-		]
-	}
-	
+	const activeDirectoryUrl = activeDirectoryEndpointUrl.endsWith('/') ? activeDirectoryEndpointUrl.slice(0, -1) : activeDirectoryEndpointUrl;
+	return activeDirectoryUrl.endsWith('/adfs') ? false : true;
 }
 
 function getMetadataEndpoints(resourceManagerUrl: string): string {
-	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0,-1) : resourceManagerUrl;
+	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0, -1) : resourceManagerUrl;
 	const endpointSuffix = '/metadata/endpoints';
 	const apiVersion = '2018-05-01';
 	// return ppe metadata endpoints Url

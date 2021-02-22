@@ -27,12 +27,8 @@ export interface AzureAccount {
 	createCloudShell(os: 'Linux' | 'Windows'): CloudShell;
 }
 
-export interface AzureAccountEnvironment extends Environment {
-	// No need for "azureStackApiProfile" if we just check Environment.name === 'AzureStack'
-}
-
 export interface AzureSession {
-	readonly environment: AzureAccountEnvironment;
+	readonly environment: Environment;
 	readonly userId: string;
 	readonly tenantId: string;
 

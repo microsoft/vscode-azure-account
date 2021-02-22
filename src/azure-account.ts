@@ -99,12 +99,12 @@ const staticEnvironments: Environment[] = [
 ];
 
 const azurePPE = 'AzurePPE';
-const azureStack = 'AzureStack';
-const stackArmUrlKey = 'stack.resourceManagerEndpointUrl';
+const customCloud = 'CustomCloud';
+const customCloudArmUrlKey = 'customCloud.resourceManagerEndpointUrl';
 
 const staticEnvironmentNames = [
 	...staticEnvironments.map(environment => environment.name),
-	azureStack,
+	customCloud,
 	azurePPE
 ];
 
@@ -113,7 +113,7 @@ const environmentLabels: Record<string, string> = {
 	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
 	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
 	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
-	[azureStack]: localize('azure-account.azureStack', 'Azure Stack'),
+	[customCloud]: localize('azure-account.customCloud', 'Custom Cloud'),
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
 
@@ -380,13 +380,13 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
-				if (selected.environment.name === azureStack) {
+				if (selected.environment.name === customCloud) {
 					const armUrl = await window.showInputBox({
 						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
 						placeHolder: 'https://management.local.azurestack.external'
 					});
 					if (armUrl) {
-						await config.update(stackArmUrlKey, armUrl, getCurrentTarget(config.inspect(stackArmUrlKey)));
+						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
 					} else {
 						return;
 					}
@@ -814,16 +814,16 @@ async function getEnvironments(includePartial: boolean = false): Promise<Environ
 		});
 	}
 
-	const stackEnvironment: Environment | undefined = await getAzureStackEnvironment(config, includePartial);
-	if (stackEnvironment) {
-		result.push(stackEnvironment);
+	const customCloudEnvironment: Environment | undefined = await getCustomCloudEnvironment(config, includePartial);
+	if (customCloudEnvironment) {
+		result.push(customCloudEnvironment);
 	}
 
 	return result;
 }
 
-async function getAzureStackEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<Environment | undefined> {
-	const armUrl = config.get<string>(stackArmUrlKey);
+async function getCustomCloudEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<Environment | undefined> {
+	const armUrl = config.get<string>(customCloudArmUrlKey);
 	if (armUrl) {
 		try {
 			const endpointsUrl = getMetadataEndpoints(armUrl);
@@ -831,7 +831,7 @@ async function getAzureStackEnvironment(config: WorkspaceConfiguration, includeP
 			if (endpointsResponse.ok) {
 				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();
 				return <Environment>{
-					name: azureStack,
+					name: customCloud,
 					resourceManagerEndpointUrl: armUrl,
 					activeDirectoryEndpointUrl: endpoints.authentication.loginEndpoint.endsWith('/') ? endpoints.authentication.loginEndpoint : endpoints.authentication.loginEndpoint.concat('/'),
 					activeDirectoryGraphResourceId: endpoints.graphEndpoint,
@@ -849,7 +849,7 @@ async function getAzureStackEnvironment(config: WorkspaceConfiguration, includeP
 		}
 	}
 
-	return includePartial ? <Environment>{ name: azureStack } : undefined;
+	return includePartial ? <Environment>{ name: customCloud } : undefined;
 }
 
 function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {

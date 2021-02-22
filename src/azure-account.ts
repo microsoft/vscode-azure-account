@@ -833,10 +833,11 @@ async function getAzureStackEnvironment(config: WorkspaceConfiguration, includeP
 				return <AzureAccountEnvironment>{
 					name: azureStack,
 					resourceManagerEndpointUrl: armUrl,
-					activeDirectoryEndpointUrl: endpoints.authentication.loginEndpoint,
+					activeDirectoryEndpointUrl: endpoints.authentication.loginEndpoint.endsWith('/') ? endpoints.authentication.loginEndpoint : endpoints.authentication.loginEndpoint.concat('/'),
+					activeDirectoryGraphResourceId: endpoints.graphEndpoint,
+					activeDirectoryResourceId: endpoints.authentication.audiences[0],
 					portalUrl: endpoints.portalEndpoint,
 					galleryEndpointUrl: endpoints.galleryEndpoint,
-					activeDirectoryGraphResourceId: endpoints.graphEndpoint,
 					storageEndpointSuffix: armUrl.substring(armUrl.indexOf('.')),
 					keyVaultDnsSuffix: '.vault'.concat(armUrl.substring(armUrl.indexOf('.'))),
 					managementEndpointUrl: endpoints.authentication.audiences[0],

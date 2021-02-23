@@ -99,12 +99,12 @@ const staticEnvironments: Environment[] = [
 ];
 
 const azurePPE = 'AzurePPE';
-const customCloud = 'CustomCloud';
+const azureCustomCloud = 'AzureCustomCloud';
 const customCloudArmUrlKey = 'customCloud.resourceManagerEndpointUrl';
 
 const staticEnvironmentNames = [
 	...staticEnvironments.map(environment => environment.name),
-	customCloud,
+	azureCustomCloud,
 	azurePPE
 ];
 
@@ -113,7 +113,7 @@ const environmentLabels: Record<string, string> = {
 	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
 	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
 	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
-	[customCloud]: localize('azure-account.customCloud', 'Custom Cloud'),
+	[azureCustomCloud]: localize('azure-account.azureCustomCloud', 'Azure Custom Cloud'),
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
 
@@ -380,7 +380,7 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
-				if (selected.environment.name === customCloud) {
+				if (selected.environment.name === azureCustomCloud) {
 					const armUrl = await window.showInputBox({
 						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
 						placeHolder: 'https://management.local.azurestack.external'
@@ -831,7 +831,7 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 			if (endpointsResponse.ok) {
 				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();
 				return <Environment>{
-					name: customCloud,
+					name: azureCustomCloud,
 					resourceManagerEndpointUrl: armUrl,
 					activeDirectoryEndpointUrl: endpoints.authentication.loginEndpoint.endsWith('/') ? endpoints.authentication.loginEndpoint : endpoints.authentication.loginEndpoint.concat('/'),
 					activeDirectoryGraphResourceId: endpoints.graphEndpoint,
@@ -849,7 +849,7 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 		}
 	}
 
-	return includePartial ? <Environment>{ name: customCloud } : undefined;
+	return includePartial ? <Environment>{ name: azureCustomCloud } : undefined;
 }
 
 function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {

@@ -127,21 +127,21 @@
             "AzureChinaCloud",
             "AzureGermanCloud",
             "AzureUSGovernment",
-            "CustomCloud"
+            "AzureCustomCloud"
           ],
           "enumDescriptions": [
             "Azure",
             "Azure China",
             "Azure Germany",
             "Azure US Government",
-            "Custom Cloud"
+            "Azure Custom Cloud"
           ],
           "default": "Azure",
           "description": "The current Azure Cloud to connect to."
         },
         "azure.customCloud.resourceManagerEndpointUrl": {
           "type": "string",
-          "description": "The management endpoint for your Custom Cloud environment."
+          "description": "The management endpoint for your Azure Custom Cloud environment."
         },
         "azure.ppe": {
           "type": "object",

@@ -14,12 +14,13 @@ import * as net from 'net';
 import * as vscode from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { TokenResponse, AuthenticationContext } from 'adal-node';
+import { AzureAccountEnvironment } from './azure-account.api';
 
 export const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
 const portADFS = 19472;
 const redirectUrlADFS = `http://127.0.0.1:${portADFS}/callback`;
 
-export function isADFS(environment: Environment) {
+export function isADFS(environment: AzureAccountEnvironment) {
 	const u = url.parse(environment.activeDirectoryEndpointUrl);
 	const pathname = (u.pathname || '').toLowerCase();
 	return pathname === '/adfs' || pathname.startsWith('/adfs/');
@@ -80,7 +81,7 @@ const handler = new UriEventHandler();
 
 vscode.window.registerUriHandler(handler);
 
-async function exchangeCodeForToken(clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string) {
+async function exchangeCodeForToken(clientId: string, environment: AzureAccountEnvironment, tenantId: string, callbackUri: string, state: string) {
 	let uriEventListener: vscode.Disposable;
 	return new Promise((resolve: (value: TokenResponse) => void , reject) => {
 		uriEventListener = handler.event(async (uri: vscode.Uri) => {
@@ -126,7 +127,7 @@ function getCallbackEnvironment(callbackUri: vscode.Uri): string {
 	}
 }
 
-async function loginWithoutLocalServer(clientId: string, environment: Environment, adfs: boolean, tenantId: string): Promise<TokenResponse> {
+async function loginWithoutLocalServer(clientId: string, environment: AzureAccountEnvironment, adfs: boolean, tenantId: string): Promise<TokenResponse> {
 	const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://ms-vscode.azure-account`));
 	const callback = redirectUrlAAD;
 	const nonce = crypto.randomBytes(16).toString('base64');
@@ -150,7 +151,7 @@ async function loginWithoutLocalServer(clientId: string, environment: Environmen
 	return Promise.race([exchangeCodeForToken(clientId, environment, tenantId, callback, state), timeoutPromise]);
 }
 
-export async function login(clientId: string, environment: Environment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>) {
+export async function login(clientId: string, environment: AzureAccountEnvironment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>) {
 	if (vscode.env.uiKind === vscode.UIKind.Web) {
 		return loginWithoutLocalServer(clientId, environment, adfs, tenantId);
 	}
@@ -344,7 +345,7 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 	throw new Error(error || 'No code received.');
 }
 
-export async function tokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string) {
+export async function tokenWithAuthorizationCode(clientId: string, environment: AzureAccountEnvironment, redirectUrl: string, tenantId: string, code: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, !isADFS(environment));
 		context.acquireTokenWithAuthorizationCode(code, redirectUrl, environment.activeDirectoryResourceId, clientId, <any>undefined, (err, response) => {

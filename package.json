@@ -143,6 +143,19 @@
           "type": "string",
           "description": "The management endpoint for your Azure Custom Cloud environment."
         },
+        "azure.apiProfile": {
+          "type": "string",
+          "enum": [
+            "latest",
+            "2019-03-01-hybrid"
+          ],
+          "enumDescriptions": [
+            "The most recent API version released in Azure Global",
+            ""
+          ],
+          "default": "latest",
+          "description": "The API version for Azure REST endpoints"
+        },
         "azure.ppe": {
           "type": "object",
           "properties": {

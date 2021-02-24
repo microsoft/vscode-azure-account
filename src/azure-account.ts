@@ -864,7 +864,7 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 
 function getApiProfile(): string | undefined {
 	const config = workspace.getConfiguration('azure');
-return config.get<string>('apiProfile');
+	return config.get<string>('apiProfile');
 }
 
 function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {

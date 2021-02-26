@@ -854,8 +854,12 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 
 function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {
 	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
-	const activeDirectoryUrl = activeDirectoryEndpointUrl.endsWith('/') ? activeDirectoryEndpointUrl.slice(0, -1) : activeDirectoryEndpointUrl;
-	return activeDirectoryUrl.endsWith('/adfs') ? false : true;
+	let validateAuthority: boolean = true;
+	if (activeDirectoryEndpointUrl) {
+		const activeDirectoryUrl = activeDirectoryEndpointUrl.endsWith('/') ? activeDirectoryEndpointUrl.slice(0, -1) : activeDirectoryEndpointUrl;
+		validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
+	}
+	return validateAuthority;
 }
 
 function getMetadataEndpoints(resourceManagerUrl: string): string {

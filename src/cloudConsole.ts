@@ -13,12 +13,13 @@ import * as path from 'path';
 import * as cp from 'child_process';
 import * as semver from 'semver';
 import { TelemetryReporter } from './telemetry';
-import { TenantDetailsClient } from './tenantDetailsClient';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { ReadStream } from 'fs';
 import * as FormData from 'form-data';
 import { parse } from 'url';
 import { Socket } from 'net';
+import { v4 as uuid } from 'uuid';
+import fetch from 'node-fetch';
 // const adal = require('adal-node');
 
 // function turnOnLogging() {
@@ -497,14 +498,51 @@ async function acquireToken(session: AzureSession) {
 	});
 }
 
-async function fetchTenantDetails(session: AzureSession) {
+interface TenantDetails {
+	objectId: string;
+	displayName: string;
+	verifiedDomains: { name: string; default: boolean; }[];
+}
+
+async function fetchTenantDetails(session: AzureSession): Promise<{ session: AzureSession, tenantDetails: TenantDetails }> {
 	const { username, clientId, tokenCache, domain } = <any>session.credentials;
 	const graphCredentials = new DeviceTokenCredentials({ username, clientId, tokenCache, domain, tokenAudience: 'graph' });
-	const client = new TenantDetailsClient(graphCredentials, session.tenantId, session.environment.activeDirectoryGraphResourceId);
-	return {
-		session,
-		tenantDetails: (await client.details.get()).value[0]
-	};
+
+	const apiVersion = '1.6';
+	const requestUrl = `https://graph.windows.net/${encodeURIComponent(session.tenantId)}/tenantDetails?api-version=${encodeURIComponent(apiVersion)}`;
+
+	return new Promise((resolve, reject) => {
+		graphCredentials.getToken(async (err: Error, result: any) => {
+			if (err) {
+				reject(err);
+				return;
+			}
+
+			if (result) {
+				try {
+					const response = await fetch(requestUrl, {
+						headers: {
+							Authorization: `Bearer ${result.accessToken}`,
+							"x-ms-client-request-id": uuid(),
+							"Content-Type": 'application/json; charset=utf-8'
+						}
+					});
+	
+					if (response.ok) {
+						const json = await response.json();
+						resolve({
+							session,
+							tenantDetails: json.value[0]
+						});
+					} else {
+						reject(response.statusText)
+					}
+				} catch (e) {
+					reject(e);
+				}
+			}
+		});
+	});
 }
 
 export interface ExecResult {

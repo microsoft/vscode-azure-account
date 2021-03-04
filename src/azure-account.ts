@@ -206,7 +206,7 @@ class ProxyTokenCache {
 	}
 }
 
-type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange';
+type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange' | 'resourceManagerEndpointUrlChange';
 type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
 
 export class AzureLoginHelper {
@@ -237,10 +237,10 @@ export class AzureLoginHelper {
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
 		subscriptions.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant')) {
+			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant') || e.affectsConfiguration('azure.customCloud.resourceManagerEndpointUrl')) {
 				const doLogin = this.doLogin;
 				this.doLogin = false;
-				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : 'tenantChange', doLogin)
+				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : e.affectsConfiguration('azure.tenant') ? 'tenantChange' : 'resourceManagerEndpointUrlChange', doLogin)
 					.catch(console.error);
 			} else if (e.affectsConfiguration('azure.resourceFilter')) {
 				this.updateFilters(true);
@@ -380,6 +380,7 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
+				this.doLogin = true;
 				if (selected.environment.name === azureCustomCloud) {
 					const armUrl = await window.showInputBox({
 						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
@@ -392,7 +393,6 @@ export class AzureLoginHelper {
 					}
 				}
 
-				this.doLogin = true;
 				// if outside of normal range, set ppe setting
 				await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
 			} else {

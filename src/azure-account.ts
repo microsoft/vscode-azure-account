@@ -384,7 +384,8 @@ export class AzureLoginHelper {
 				if (selected.environment.name === azureCustomCloud) {
 					const armUrl = await window.showInputBox({
 						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
-						placeHolder: 'https://management.local.azurestack.external'
+						placeHolder: 'https://management.local.azurestack.external',
+						ignoreFocusOut: true
 					});
 					if (armUrl) {
 						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));

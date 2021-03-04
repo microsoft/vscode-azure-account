@@ -845,7 +845,7 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 				};
 			}
 		} catch {
-			// ignore
+			new Error(localize("azure-account.armUrlFetchFailed", "Fetch Azure custom cloud endpoints metadata failed"));
 		}
 	}
 

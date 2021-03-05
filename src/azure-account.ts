@@ -15,7 +15,7 @@ import * as http from 'http';
 import * as https from 'https';
 
 import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource, Uri } from 'vscode';
-import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription, AzureAccountEnvironment } from './azure-account.api';
+import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
 import { TelemetryReporter } from './telemetry';
@@ -47,7 +47,7 @@ function getNodeModule<T>(moduleName: string): T | undefined {
 
 const credentialsSection = 'VS Code Azure';
 
-async function getStoredCredentials(environment: AzureAccountEnvironment, migrateToken?: boolean) {
+async function getStoredCredentials(environment: Environment, migrateToken?: boolean) {
 	if (!keytar) {
 		return;
 	}
@@ -71,7 +71,7 @@ async function getStoredCredentials(environment: AzureAccountEnvironment, migrat
 	}
 }
 
-async function storeRefreshToken(environment: AzureAccountEnvironment, token: string) {
+async function storeRefreshToken(environment: Environment, token: string) {
 	if (keytar) {
 		try {
 			await keytar.setPassword(credentialsSection, environment.name, token);
@@ -91,7 +91,7 @@ async function deleteRefreshToken(environmentName: string) {
 	}
 }
 
-const staticEnvironments: AzureAccountEnvironment[] = [
+const staticEnvironments: Environment[] = [
 	Environment.AzureCloud,
 	Environment.ChinaCloud,
 	Environment.GermanCloud,
@@ -99,9 +99,12 @@ const staticEnvironments: AzureAccountEnvironment[] = [
 ];
 
 const azurePPE = 'AzurePPE';
+const azureCustomCloud = 'AzureCustomCloud';
+const customCloudArmUrlKey = 'customCloud.resourceManagerEndpointUrl';
 
 const staticEnvironmentNames = [
 	...staticEnvironments.map(environment => environment.name),
+	azureCustomCloud,
 	azurePPE
 ];
 
@@ -110,6 +113,7 @@ const environmentLabels: Record<string, string> = {
 	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
 	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
 	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
+	[azureCustomCloud]: localize('azure-account.azureCustomCloud', 'Azure Custom Cloud'),
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
 
@@ -135,15 +139,15 @@ interface ICloudMetadata {
 }
 
 interface IResourceManagerMetadata {
-    galleryEndpoint: string;
-    graphEndpoint: string;
-    portalEndpoint: string;
-    authentication: {
-        loginEndpoint: string,
-        audiences: [
-            string
-        ]
-    };
+	galleryEndpoint: string;
+	graphEndpoint: string;
+	portalEndpoint: string;
+	authentication: {
+		loginEndpoint: string,
+		audiences: [
+			string
+		]
+	};
 }
 
 const logVerbose = false;
@@ -202,7 +206,7 @@ class ProxyTokenCache {
 	}
 }
 
-type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange';
+type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange' | 'customCloudARMUrlChange';
 type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
 
 export class AzureLoginHelper {
@@ -233,10 +237,10 @@ export class AzureLoginHelper {
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
 		subscriptions.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant')) {
+			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant') || e.affectsConfiguration('azure.customCloud.resourceManagerEndpointUrl')) {
 				const doLogin = this.doLogin;
 				this.doLogin = false;
-				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : 'tenantChange', doLogin)
+				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : e.affectsConfiguration('azure.tenant') ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
 					.catch(console.error);
 			} else if (e.affectsConfiguration('azure.resourceFilter')) {
 				this.updateFilters(true);
@@ -364,7 +368,7 @@ export class AzureLoginHelper {
 
 	async loginToCloud(): Promise<void> {
 		const current = await getSelectedEnvironment();
-		const selected = await window.showQuickPick<{ label: string, description?: string, environment: AzureAccountEnvironment }>(getEnvironments()
+		const selected = await window.showQuickPick<{ label: string, description?: string, environment: Environment }>(getEnvironments(true /* includePartial */)
 			.then(environments => environments.map(environment => ({
 				label: environmentLabels[environment.name],
 				description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
@@ -376,12 +380,23 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
-				this.doLogin = true;
+				if (selected.environment.name === azureCustomCloud) {
+					const armUrl = await window.showInputBox({
+						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
+						placeHolder: 'https://management.local.azurestack.external',
+						ignoreFocusOut: true
+					});
+					if (armUrl) {
+						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
+					} else {
+						return;
+					}
+				}
+
 				// if outside of normal range, set ppe setting
-				config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
-			} else {
-				return this.login('loginToCloud');
+				await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
 			}
+			return this.login('loginToCloud');
 		}
 	}
 
@@ -514,7 +529,7 @@ export class AzureLoginHelper {
 		return sessions;
 	}
 
-	private async updateSessions(environment: AzureAccountEnvironment, tokenResponses: TokenResponse[]) {
+	private async updateSessions(environment: Environment, tokenResponses: TokenResponse[]) {
 		await clearTokenCache(this.tokenCache);
 		for (const tokenResponse of tokenResponses) {
 			await addTokenToCache(environment, this.tokenCache, tokenResponse);
@@ -747,13 +762,16 @@ export class AzureLoginHelper {
 	}
 }
 
-async function getSelectedEnvironment(): Promise<AzureAccountEnvironment> {
+async function getSelectedEnvironment(): Promise<Environment> {
 	const envConfig = workspace.getConfiguration('azure');
 	const envSetting = envConfig.get<string>('cloud');
 	return (await getEnvironments()).find(environment => environment.name === envSetting) || Environment.AzureCloud;
 }
 
-async function getEnvironments(): Promise<AzureAccountEnvironment[]> {
+/**
+ * @param includePartial Include partial environments for the sake of UI (i.e. Azure Stack). Endpoint data will be filled in later
+ */
+async function getEnvironments(includePartial: boolean = false): Promise<Environment[]> {
 	const metadataDiscoveryUrl = process.env['ARM_CLOUD_METADATA_URL'];
 	if (metadataDiscoveryUrl) {
 		try {
@@ -783,81 +801,76 @@ async function getEnvironments(): Promise<AzureAccountEnvironment[]> {
 		}
 	}
 
+	const result = [...staticEnvironments]; // make a clone
+
 	const config = workspace.getConfiguration('azure');
-	const ppe = config.get<AzureAccountEnvironment>('ppe');
+	const ppe = config.get<Environment>('ppe');
 	if (ppe) {
-		return await getPpeEnvironments(ppe, config);
+		result.push({
+			...ppe,
+			name: azurePPE,
+			validateAuthority: getValidateAuthority(ppe.activeDirectoryEndpointUrl)
+		});
 	}
-	return staticEnvironments;
+
+	const customCloudEnvironment: Environment | undefined = await getCustomCloudEnvironment(config, includePartial);
+	if (customCloudEnvironment) {
+		result.push(customCloudEnvironment);
+	}
+
+	return result;
 }
 
-async function getPpeEnvironments(ppe: AzureAccountEnvironment, config: WorkspaceConfiguration): Promise<AzureAccountEnvironment[]> {
-	if (!ppe.activeDirectoryEndpointUrl) {
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE
+async function getCustomCloudEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<Environment | undefined> {
+	const armUrl = config.get<string>(customCloudArmUrlKey);
+	if (armUrl) {
+		try {
+			const endpointsUrl = getMetadataEndpoints(armUrl);
+			const endpointsResponse = await fetch(endpointsUrl);
+			if (endpointsResponse.ok) {
+				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();
+				return <Environment>{
+					name: azureCustomCloud,
+					resourceManagerEndpointUrl: armUrl,
+					activeDirectoryEndpointUrl: endpoints.authentication.loginEndpoint.endsWith('/') ? endpoints.authentication.loginEndpoint : endpoints.authentication.loginEndpoint.concat('/'),
+					activeDirectoryGraphResourceId: endpoints.graphEndpoint,
+					activeDirectoryResourceId: endpoints.authentication.audiences[0],
+					portalUrl: endpoints.portalEndpoint,
+					galleryEndpointUrl: endpoints.galleryEndpoint,
+					storageEndpointSuffix: armUrl.substring(armUrl.indexOf('.')),
+					keyVaultDnsSuffix: '.vault'.concat(armUrl.substring(armUrl.indexOf('.'))),
+					managementEndpointUrl: endpoints.authentication.audiences[0],
+					validateAuthority: getValidateAuthority(endpoints.authentication.loginEndpoint)
+				};
 			}
-		];
+		} catch {
+			const openSettings = localize('openSettings', 'Open Settings');
+			window.showErrorMessage(
+				localize("azure-account.armUrlFetchFailed", "Fetching custom cloud environment data failed. Please check your custom cloud settings."),
+				openSettings
+			).then(result => {
+				if(result === openSettings){
+					commands.executeCommand('workbench.action.openSettings', '@ext:ms-vscode.azure-account customCloud');
+				}
+			})
+		}
 	}
-	
-	// get api profile from user setting, this needs to be true for running azure stack
-	const apiProfile = config.get<boolean>('target_azurestack_api_profile');
+
+	return includePartial ? <Environment>{ name: azureCustomCloud } : undefined;
+}
+
+function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {
 	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
-	const activeDirectoryUrl = ppe.activeDirectoryEndpointUrl.endsWith('/') ? ppe.activeDirectoryEndpointUrl.slice(0,-1) : ppe.activeDirectoryEndpointUrl;
-	const validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
-	if (apiProfile) {
-		return await getAzureStackEnvironments(ppe, validateAuthority)
-	} else {
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE,
-				validateAuthority: validateAuthority
-			}
-		]
+	let validateAuthority: boolean = true;
+	if (activeDirectoryEndpointUrl) {
+		const activeDirectoryUrl = activeDirectoryEndpointUrl.endsWith('/') ? activeDirectoryEndpointUrl.slice(0, -1) : activeDirectoryEndpointUrl;
+		validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
 	}
-}
-
-async function getAzureStackEnvironments(ppe: Environment, validateAuthority: boolean) {
-	const resourceManagerUrl = ppe.resourceManagerEndpointUrl;
-	const endpointsUrl = getMetadataEndpoints(resourceManagerUrl);
-	const ppeResponse = await fetch(endpointsUrl);
-	if (ppeResponse.ok) {
-		const ppeMetadata: IResourceManagerMetadata = await ppeResponse.json();
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE,
-				portalUrl: ppeMetadata.portalEndpoint,
-				galleryEndpointUrl: ppeMetadata.galleryEndpoint,
-				activeDirectoryGraphResourceId: ppeMetadata.graphEndpoint,
-				storageEndpointSuffix: resourceManagerUrl.substring(resourceManagerUrl.indexOf('.')),
-				keyVaultDnsSuffix: '.vault'.concat(resourceManagerUrl.substring(resourceManagerUrl.indexOf('.'))),
-				managementEndpointUrl: ppeMetadata.authentication.audiences[0],
-				validateAuthority: validateAuthority,
-				azureStackApiProfile: true
-			}
-		]
-	} else {
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE,
-				validateAuthority: validateAuthority,
-				azureStackApiProfile: true
-			}
-		]
-	}
-	
+	return validateAuthority;
 }
 
 function getMetadataEndpoints(resourceManagerUrl: string): string {
-	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0,-1) : resourceManagerUrl;
+	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0, -1) : resourceManagerUrl;
 	const endpointSuffix = '/metadata/endpoints';
 	const apiVersion = '2018-05-01';
 	// return ppe metadata endpoints Url
@@ -869,7 +882,7 @@ function getTenantId() {
 	return envConfig.get<string>('tenant') || commonTenantId;
 }
 
-async function deviceLogin(environment: AzureAccountEnvironment, tenantId: string) {
+async function deviceLogin(environment: Environment, tenantId: string) {
 	const deviceLogin = await deviceLogin1(environment, tenantId);
 	const message = showDeviceCodeMessage(deviceLogin);
 	const login2 = deviceLogin2(environment, tenantId, deviceLogin);
@@ -887,7 +900,7 @@ async function showDeviceCodeMessage(deviceLogin: UserCodeInfo): Promise<void> {
 	}
 }
 
-async function deviceLogin1(environment: AzureAccountEnvironment, tenantId: string): Promise<UserCodeInfo> {
+async function deviceLogin1(environment: Environment, tenantId: string): Promise<UserCodeInfo> {
 	return new Promise<UserCodeInfo>((resolve, reject) => {
 		const cache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, cache);
@@ -901,7 +914,7 @@ async function deviceLogin1(environment: AzureAccountEnvironment, tenantId: stri
 	});
 }
 
-async function deviceLogin2(environment: AzureAccountEnvironment, tenantId: string, deviceLogin: UserCodeInfo) {
+async function deviceLogin2(environment: Environment, tenantId: string, deviceLogin: UserCodeInfo) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
@@ -924,7 +937,7 @@ async function redirectTimeout() {
 	}
 }
 
-export async function tokenFromRefreshToken(environment: AzureAccountEnvironment, refreshToken: string, tenantId: string, resource?: string) {
+export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
@@ -940,7 +953,7 @@ export async function tokenFromRefreshToken(environment: AzureAccountEnvironment
 	});
 }
 
-async function tokensFromToken(environment: AzureAccountEnvironment, firstTokenResponse: TokenResponse) {
+async function tokensFromToken(environment: Environment, firstTokenResponse: TokenResponse) {
 	const tokenCache = new MemoryCache();
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
 	const credentials = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
@@ -962,7 +975,7 @@ async function tokensFromToken(environment: AzureAccountEnvironment, firstTokenR
 	return responses;
 }
 
-async function addTokenToCache(environment: AzureAccountEnvironment, tokenCache: any, tokenResponse: TokenResponse) {
+async function addTokenToCache(environment: Environment, tokenCache: any, tokenResponse: TokenResponse) {
 	return new Promise<any>((resolve, reject) => {
 		const driver = new CacheDriver(
 			{ _logContext: createLogContext('') },
@@ -1060,7 +1073,7 @@ function getErrorMessage(err: any): string | undefined {
 	return str;
 }
 
-async function becomeOnline(environment: AzureAccountEnvironment, interval: number, token = new CancellationTokenSource().token) {
+async function becomeOnline(environment: Environment, interval: number, token = new CancellationTokenSource().token) {
 	let o = isOnline(environment);
 	let d = delay(interval, false);
 	while (!token.isCancellationRequested && !await Promise.race([o, d])) {
@@ -1070,7 +1083,7 @@ async function becomeOnline(environment: AzureAccountEnvironment, interval: numb
 	}
 }
 
-async function isOnline(environment: AzureAccountEnvironment) {
+async function isOnline(environment: Environment) {
 	try {
 		await new Promise<http.IncomingMessage | https.IncomingMessage>((resolve, reject) => {
 			const url = environment.activeDirectoryEndpointUrl;

@@ -846,7 +846,7 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 		} catch {
 			const openSettings = localize('openSettings', 'Open Settings');
 			window.showErrorMessage(
-				localize("azure-account.armUrlFetchFailed", "Fetch metadata from Azure custom cloud endpoints Url failed"),
+				localize("azure-account.armUrlFetchFailed", "Fetching custom cloud environment data failed. Please check your custom cloud settings."),
 				openSettings
 			).then(result => {
 				if(result === openSettings){

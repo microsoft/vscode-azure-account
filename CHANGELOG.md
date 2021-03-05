@@ -1,6 +1,14 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+
+## [0.9.7]
+- Add "CustomCloud" as an available Azure Environemnt, and `customCloud.resourceManagerEndpointUrl` to set the endpoint to use for this
+- Removes `azureStackApiProfile`
+- Fix #231, open in powershell does not show directory list
+- Fix #250, sign in does not work when PPE setting does not include `activeDirectoryEndpointUrl`
+- Update dependencies
+
 ## [0.9.6]
 - Add `azureStackApiProfile` property to environments.
 

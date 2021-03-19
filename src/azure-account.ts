@@ -397,8 +397,11 @@ export class AzureLoginHelper {
 					} else {
 						return;
 					}
+				} else {
+					// Set tenant Id back to commonTenantId if user isn't using Azure Custom Cloud to avoid unmatched tenant id issue.
+					await config.update('tenant', commonTenantId, getCurrentTarget(config.inspect('tenant')));
 				}
-
+				
 				// if outside of normal range, set ppe setting
 				await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
 			}

@@ -386,14 +386,18 @@ export class AzureLoginHelper {
 						placeHolder: 'https://management.local.azurestack.external',
 						ignoreFocusOut: true
 					});
-					const tenantId = await window.showInputBox({
-						prompt: localize('azure-account.enterTenantId', "Enter the Tenant Id"),
-						placeHolder: "Please enter your tenant Id here",
-						ignoreFocusOut: true
-					});
 					if (armUrl) {
-						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
-						await config.update('tenant', tenantId, getCurrentTarget(config.inspect('tenant')));
+						const tenantId = await window.showInputBox({
+							prompt: localize('azure-account.enterTenantId', "Enter the Tenant Id"),
+							placeHolder: "Tenant Id..",
+							ignoreFocusOut: true
+						});
+						if (tenantId) {
+							await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
+							await config.update('tenant', tenantId, getCurrentTarget(config.inspect('tenant')));
+						} else {
+							return;
+						}
 					} else {
 						return;
 					}

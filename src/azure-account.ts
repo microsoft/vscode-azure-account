@@ -388,8 +388,8 @@ export class AzureLoginHelper {
 					});
 					if (armUrl) {
 						const tenantId = await window.showInputBox({
-							prompt: localize('azure-account.enterTenantId', "Enter the Tenant Id"),
-							placeHolder: "Tenant Id..",
+							prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
+							placeHolder: "Tenant Id",
 							ignoreFocusOut: true
 						});
 						if (tenantId) {

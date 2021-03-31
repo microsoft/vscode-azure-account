@@ -380,34 +380,35 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
+				let tenantInputText = commonTenantId;
+				let tenantId;
+				let armUrl;
 				if (selected.environment.name === azureCustomCloud) {
-					const armUrl = await window.showInputBox({
+					armUrl = await window.showInputBox({
 						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
 						placeHolder: 'https://management.local.azurestack.external',
 						ignoreFocusOut: true
 					});
-					if (armUrl) {
-						const tenantId = await window.showInputBox({
-							prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
-							placeHolder: "Tenant Id",
-							ignoreFocusOut: true
-						});
-						if (tenantId) {
-							await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
-							await config.update('tenant', tenantId, getCurrentTarget(config.inspect('tenant')));
-						} else {
-							return;
-						}
-					} else {
+					tenantInputText = "Azure Custom Cloud Tenant Id";
+					if (!armUrl) {
+						// directly return when user didn't type in anything or press esc for resourceManagerEndpointUrl inputbox
 						return;
 					}
-				} else {
-					// Set tenant Id back to commonTenantId if user isn't using Azure Custom Cloud to avoid unmatched tenant id issue.
-					await config.update('tenant', commonTenantId, getCurrentTarget(config.inspect('tenant')));
 				}
-
-				// if outside of normal range, set ppe setting
-				await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+				tenantId = await window.showInputBox({
+					prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
+					placeHolder: tenantInputText,
+					ignoreFocusOut: true});
+				if (tenantId) {
+					if (armUrl) {
+						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
+					}
+					await config.update('tenant', tenantId, getCurrentTarget(config.inspect('tenant')));
+					// if outside of normal range, set ppe setting
+					await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+				} else {
+					return;
+				}
 			}
 			return this.login('loginToCloud');
 		}

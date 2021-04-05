@@ -380,21 +380,32 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
+				let armUrl;
 				if (selected.environment.name === azureCustomCloud) {
-					const armUrl = await window.showInputBox({
+					armUrl = await window.showInputBox({
 						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
 						placeHolder: 'https://management.local.azurestack.external',
 						ignoreFocusOut: true
 					});
-					if (armUrl) {
-						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
-					} else {
+					if (!armUrl) {
+						// directly return when user didn't type in anything or press esc for resourceManagerEndpointUrl inputbox
 						return;
 					}
 				}
-
-				// if outside of normal range, set ppe setting
-				await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+				const tenantId = await window.showInputBox({
+					prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
+					placeHolder: localize('azure-account.tenantIdPlaceholder', "Enter your tenant id, or '{0}' for the default tenant", commonTenantId),
+					ignoreFocusOut: true});
+				if (tenantId) {
+					if (armUrl) {
+						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
+					}
+					await config.update('tenant', tenantId, getCurrentTarget(config.inspect('tenant')));
+					// if outside of normal range, set ppe setting
+					await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+				} else {
+					return;
+				}
 			}
 			return this.login('loginToCloud');
 		}

@@ -380,8 +380,6 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
-				let tenantInputText = commonTenantId;
-				let tenantId;
 				let armUrl;
 				if (selected.environment.name === azureCustomCloud) {
 					armUrl = await window.showInputBox({
@@ -389,15 +387,14 @@ export class AzureLoginHelper {
 						placeHolder: 'https://management.local.azurestack.external',
 						ignoreFocusOut: true
 					});
-					tenantInputText = "Azure Custom Cloud Tenant Id";
 					if (!armUrl) {
 						// directly return when user didn't type in anything or press esc for resourceManagerEndpointUrl inputbox
 						return;
 					}
 				}
-				tenantId = await window.showInputBox({
+				const tenantId = await window.showInputBox({
 					prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
-					placeHolder: tenantInputText,
+					placeHolder: localize('azure-account.tenantIdPlaceholder', "Enter your tenant id, or '{0}' for the default tenant", commonTenantId),
 					ignoreFocusOut: true});
 				if (tenantId) {
 					if (armUrl) {

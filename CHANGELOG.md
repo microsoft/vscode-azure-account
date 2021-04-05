@@ -2,6 +2,9 @@
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
 
+## [0.9.8]
+- When signing into a different cloud than previously used, shows a prompt to enter tenant id.
+
 ## [0.9.7]
 - Add "CustomCloud" as an available Azure Environemnt, and `customCloud.resourceManagerEndpointUrl` to set the endpoint to use for this
 - Removes `azureStackApiProfile`

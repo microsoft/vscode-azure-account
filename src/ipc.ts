@@ -10,7 +10,7 @@ import * as http from 'http';
 import * as os from 'os';
 import * as crypto from 'crypto';
 
-export async function createServer(ipcHandlePrefix: string, onRequest: (req: http.ServerRequest, res: http.ServerResponse) => Promise<void> | void) {
+export async function createServer(ipcHandlePrefix: string, onRequest: (req: http.ServerRequest, res: http.ServerResponse) => Promise<void> | void): Promise<Server> {
 	const buffer = await randomBytes(20);
 	const nonce = buffer.toString('hex');
 	const ipcHandlePath = getIPCHandlePath(`${ipcHandlePrefix}-${nonce}`);
@@ -26,12 +26,13 @@ export class Server {
 	constructor(public ipcHandlePath: string, onRequest: (req: http.ServerRequest, res: http.ServerResponse) => Promise<void> | void) {
 		this.server = http.createServer((req, res) => {
 			Promise.resolve(onRequest(req, res))
-				.catch((err: any) => console.error(err && err.message || err));
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+				.catch((err) => console.error(err && err.message || err));
 		});
 		this.server.on('error', err => console.error(err));
 	}
 
-	listen() {
+	listen(): void {
 		this.server.listen(this.ipcHandlePath);
 	}
 
@@ -40,20 +41,22 @@ export class Server {
 	}
 }
 
-export async function readJSON<T>(req: http.ServerRequest) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function readJSON<T>(req: http.ServerRequest): Promise<any> {
 	return new Promise<T>((resolve, reject) => {
 		const chunks: string[] = [];
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
 		req.on('error', (err: Error) => reject(err));
 		req.on('end', () => {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 			const data = JSON.parse(chunks.join(''));
 			resolve(data);
 		});
 	});
 }
 
-export async function sendData(socketPath: string, data: string) {
+export async function sendData(socketPath: string, data: string): Promise<http.IncomingMessage> {
 	return new Promise<http.IncomingMessage>((resolve, reject) => {
 		const opts: http.RequestOptions = {
 			socketPath,
@@ -86,6 +89,7 @@ function getIPCHandlePath(id: string): string {
 	}
 
 	if (process.env['XDG_RUNTIME_DIR']) {
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		return path.join(process.env['XDG_RUNTIME_DIR']!, `${id}.sock`);
 	}
 
@@ -97,10 +101,10 @@ export class Queue<T> {
 	private messages: T[] = [];
 	private dequeueRequest?: {
 		resolve: (value: T[]) => void;
-		reject: (err: any) => void;
+		reject: (err: unknown) => void;
 	};
 
-	public push(message: T) {
+	public push(message: T): void {
 		this.messages.push(message);
 		if (this.dequeueRequest) {
 			this.dequeueRequest.resolve(this.messages);
@@ -109,7 +113,7 @@ export class Queue<T> {
 		}
 	}
 
-	public async dequeue(timeout?: number) {
+	public async dequeue(timeout?: number): Promise<T[]> {
 		if (this.messages.length) {
 			const messages = this.messages;
 			this.messages = [];

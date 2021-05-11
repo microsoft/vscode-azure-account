@@ -49,17 +49,20 @@ export const OSes = {
 	Linux: {
 		id: 'linux',
 		shellName: localize('azure-account.bash', "Bash"),
+		// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 		get otherOS() { return OSes.Windows; },
 	},
 	Windows: {
 		id: 'windows',
 		shellName: localize('azure-account.powershell', "PowerShell"),
+		// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 		get otherOS() { return OSes.Linux; },
 	}
 };
 
 interface Deferred<T> {
 	resolve: (result: T | Promise<T>) => void;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	reject: (reason: any) => void;
 }
 
@@ -115,6 +118,7 @@ function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
 			});
 			const uri = parse(`${terminalUri}/upload`);
 			const req = form.submit({
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
 				protocol: <any>uri.protocol,
 				hostname: uri.hostname,
 				port: uri.port,
@@ -142,6 +146,7 @@ function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
 			}
 			if (options.progress) {
 				req.on('socket', (socket: Socket) => {
+					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 					options.progress!.report({
 						message: localize('azure-account.uploading', "Uploading '{0}'...", filename),
 						increment: 0
@@ -153,6 +158,7 @@ function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
 							const worked = Math.min(Math.round(100 * socket.bytesWritten / total), 100);
 							const increment = worked - previous;
 							if (increment) {
+								// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 								options.progress!.report({
 									message: localize('azure-account.uploading', "Uploading '{0}'...", filename),
 									increment
@@ -171,6 +177,7 @@ export const shells: CloudShell[] = [];
 
 export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporter, osName: keyof typeof OSes): CloudShell {
 	const os = OSes[osName];
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let liveQueue: Queue<any> | undefined;
 	const event = new EventEmitter<CloudShellStatus>();
 	let deferredTerminal: Deferred<Terminal>;
@@ -189,7 +196,9 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
 		uploadFile: uploadFile(tokensPromise, urisPromise)
 	};
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	state.terminal.catch(() => { }); // ignore
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	state.session.catch(() => { }); // ignore
 	shells.push(state);
 	function updateStatus(status: CloudShellStatus) {
@@ -201,11 +210,12 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			deferredTokens.reject(status);
 			deferredUris.reject(status);
 			shells.splice(shells.indexOf(state), 1);
-			commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
+			void commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
 		}
 	}
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(async function (): Promise<any> {
-		commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
+		void commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
 
 		const isWindows = process.platform === 'win32';
 		if (isWindows) {
@@ -224,10 +234,13 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		}
 
 		// ipc
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const queue = new Queue<any>();
 		const ipc = await createServer('vscode-cloud-console', async (req, res) => {
 			let dequeue = false;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			for (const message of await readJSON<any>(req)) {
+				/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 				if (message.type === 'poll') {
 					dequeue = true;
 				} else if (message.type === 'log') {
@@ -237,6 +250,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				} else if (message.type === 'status') {
 					updateStatus(message.status);
 				}
+				/* eslint-enable @typescript-eslint/no-unsafe-member-access */
 			}
 
 			let response = [];
@@ -286,6 +300,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			}
 		});
 		liveQueue = queue;
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		deferredTerminal!.resolve(terminal);
 
 		const loginStatus = await waitForLoginStatus(api);
@@ -318,11 +333,13 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 				.then(tenantDetails => tenantDetails.filter(details => details));
 			const pick = await window.showQuickPick<QuickPickItem & { session: AzureSession }>(fetchingDetails
 				.then(tenantDetails => tenantDetails.map(details => {
+					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 					const tenantDetails = details!.tenantDetails;
 					const defaultDomain = tenantDetails.verifiedDomains.find(domain => domain.default);
 					return {
 						label: tenantDetails.displayName,
 						description: defaultDomain && defaultDomain.name,
+						// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 						session: details!.session
 					};
 				}).sort((a, b) => a.label.localeCompare(b.label))), {
@@ -348,6 +365,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			updateStatus('Disconnected');
 			return;
 		}
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		deferredSession!.resolve(result.token.session);
 
 		// provision
@@ -363,6 +381,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			queue.push({ type: 'log', args: [localize('azure-account.requestingCloudConsole', "Requesting a Cloud Shell...")] });
 			await provision();
 		} catch (err) {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 			if (err && err.message === Errors.DeploymentOsTypeConflict) {
 				const reset = await deploymentConflict(reporter, os);
 				if (reset) {
@@ -382,6 +401,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		const [graphToken, keyVaultToken] = await Promise.all([
 			tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
 			session.environment.keyVaultDnsSuffix
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 				? tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
 				: Promise.resolve(undefined)
 		]);
@@ -390,6 +410,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			graph: graphToken.accessToken,
 			keyVault: keyVaultToken && keyVaultToken.accessToken
 		};
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		deferredTokens!.resolve(accessTokens);
 
 		// Connect to terminal
@@ -399,7 +420,9 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			queue.push({ type: 'log', args: [`\x1b[A${connecting}${'.'.repeat(i)}`] });
 		};
 		const initialSize = await initialSizePromise;
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		const consoleUris = await connectTerminal(accessTokens, consoleUri!, /* TODO: Separate Shell from OS */ osName === 'Linux' ? 'bash' : 'pwsh', initialSize, progress);
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		deferredUris!.resolve(consoleUris);
 
 		// Connect to WebSocket
@@ -409,12 +432,14 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			consoleUris
 		});
 	})().catch(err => {
+		/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 		console.error(err && err.stack || err);
 		updateStatus('Disconnected');
 		sendTelemetryEvent(reporter, 'error', String(err && err.message || err));
 		if (liveQueue) {
 			liveQueue.push({ type: 'log', args: [localize('azure-account.error', "Error: {0}", String(err && err.message || err))] });
 		}
+		/* eslint-enable @typescript-eslint/no-unsafe-member-access */
 	});
 	return state;
 }
@@ -445,7 +470,7 @@ async function requiresSetUp(reporter: TelemetryReporter) {
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresSetUpOpen');
-		env.openExternal(Uri.parse('https://shell.azure.com'));
+		void env.openExternal(Uri.parse('https://shell.azure.com'));
 	} else {
 		sendTelemetryEvent(reporter, 'requiresSetUpCancel');
 	}
@@ -458,7 +483,7 @@ async function requiresNode(reporter: TelemetryReporter) {
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
 		sendTelemetryEvent(reporter, 'requiresNodeOpen');
-		env.openExternal(Uri.parse('https://nodejs.org'));
+		void env.openExternal(Uri.parse('https://nodejs.org'));
 	} else {
 		sendTelemetryEvent(reporter, 'requiresNodeCancel');
 	}
@@ -482,15 +507,20 @@ interface Token {
 
 async function acquireToken(session: AzureSession) {
 	return new Promise<Token>((resolve, reject) => {
+		/* eslint-disable @typescript-eslint/no-explicit-any */
 		const credentials: any = session.credentials;
 		const environment: any = session.environment;
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
 		credentials.context.acquireToken(environment.activeDirectoryResourceId, credentials.username, credentials.clientId, function (err: any, result: any) {
+		/* eslint-enable @typescript-eslint/no-explicit-any */
 			if (err) {
 				reject(err);
 			} else {
 				resolve({
 					session,
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 					accessToken: result.accessToken,
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 					refreshToken: result.refreshToken
 				});
 			}
@@ -505,13 +535,16 @@ interface TenantDetails {
 }
 
 async function fetchTenantDetails(session: AzureSession): Promise<{ session: AzureSession, tenantDetails: TenantDetails }> {
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
 	const { username, clientId, tokenCache, domain } = <any>session.credentials;
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	const graphCredentials = new DeviceTokenCredentials({ username, clientId, tokenCache, domain, tokenAudience: 'graph' });
 
 	const apiVersion = '1.6';
 	const requestUrl = `https://graph.windows.net/${encodeURIComponent(session.tenantId)}/tenantDetails?api-version=${encodeURIComponent(apiVersion)}`;
 
 	return new Promise((resolve, reject) => {
+		// eslint-disable-next-line @typescript-eslint/no-misused-promises, @typescript-eslint/no-explicit-any
 		graphCredentials.getToken(async (err: Error, result: any) => {
 			if (err) {
 				reject(err);
@@ -522,6 +555,7 @@ async function fetchTenantDetails(session: AzureSession): Promise<{ session: Azu
 				try {
 					const response = await fetch(requestUrl, {
 						headers: {
+							// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 							Authorization: `Bearer ${result.accessToken}`,
 							"x-ms-client-request-id": uuid(),
 							"Content-Type": 'application/json; charset=utf-8'
@@ -529,9 +563,11 @@ async function fetchTenantDetails(session: AzureSession): Promise<{ session: Azu
 					});
 	
 					if (response.ok) {
+						// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 						const json = await response.json();
 						resolve({
 							session,
+							// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 							tenantDetails: json.value[0]
 						});
 					} else {

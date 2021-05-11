@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
 const CacheDriver = require('adal-node/lib/cache-driver');
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
 import { MemoryCache, AuthenticationContext, Logging, UserCodeInfo } from 'adal-node';
@@ -33,11 +35,13 @@ declare const __non_webpack_require__: typeof require;
 function getNodeModule<T>(moduleName: string): T | undefined {
 	const r = typeof __webpack_require__ === "function" ? __non_webpack_require__ : require;
 	try {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 		return r(`${env.appRoot}/node_modules.asar/${moduleName}`);
 	} catch (err) {
 		// Not in ASAR.
 	}
 	try {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 		return r(`${env.appRoot}/node_modules/${moduleName}`);
 	} catch (err) {
 		// Not available.
@@ -159,6 +163,7 @@ interface AzureAccountWriteable extends AzureAccount {
 }
 
 class AzureLoginError extends Error {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	constructor(message: string, public reason?: any) {
 		super(message);
 	}
@@ -182,7 +187,7 @@ interface Cache {
 }
 
 class ProxyTokenCache {
-
+	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 	public initEnd?: () => void;
 	private init = new Promise(resolve => {
 		this.initEnd = resolve;
@@ -200,10 +205,11 @@ class ProxyTokenCache {
 	}
 
 	find(query: any, callback: any) {
-		this.init.then(() => {
+		void this.init.then(() => {
 			this.target.find(query, callback);
 		});
 	}
+	/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 }
 
 type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange' | 'customCloudARMUrlChange';
@@ -259,6 +265,7 @@ export class AzureLoginHelper {
 	private enableLogging(channel: OutputChannel) {
 		Logging.setLoggingOptions({
 			level: 3 /* Logging.LOGGING_LEVEL.VERBOSE */,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			log: (level: any, message: any, error: any) => {
 				if (message) {
 					channel.appendLine(message);
@@ -285,6 +292,7 @@ export class AzureLoginHelper {
 		createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
 	};
 
+	// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 	async login(trigger: LoginTrigger) {
 		let path: CodePath = 'newLogin';
 		let environmentName = 'uninitialized';
@@ -313,17 +321,18 @@ export class AzureLoginHelper {
 			const useCodeFlow = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer(adfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
 			const tokenResponse = await (useCodeFlow ? codeFlowLogin.login(clientId, environment, adfs, tenantId, openUri, () => redirectTimeout()) : deviceLogin(environment, tenantId));
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 			const refreshToken = tokenResponse.refreshToken!;
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			await storeRefreshToken(environment, refreshToken);
 			await this.updateSessions(environment, tokenResponses);
-			this.sendLoginTelemetry(trigger, path, environmentName, 'success', undefined, true);
+			void this.sendLoginTelemetry(trigger, path, environmentName, 'success', undefined, true);
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				console.error(err.reason);
-				this.sendLoginTelemetry(trigger, path, environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
+				void this.sendLoginTelemetry(trigger, path, environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
 			} else {
-				this.sendLoginTelemetry(trigger, path, environmentName, 'failure', getErrorMessage(err));
+				void this.sendLoginTelemetry(trigger, path, environmentName, 'failure', getErrorMessage(err));
 			}
 			throw err;
 		} finally {
@@ -333,6 +342,7 @@ export class AzureLoginHelper {
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 	async sendLoginTelemetry(trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string, includeSubscriptions?: boolean) {
 		/* __GDPR__
 		   "login" : {
@@ -350,11 +360,13 @@ export class AzureLoginHelper {
 		}
 		if (includeSubscriptions) {
 			await this.waitForSubscriptions();
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 			event.subscriptions = JSON.stringify((await this.subscriptions).map(s => s.subscription.subscriptionId!));
 		}
 		this.reporter.sendSanitizedEvent('login', event);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 	async logout() {
 		await this.api.waitForLogin();
 		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
@@ -433,12 +445,14 @@ export class AzureLoginHelper {
 			let tokenResponse: TokenResponse | undefined;
 			let parsedCreds;
 			try {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				parsedCreds = JSON.parse(storedCreds);
 			} catch (_) {
 				tokenResponse = await tokenFromRefreshToken(environment, storedCreds, tenantId);
 			}
 
 			if (parsedCreds) {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				const { redirectionUrl, code } = parsedCreds;
 				if (!redirectionUrl || !code) {
 					throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
@@ -460,13 +474,13 @@ export class AzureLoginHelper {
 			timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
 			await this.updateSessions(environment, tokenResponses);
 			timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
-			this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success', undefined, true);
+			void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success', undefined, true);
 		} catch (err) {
 			await this.clearSessions(); // clear out cached data
 			if (err instanceof AzureLoginError && err.reason) {
-				this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
+				void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
 			} else {
-				this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'failure', getErrorMessage(err));
+				void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'failure', getErrorMessage(err));
 			}
 			if (doLogin) {
 				await this.login(trigger);
@@ -488,7 +502,7 @@ export class AzureLoginHelper {
 
 	private updateCache() {
 		if (this.api.status !== 'LoggedIn') {
-			this.context.globalState.update('cache', undefined);
+			void this.context.globalState.update('cache', undefined);
 			return;
 		}
 		const cache: Cache = {
@@ -501,7 +515,7 @@ export class AzureLoginHelper {
 				subscription
 			}))
 		}
-		this.context.globalState.update('cache', cache);
+		void this.context.globalState.update('cache', cache);
 	}
 
 	private beginLoggingIn() {
@@ -531,6 +545,7 @@ export class AzureLoginHelper {
 					environment: env,
 					userId,
 					tenantId,
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
 					credentials: new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId }),
 					credentials2: new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, env, this.delayedCache)
 				};
@@ -545,20 +560,24 @@ export class AzureLoginHelper {
 		for (const tokenResponse of tokenResponses) {
 			await addTokenToCache(environment, this.tokenCache, tokenResponse);
 		}
+		/* eslint-disable @typescript-eslint/no-non-null-assertion */
 		this.delayedCache.initEnd!();
 		const sessions = this.api.sessions;
 		sessions.splice(0, sessions.length, ...tokenResponses.map<AzureSession>(tokenResponse => ({
 			environment,
 			userId: tokenResponse.userId!,
 			tenantId: tokenResponse.tenantId!,
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
 			credentials: new DeviceTokenCredentials({ environment: (<any>environment), username: tokenResponse.userId, clientId, tokenCache: this.delayedCache, domain: tokenResponse.tenantId }),
 			credentials2: new DeviceTokenCredentials2(clientId, tokenResponse.tenantId, tokenResponse.userId, undefined, environment, this.delayedCache)
 		})));
 		this.onSessionsChanged.fire();
+		/* eslint-enable @typescript-eslint/no-non-null-assertion */
 	}
 
 	private async clearSessions() {
 		await clearTokenCache(this.tokenCache);
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		this.delayedCache.initEnd!();
 		const sessions = this.api.sessions;
 		sessions.length = 0;
@@ -653,7 +672,7 @@ export class AzureLoginHelper {
 		const open: MessageItem = { title: localize('azure-account.open', "Open") };
 		const response = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
 		if (response === open) {
-			env.openExternal(Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
+			void env.openExternal(Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
 		}
 	}
 
@@ -681,6 +700,7 @@ export class AzureLoginHelper {
 				})));
 		}));
 		const subscriptions = (<AzureSubscription[]>[]).concat(...lists);
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		subscriptions.sort((a, b) => a.subscription.displayName!.localeCompare(b.subscription.displayName!));
 		return subscriptions;
 	}
@@ -691,6 +711,7 @@ export class AzureLoginHelper {
 			return <SubscriptionItem>{
 				type: 'item',
 				label: subscription.subscription.displayName,
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 				description: subscription.subscription.subscriptionId!,
 				subscription,
 				picked,
@@ -788,6 +809,7 @@ async function getEnvironments(includePartial: boolean = false): Promise<Environ
 		try {
 			const response = await fetch(metadataDiscoveryUrl);
 			if (response.ok) {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				const endpoints: ICloudMetadata[] = await response.json();
 				return endpoints.map(endpoint => {
 					return {
@@ -839,6 +861,7 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 			const endpointsUrl = getMetadataEndpoints(armUrl);
 			const endpointsResponse = await fetch(endpointsUrl);
 			if (endpointsResponse.ok) {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();
 				return <Environment>{
 					name: azureCustomCloud,
@@ -856,12 +879,12 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 			}
 		} catch {
 			const openSettings = localize('openSettings', 'Open Settings');
-			window.showErrorMessage(
+			void window.showErrorMessage(
 				localize("azure-account.armUrlFetchFailed", "Fetching custom cloud environment data failed. Please check your custom cloud settings."),
 				openSettings
 			).then(result => {
 				if(result === openSettings){
-					commands.executeCommand('workbench.action.openSettings', '@ext:ms-vscode.azure-account customCloud');
+					void commands.executeCommand('workbench.action.openSettings', '@ext:ms-vscode.azure-account customCloud');
 				}
 			})
 		}
@@ -904,7 +927,7 @@ async function showDeviceCodeMessage(deviceLogin: UserCodeInfo): Promise<void> {
 	const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
 	const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen);
 	if (response === copyAndOpen) {
-		env.clipboard.writeText(deviceLogin.userCode);
+		void env.clipboard.writeText(deviceLogin.userCode);
 		await openUri(deviceLogin.verificationUrl);
 	} else {
 		return Promise.reject('user canceled');
@@ -948,10 +971,12 @@ async function redirectTimeout() {
 	}
 }
 
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		context.acquireTokenWithRefreshToken(refreshToken, clientId, <any>resource, (err, tokenResponse) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Acquiring token with refresh token failed"), err));
@@ -970,10 +995,11 @@ async function tokensFromToken(environment: Environment, firstTokenResponse: Tok
 	const credentials = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
 	const client = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
 	const tenants = await listAll(client.tenants, client.tenants.list());
-	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant, i) => {
+	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
 			return firstTokenResponse;
 		}
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		return tokenFromRefreshToken(environment, firstTokenResponse.refreshToken!, tenant.tenantId!)
 			.catch(err => {
 				console.error(err instanceof AzureLoginError && err.reason ? err.reason : err);
@@ -986,8 +1012,9 @@ async function tokensFromToken(environment: Environment, firstTokenResponse: Tok
 	return responses;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 async function addTokenToCache(environment: Environment, tokenCache: any, tokenResponse: TokenResponse) {
-	return new Promise<any>((resolve, reject) => {
+	return new Promise<any | void>((resolve, reject) => {
 		const driver = new CacheDriver(
 			{ _logContext: createLogContext('') },
 			`${environment.activeDirectoryEndpointUrl}${tokenResponse.tenantId}`,
@@ -1025,6 +1052,7 @@ async function clearTokenCache(tokenCache: any) {
 		});
 	});
 }
+/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 
 export interface PartialList<T> extends Array<T> {
 	nextLink?: string;
@@ -1052,6 +1080,7 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 }
 
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function timeout(ms: number, result: any = 'timeout') {
 	return new Promise<never>((_, reject) => setTimeout(() => reject(result), ms));
 }
@@ -1060,26 +1089,31 @@ function delay<T = void>(ms: number, result?: T) {
 	return new Promise<T>(resolve => setTimeout(() => resolve(result), ms));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getErrorMessage(err: any): string | undefined {
 	if (!err) {
 		return;
 	}
 
+	/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 	if (err.message && typeof err.message === 'string') {
 		return err.message;
 	}
 
 	if (err.stack && typeof err.stack === 'string') {
+		// eslint-disable-next-line  @typescript-eslint/no-unsafe-call
 		return err.stack.split('\n')[0];
 	}
 
 	const str = String(err);
 	if (!str || str === '[object Object]') {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 		const ctr = err.constructor;
 		if (ctr && ctr.name && typeof ctr.name === 'string') {
 			return ctr.name;
 		}
 	}
+	/* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 
 	return str;
 }

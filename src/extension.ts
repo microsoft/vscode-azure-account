@@ -16,7 +16,7 @@ import { survey } from './nps';
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
 
-export async function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext): Promise<AzureAccount> {
 	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
 	const azureLogin = new AzureLoginHelper(context, reporter);
@@ -56,7 +56,7 @@ async function migrateEnvironmentSetting() {
 
 function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
 	const shell = api.createCloudShell(os);
-	shell.terminal.then(terminal => terminal.show());
+	void shell.terminal.then(terminal => terminal.show());
 	return shell;
 }
 
@@ -80,6 +80,7 @@ function uploadFile(api: AzureAccount, uri?: Uri) {
 				title: localize('azure-account.uploading', "Uploading '{0}'...", filename),
 				cancellable: true
 			}, (progress, token) => {
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 				return shell.uploadFile(filename, createReadStream(uri!.fsPath), { progress, token });
 			});
 		}
@@ -148,5 +149,6 @@ function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {
 	return statusBarItem;
 }
 
-export function deactivate() {
+export function deactivate(): void {
+	return;
 }

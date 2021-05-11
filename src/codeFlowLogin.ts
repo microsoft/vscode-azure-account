@@ -19,13 +19,13 @@ export const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
 const portADFS = 19472;
 const redirectUrlADFS = `http://127.0.0.1:${portADFS}/callback`;
 
-export function isADFS(environment: Environment) {
+export function isADFS(environment: Environment): boolean {
 	const u = url.parse(environment.activeDirectoryEndpointUrl);
 	const pathname = (u.pathname || '').toLowerCase();
 	return pathname === '/adfs' || pathname.startsWith('/adfs/');
 }
 
-export async function checkRedirectServer(adfs: boolean) {
+export async function checkRedirectServer(adfs: boolean): Promise<boolean> {
 	if (adfs) {
 		return true;
 	}
@@ -62,13 +62,15 @@ export async function checkRedirectServer(adfs: boolean) {
 
 let terminateServer: () => Promise<void>;
 
-function parseQuery(uri: vscode.Uri) {
+/* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+function parseQuery(uri: vscode.Uri): any {
 	return uri.query.split('&').reduce((prev: any, current) => {
 		const queryString = current.split('=');
 		prev[queryString[0]] = queryString[1];
 		return prev;
 	}, {});
 }
+/* eslint-enable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
@@ -85,6 +87,7 @@ async function exchangeCodeForToken(clientId: string, environment: Environment, 
 	return new Promise((resolve: (value: TokenResponse) => void , reject) => {
 		uriEventListener = handler.event(async (uri: vscode.Uri) => {
 			try {
+				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 				const query = parseQuery(uri);
 				const code = query.code;
 	
@@ -92,6 +95,7 @@ async function exchangeCodeForToken(clientId: string, environment: Environment, 
 				if (query.state !== state && decodeURIComponent(query.state) !== state) {
 					throw new Error('State does not match.');
 				}
+				/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 	
 				resolve(await tokenWithAuthorizationCode(clientId, environment, callbackUri, tenantId, code));
 			} catch (err) {
@@ -138,7 +142,7 @@ async function loginWithoutLocalServer(clientId: string, environment: Environmen
 	uri = uri.with({
 		query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${callback}&state=${state}&resource=${environment.activeDirectoryResourceId}&prompt=select_account`
 	});
-	vscode.env.openExternal(uri);
+	void vscode.env.openExternal(uri);
 
 	const timeoutPromise = new Promise((resolve: (value: TokenResponse) => void, reject) => {
 		const wait = setTimeout(() => {
@@ -150,7 +154,7 @@ async function loginWithoutLocalServer(clientId: string, environment: Environmen
 	return Promise.race([exchangeCodeForToken(clientId, environment, tenantId, callback, state), timeoutPromise]);
 }
 
-export async function login(clientId: string, environment: Environment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>) {
+export async function login(clientId: string, environment: Environment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TokenResponse> {
 	if (vscode.env.uiKind === vscode.UIKind.Web) {
 		return loginWithoutLocalServer(clientId, environment, adfs, tenantId);
 	}
@@ -169,11 +173,14 @@ export async function login(clientId: string, environment: Environment, adfs: bo
 	try {
 		const port = await startServer(server, adfs);
 		await openUri(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`);
+		// eslint-disable-next-line @typescript-eslint/no-misused-promises
 		const redirectTimer = setTimeout(() => redirectTimeout().catch(console.error), 10*1000);
 
 		const redirectReq = await redirectPromise;
 		if ('err' in redirectReq) {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 			const { err, res } = redirectReq;
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
 			res.end();
 			throw err;
@@ -201,6 +208,7 @@ export async function login(clientId: string, environment: Environment, adfs: bo
 			res.end();
 			return tokenResponse;
 		} catch (err) {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
 			res.end();
 			throw err;
@@ -233,14 +241,17 @@ function createTerminateServer(server: http.Server) {
 
 interface Deferred<T> {
 	resolve: (result: T | Promise<T>) => void;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	reject: (reason: any) => void;
 }
 
 function createServer(nonce: string) {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	type RedirectResult = { req: http.ServerRequest; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
 	let deferredRedirect: Deferred<RedirectResult>;
 	const redirectPromise = new Promise<RedirectResult>((resolve, reject) => deferredRedirect = { resolve, reject });
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	type CodeResult = { code: string; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
 	let deferredCode: Deferred<CodeResult>;
 	const codePromise = new Promise<CodeResult>((resolve, reject) => deferredCode = { resolve, reject });
@@ -252,9 +263,11 @@ function createServer(nonce: string) {
 		clearTimeout(codeTimer);
 	}
 	const server = http.createServer(function (req, res) {
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		const reqUrl = url.parse(req.url!, /* parseQueryString */ true);
 		switch (reqUrl.pathname) {
 			case '/signin':
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
 				const receivedNonce = (reqUrl.query.nonce || '').replace(/ /g, '+');
 				if (receivedNonce === nonce) {
 					deferredRedirect.resolve({ req, res });
@@ -271,6 +284,7 @@ function createServer(nonce: string) {
 				break;
 			case '/callback':
 				deferredCode.resolve(callback(nonce, reqUrl)
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 					.then(code => ({ code, res }), err => ({ err, res })));
 				break;
 			default:
@@ -326,11 +340,13 @@ async function startServer(server: http.Server, adfs: boolean) {
 	return port;
 }
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 	let error = reqUrl.query.error_description || reqUrl.query.error;
 
 	if (!error) {
 		const state = reqUrl.query.state || '';
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 		const receivedNonce = (state.split(',')[1] || '').replace(/ /g, '+');
 		if (receivedNonce !== nonce) {
 			error = 'Nonce does not match.';
@@ -339,14 +355,17 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 
 	const code = reqUrl.query.code;
 	if (!error && code) {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 		return code;
 	}
 	throw new Error(error || 'No code received.');
 }
+/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 
-export async function tokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string) {
+export async function tokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string): Promise<TokenResponse> {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, !isADFS(environment));
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		context.acquireTokenWithAuthorizationCode(code, redirectUrl, environment.activeDirectoryResourceId, clientId, <any>undefined, (err, response) => {
 			if (err) {
 				reject(err);

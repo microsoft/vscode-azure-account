@@ -174,7 +174,7 @@ export async function login(clientId: string, environment: Environment, adfs: bo
 		const redirectReq = await redirectPromise;
 		if ('err' in redirectReq) {
 			const { err, res } = redirectReq;
-			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
+			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
 			res.end();
 			throw err;
 		}
@@ -201,7 +201,7 @@ export async function login(clientId: string, environment: Environment, adfs: bo
 			res.end();
 			return tokenResponse;
 		} catch (err) {
-			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
+			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
 			res.end();
 			throw err;
 		}

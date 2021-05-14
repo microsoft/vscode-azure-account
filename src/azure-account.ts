@@ -99,9 +99,12 @@ const staticEnvironments: Environment[] = [
 ];
 
 const azurePPE = 'AzurePPE';
+const azureCustomCloud = 'AzureCustomCloud';
+const customCloudArmUrlKey = 'customCloud.resourceManagerEndpointUrl';
 
 const staticEnvironmentNames = [
 	...staticEnvironments.map(environment => environment.name),
+	azureCustomCloud,
 	azurePPE
 ];
 
@@ -110,6 +113,7 @@ const environmentLabels: Record<string, string> = {
 	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
 	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
 	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
+	[azureCustomCloud]: localize('azure-account.azureCustomCloud', 'Azure Custom Cloud'),
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
 
@@ -134,10 +138,21 @@ interface ICloudMetadata {
 	gallery: string;
 }
 
+interface IResourceManagerMetadata {
+	galleryEndpoint: string;
+	graphEndpoint: string;
+	portalEndpoint: string;
+	authentication: {
+		loginEndpoint: string,
+		audiences: [
+			string
+		]
+	};
+}
+
 const logVerbose = false;
 const commonTenantId = 'common';
 const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
-const validateAuthority = true;
 
 interface AzureAccountWriteable extends AzureAccount {
 	status: AzureLoginStatus;
@@ -191,7 +206,7 @@ class ProxyTokenCache {
 	}
 }
 
-type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange';
+type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange' | 'customCloudARMUrlChange';
 type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
 
 export class AzureLoginHelper {
@@ -222,10 +237,10 @@ export class AzureLoginHelper {
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
 		subscriptions.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant')) {
+			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant') || e.affectsConfiguration('azure.customCloud.resourceManagerEndpointUrl')) {
 				const doLogin = this.doLogin;
 				this.doLogin = false;
-				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : 'tenantChange', doLogin)
+				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : e.affectsConfiguration('azure.tenant') ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
 					.catch(console.error);
 			} else if (e.affectsConfiguration('azure.resourceFilter')) {
 				this.updateFilters(true);
@@ -342,7 +357,9 @@ export class AzureLoginHelper {
 
 	async logout() {
 		await this.api.waitForLogin();
-		for (const name of staticEnvironmentNames) {
+		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
+		const allEnvironmentNames: string[] = staticEnvironmentNames.concat(['Azure', 'AzureChina', 'AzurePPE'])
+		for (const name of allEnvironmentNames) {
 			await deleteRefreshToken(name);
 		}
 		await this.clearSessions();
@@ -351,7 +368,7 @@ export class AzureLoginHelper {
 
 	async loginToCloud(): Promise<void> {
 		const current = await getSelectedEnvironment();
-		const selected = await window.showQuickPick<{ label: string, description?: string, environment: Environment }>(getEnvironments()
+		const selected = await window.showQuickPick<{ label: string, description?: string, environment: Environment }>(getEnvironments(true /* includePartial */)
 			.then(environments => environments.map(environment => ({
 				label: environmentLabels[environment.name],
 				description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
@@ -363,12 +380,34 @@ export class AzureLoginHelper {
 		if (selected) {
 			const config = workspace.getConfiguration('azure');
 			if (config.get('cloud') !== selected.environment.name) {
-				this.doLogin = true;
-				// if outside of normal range, set ppe setting
-				config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
-			} else {
-				return this.login('loginToCloud');
+				let armUrl;
+				if (selected.environment.name === azureCustomCloud) {
+					armUrl = await window.showInputBox({
+						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
+						placeHolder: 'https://management.local.azurestack.external',
+						ignoreFocusOut: true
+					});
+					if (!armUrl) {
+						// directly return when user didn't type in anything or press esc for resourceManagerEndpointUrl inputbox
+						return;
+					}
+				}
+				const tenantId = await window.showInputBox({
+					prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
+					placeHolder: localize('azure-account.tenantIdPlaceholder', "Enter your tenant id, or '{0}' for the default tenant", commonTenantId),
+					ignoreFocusOut: true});
+				if (tenantId) {
+					if (armUrl) {
+						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
+					}
+					await config.update('tenant', tenantId, getCurrentTarget(config.inspect('tenant')));
+					// if outside of normal range, set ppe setting
+					await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+				} else {
+					return;
+				}
 			}
+			return this.login('loginToCloud');
 		}
 	}
 
@@ -377,7 +416,7 @@ export class AzureLoginHelper {
 		try {
 			const timing = false;
 			const start = Date.now();
-			this.loadCache();
+			await this.loadCache();
 			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
 			const environment = await getSelectedEnvironment();
 			environmentName = environment.name;
@@ -437,11 +476,11 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private loadCache() {
+	private async loadCache() {
 		const cache = this.context.globalState.get<Cache>('cache');
 		if (cache) {
 			(<AzureAccountWriteable>this.api).status = 'LoggedIn';
-			const sessions = this.initializeSessions(cache);
+			const sessions = await this.initializeSessions(cache);
 			const subscriptions = this.initializeSubscriptions(cache, sessions);
 			this.initializeFilters(subscriptions);
 		}
@@ -480,18 +519,20 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private initializeSessions(cache: Cache) {
+	private async initializeSessions(cache: Cache) {
 		const sessions: Record<string, AzureSession> = {};
 		for (const { session } of cache.subscriptions) {
 			const { environment, userId, tenantId } = session;
 			const key = `${environment} ${userId} ${tenantId}`;
-			if (!sessions[key]) {
+			const environments = await getEnvironments();
+			const env = environments.find(e => e.name === environment);
+			if (!sessions[key] && env) {
 				sessions[key] = {
-					environment: (<any>Environment)[environment],
+					environment: env,
 					userId,
 					tenantId,
 					credentials: new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.delayedCache, domain: tenantId }),
-					credentials2: new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, (<any>Environment)[environment], this.delayedCache)
+					credentials2: new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, env, this.delayedCache)
 				};
 				this.api.sessions.push(sessions[key]);
 			}
@@ -738,7 +779,10 @@ async function getSelectedEnvironment(): Promise<Environment> {
 	return (await getEnvironments()).find(environment => environment.name === envSetting) || Environment.AzureCloud;
 }
 
-async function getEnvironments(): Promise<Environment[]> {
+/**
+ * @param includePartial Include partial environments for the sake of UI (i.e. Azure Stack). Endpoint data will be filled in later
+ */
+async function getEnvironments(includePartial: boolean = false): Promise<Environment[]> {
 	const metadataDiscoveryUrl = process.env['ARM_CLOUD_METADATA_URL'];
 	if (metadataDiscoveryUrl) {
 		try {
@@ -768,19 +812,80 @@ async function getEnvironments(): Promise<Environment[]> {
 		}
 	}
 
+	const result = [...staticEnvironments]; // make a clone
+
 	const config = workspace.getConfiguration('azure');
 	const ppe = config.get<Environment>('ppe');
 	if (ppe) {
-		return [
-			...staticEnvironments,
-			{
-				...ppe,
-				name: azurePPE
-			}
-		]
-	} else {
-		return staticEnvironments;
+		result.push({
+			...ppe,
+			name: azurePPE,
+			validateAuthority: getValidateAuthority(ppe.activeDirectoryEndpointUrl)
+		});
 	}
+
+	const customCloudEnvironment: Environment | undefined = await getCustomCloudEnvironment(config, includePartial);
+	if (customCloudEnvironment) {
+		result.push(customCloudEnvironment);
+	}
+
+	return result;
+}
+
+async function getCustomCloudEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<Environment | undefined> {
+	const armUrl = config.get<string>(customCloudArmUrlKey);
+	if (armUrl) {
+		try {
+			const endpointsUrl = getMetadataEndpoints(armUrl);
+			const endpointsResponse = await fetch(endpointsUrl);
+			if (endpointsResponse.ok) {
+				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();
+				return <Environment>{
+					name: azureCustomCloud,
+					resourceManagerEndpointUrl: armUrl,
+					activeDirectoryEndpointUrl: endpoints.authentication.loginEndpoint.endsWith('/') ? endpoints.authentication.loginEndpoint : endpoints.authentication.loginEndpoint.concat('/'),
+					activeDirectoryGraphResourceId: endpoints.graphEndpoint,
+					activeDirectoryResourceId: endpoints.authentication.audiences[0],
+					portalUrl: endpoints.portalEndpoint,
+					galleryEndpointUrl: endpoints.galleryEndpoint,
+					storageEndpointSuffix: armUrl.substring(armUrl.indexOf('.')),
+					keyVaultDnsSuffix: '.vault'.concat(armUrl.substring(armUrl.indexOf('.'))),
+					managementEndpointUrl: endpoints.authentication.audiences[0],
+					validateAuthority: getValidateAuthority(endpoints.authentication.loginEndpoint)
+				};
+			}
+		} catch {
+			const openSettings = localize('openSettings', 'Open Settings');
+			window.showErrorMessage(
+				localize("azure-account.armUrlFetchFailed", "Fetching custom cloud environment data failed. Please check your custom cloud settings."),
+				openSettings
+			).then(result => {
+				if(result === openSettings){
+					commands.executeCommand('workbench.action.openSettings', '@ext:ms-vscode.azure-account customCloud');
+				}
+			})
+		}
+	}
+
+	return includePartial ? <Environment>{ name: azureCustomCloud } : undefined;
+}
+
+function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {
+	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
+	let validateAuthority: boolean = true;
+	if (activeDirectoryEndpointUrl) {
+		const activeDirectoryUrl = activeDirectoryEndpointUrl.endsWith('/') ? activeDirectoryEndpointUrl.slice(0, -1) : activeDirectoryEndpointUrl;
+		validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
+	}
+	return validateAuthority;
+}
+
+function getMetadataEndpoints(resourceManagerUrl: string): string {
+	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0, -1) : resourceManagerUrl;
+	const endpointSuffix = '/metadata/endpoints';
+	const apiVersion = '2018-05-01';
+	// return ppe metadata endpoints Url
+	return `${resourceManagerUrl}${endpointSuffix}?api-version=${apiVersion}`
 }
 
 function getTenantId() {
@@ -809,7 +914,7 @@ async function showDeviceCodeMessage(deviceLogin: UserCodeInfo): Promise<void> {
 async function deviceLogin1(environment: Environment, tenantId: string): Promise<UserCodeInfo> {
 	return new Promise<UserCodeInfo>((resolve, reject) => {
 		const cache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, cache);
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, cache);
 		context.acquireUserCode(environment.activeDirectoryResourceId, clientId, 'en-us', (err, response) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Acquiring user code failed"), err));
@@ -823,7 +928,7 @@ async function deviceLogin1(environment: Environment, tenantId: string): Promise
 async function deviceLogin2(environment: Environment, tenantId: string, deviceLogin: UserCodeInfo) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
 		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, deviceLogin, (err, tokenResponse) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
@@ -846,7 +951,7 @@ async function redirectTimeout() {
 export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string) {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, validateAuthority, tokenCache);
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
 		context.acquireTokenWithRefreshToken(refreshToken, clientId, <any>resource, (err, tokenResponse) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFromRefreshTokenFailed', "Acquiring token with refresh token failed"), err));
@@ -886,7 +991,7 @@ async function addTokenToCache(environment: Environment, tokenCache: any, tokenR
 		const driver = new CacheDriver(
 			{ _logContext: createLogContext('') },
 			`${environment.activeDirectoryEndpointUrl}${tokenResponse.tenantId}`,
-			tokenResponse.resource,
+			environment.activeDirectoryResourceId,
 			clientId,
 			tokenCache,
 			(entry: any, resource: any, callback: (err: any, response: any) => {}) => {

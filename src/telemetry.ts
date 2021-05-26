@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import TReporter from 'vscode-extension-telemetry';
+import { name, version, aiKey } from '../package.json';
 import { ExtensionContext } from 'vscode';
 
 export interface TelemetryReporter {
@@ -18,8 +19,7 @@ export function createReporter(context: ExtensionContext): TelemetryReporter {
         private _reporter: TReporter;
 
         constructor() {
-            const extensionPackage = require('../package.json');
-            this._reporter = new TReporter(extensionPackage.name, extensionPackage.version, extensionPackage.aiKey, true);
+            this._reporter = new TReporter(name, version, aiKey, true);
         }
 
         sendSanitizedEvent(eventName: string, properties?: { [key: string]: string; } | undefined): void {
@@ -31,7 +31,7 @@ export function createReporter(context: ExtensionContext): TelemetryReporter {
         }
 
         dispose() {
-            this._reporter.dispose();
+            void this._reporter.dispose();
         }
 
     }

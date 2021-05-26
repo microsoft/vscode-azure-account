@@ -19,7 +19,7 @@ const LAST_SESSION_DATE_KEY = 'nps/lastSessionDate';
 const SKIP_VERSION_KEY = 'nps/skipVersion';
 const IS_CANDIDATE_KEY = 'nps/isCandidate';
 
-export function survey({ globalState }: ExtensionContext, reporter: TelemetryReporter) {
+export function survey({ globalState }: ExtensionContext, reporter: TelemetryReporter): void {
 	(async () => {
 		if (env.language !== 'en' && !env.language.startsWith('en-')) {
 			return;
@@ -50,6 +50,7 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 
 		await globalState.update(IS_CANDIDATE_KEY, isCandidate);
 
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-non-null-assertion
 		const extensionVersion = extensions.getExtension('ms-vscode.azure-account')!.packageJSON.version || 'unknown';
 		if (!isCandidate) {
 			await globalState.update(SKIP_VERSION_KEY, extensionVersion);
@@ -63,7 +64,7 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 					"nps.survey/takeShortSurvey" : {}
 				*/
 				reporter.sendSanitizedEvent('nps.survey/takeShortSurvey');
-				env.openExternal(Uri.parse(`${NPS_SURVEY_URL}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(extensionVersion)}&m=${encodeURIComponent(env.machineId)}`));
+				void env.openExternal(Uri.parse(`${NPS_SURVEY_URL}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(extensionVersion)}&m=${encodeURIComponent(env.machineId)}`));
 				await globalState.update(IS_CANDIDATE_KEY, false);
 				await globalState.update(SKIP_VERSION_KEY, extensionVersion);
 			}

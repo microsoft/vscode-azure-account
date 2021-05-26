@@ -8,6 +8,7 @@ import * as WS from 'ws';
 import * as http from 'http';
 import { sendData, readJSON } from './ipc';
 import HttpProxyAgent = require('http-proxy-agent');
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
 const HttpsProxyAgent = require('https-proxy-agent');
 
 const consoleApiVersion = '2017-08-01-preview';
@@ -23,6 +24,7 @@ function getConsoleUri(armEndpoint: string) {
 export interface UserSettings {
 	preferredLocation: string;
 	preferredOsType: string; // The last OS chosen in the portal.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	storageProfile: any;
 }
 
@@ -45,6 +47,7 @@ export interface Size {
 
 export async function getUserSettings(accessToken: string, armEndpoint: string): Promise<UserSettings | undefined> {
 	const targetUri = `${armEndpoint}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	const response = await request({
 		uri: targetUri,
 		method: 'GET',
@@ -58,6 +61,7 @@ export async function getUserSettings(accessToken: string, armEndpoint: string):
 		json: true,
 	});
 
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 	if (response.statusCode < 200 || response.statusCode > 299) {
 		// if (response.body && response.body.error && response.body.error.message) {
 		// 	console.log(`${response.body.error.message} (${response.statusCode})`);
@@ -67,9 +71,11 @@ export async function getUserSettings(accessToken: string, armEndpoint: string):
 		return;
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
 	return response.body && response.body.properties;
 }
 
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 export async function provisionConsole(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string): Promise<string> {
 	let response = await createTerminal(accessToken, armEndpoint, userSettings, osType, true);
 	for (let i = 0; i < 10; i++ , response = await createTerminal(accessToken, armEndpoint, userSettings, osType, false)) {
@@ -85,6 +91,7 @@ export async function provisionConsole(accessToken: string, armEndpoint: string,
 
 		const consoleResource = response.body;
 		if (consoleResource.properties.provisioningState === 'Succeeded') {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 			return consoleResource.properties.uri;
 		} else if (consoleResource.properties.provisioningState === 'Failed') {
 			break;
@@ -92,6 +99,7 @@ export async function provisionConsole(accessToken: string, armEndpoint: string,
 	}
 	throw new Error(`Sorry, your Cloud Shell failed to provision. Please retry later. Request correlation id: ${response.headers['x-ms-routing-request-id']}`);
 }
+/* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 
 async function createTerminal(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string, initial: boolean) {
 	return request({
@@ -114,7 +122,9 @@ async function createTerminal(accessToken: string, armEndpoint: string, userSett
 	});
 }
 
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export async function resetConsole(accessToken: string, armEndpoint: string) {
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	const response = await request({
 		uri: getConsoleUri(armEndpoint),
 		method: 'DELETE',
@@ -128,6 +138,7 @@ export async function resetConsole(accessToken: string, armEndpoint: string) {
 		json: true
 	});
 
+	/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 	if (response.statusCode < 200 || response.statusCode > 299) {
 		if (response.body && response.body.error && response.body.error.message) {
 			throw new Error(`${response.body.error.message} (${response.statusCode})`);
@@ -135,11 +146,13 @@ export async function resetConsole(accessToken: string, armEndpoint: string) {
 			throw new Error(`${response.statusCode} ${response.headers} ${response.body}`);
 		}
 	}
+	/* eslint-enable @typescript-eslint/no-unsafe-member-access */
 }
 
 export async function connectTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string, initialSize: Size, progress: (i: number) => void): Promise<ConsoleUris> {
 
 	for (let i = 0; i < 10; i++) {
+		/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 		const response = await initializeTerminal(accessTokens, consoleUri, shellType, initialSize);
 
 		if (response.statusCode < 200 || response.statusCode > 299) {
@@ -162,6 +175,7 @@ export async function connectTerminal(accessTokens: AccessTokens, consoleUri: st
 			terminalUri,
 			socketUri
 		};
+		/* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 	}
 
 	throw new Error('Failed to connect to the terminal.');
@@ -169,6 +183,7 @@ export async function connectTerminal(accessTokens: AccessTokens, consoleUri: st
 
 async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string, initialSize: Size) {
 	return request({
+		// eslint-disable-next-line @typescript-eslint/restrict-plus-operands
 		uri: consoleUri + '/terminals?cols=' + initialSize.cols + '&rows=' + initialSize.rows + '&shell=' + shellType,
 		method: 'POST',
 		headers: {
@@ -186,7 +201,9 @@ async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string
 }
 
 function getWindowSize(): Size {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const stdout: any = process.stdout;
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
 	const windowSize: [number, number] = stdout.isTTY ? stdout.getWindowSize() : [80, 30];
 	return {
 		cols: windowSize[0],
@@ -205,6 +222,7 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 		}
 
 		const { cols, rows } = getWindowSize();
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 		const response = await request({
 			uri: `${terminalUri}/size?cols=${cols}&rows=${rows}`,
 			method: 'POST',
@@ -218,6 +236,7 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 			json: true,
 		});
 
+		/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.statusCode !== 503 && response.statusCode !== 504 && response.body && response.body.error) {
 				if (response.body && response.body.error && response.body.error.message) {
@@ -230,6 +249,7 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 			await delay(1000 * (i + 1));
 			continue;
 		}
+		/* eslint-enable @typescript-eslint/no-unsafe-member-access */
 
 		return;
 	}
@@ -241,6 +261,7 @@ function connectSocket(ipcHandle: string, url: string) {
 
 	const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
 	const ws = new WS(url, {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
 		agent: proxy && (url.startsWith('ws:') || url.startsWith('http:') ? new HttpProxyAgent(proxy) : new HttpsProxyAgent(proxy))
 	});
 
@@ -300,16 +321,22 @@ async function delay(ms: number) {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function main() {
+	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 	process.stdin.setRawMode!(true);
 	process.stdin.resume();
 
+	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 	const ipcHandle = process.env.CLOUD_CONSOLE_IPC!;
 	(async () => {
-		sendData(ipcHandle, JSON.stringify([ { type: 'size', size: getWindowSize() } ]));
+		void sendData(ipcHandle, JSON.stringify([ { type: 'size', size: getWindowSize() } ]));
 		let res: http.IncomingMessage;
+		// eslint-disable-next-line no-cond-assign
 		while (res = await sendData(ipcHandle, JSON.stringify([ { type: 'poll' } ]))) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			for (const message of await readJSON<any>(res)) {
+				/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 				if (message.type === 'log') {
 					console.log(...message.args);
 				} else if (message.type === 'connect') {
@@ -331,6 +358,7 @@ export function main() {
 				} else if (message.type === 'exit') {
 					process.exit(message.code);
 				}
+				/* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 			}
 		}
 	})()

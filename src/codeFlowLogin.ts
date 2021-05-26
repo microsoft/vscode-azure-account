@@ -181,7 +181,7 @@ export async function login(clientId: string, environment: Environment, adfs: bo
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 			const { err, res } = redirectReq;
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
+			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
 			res.end();
 			throw err;
 		}
@@ -209,7 +209,7 @@ export async function login(clientId: string, environment: Environment, adfs: bo
 			return tokenResponse;
 		} catch (err) {
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
+			res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
 			res.end();
 			throw err;
 		}

@@ -252,6 +252,6 @@
     "uuid": "^8.3.2",
     "vscode-extension-telemetry": "0.1.5",
     "vscode-nls": "4.0.0",
-    "ws": "6.1.0"
+    "ws": "7.4.6"
   }
 }

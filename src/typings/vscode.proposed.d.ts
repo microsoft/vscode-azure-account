@@ -61,32 +61,4 @@ declare module 'vscode' {
 
 		export function asExternalUri(target: Uri): Thenable<Uri>;
 	}
-
-	// #region Ben - UIKind
-
-	/**
-	 * Possible kinds of UI that can use extensions.
-	 */
-	export enum UIKind {
-
-		/**
-		 * Extensions are accessed from a desktop application.
-		 */
-		Desktop = 1,
-
-		/**
-		 * Extensions are accessed from a web browser.
-		 */
-		Web = 2
-	}
-
-	export namespace env {
-
-		/**
-		 * The UI kind property indicates from which UI extensions
-		 * are accessed from. For example, extensions could be accessed
-		 * from a desktop application or a web browser.
-		 */
-		export const uiKind: UIKind;
-	}
 }

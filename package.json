@@ -206,6 +206,7 @@
   },
   "scripts": {
     "vscode:prepublish": "rimraf dist && webpack --mode production",
+    "build": "tsc",
     "compile": "rimraf dist && webpack --mode none",
     "watch": "rimraf dist && webpack --mode none --watch",
     "lint": "eslint --ext .ts .",
@@ -216,7 +217,8 @@
     "@types/form-data": "2.2.1",
     "@types/http-proxy-agent": "2.0.1",
     "@types/keytar": "4.0.1",
-    "@types/node": "8.0.26",
+    "@types/node": "^12.0.0",
+    "@types/node-fetch": "^2.5.10",
     "@types/request": "2.48.1",
     "@types/request-promise": "4.1.42",
     "@types/semver": "5.5.0",

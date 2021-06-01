@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, commands, MessageItem, EventEmitter, Terminal, Uri, env, QuickPickItem } from 'vscode';
-import { AzureAccount, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
-import { tokenFromRefreshToken } from './azure-account';
-import { createServer, readJSON, Queue } from './ipc';
-import { getUserSettings, provisionConsole, Errors, resetConsole, AccessTokens, connectTerminal, ConsoleUris, Size } from './cloudConsoleLauncher';
-import * as nls from 'vscode-nls';
-import * as path from 'path';
 import * as cp from 'child_process';
-import * as semver from 'semver';
-import { TelemetryReporter } from './telemetry';
-import { DeviceTokenCredentials } from 'ms-rest-azure';
-import { ReadStream } from 'fs';
 import * as FormData from 'form-data';
-import { parse } from 'url';
+import { ReadStream } from 'fs';
+import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { Socket } from 'net';
-import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
+import * as path from 'path';
+import * as semver from 'semver';
+import { parse } from 'url';
+import { v4 as uuid } from 'uuid';
+import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
+import * as nls from 'vscode-nls';
+import { tokenFromRefreshToken } from './azure-account';
+import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
+import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
+import { createServer, Queue, readJSON } from './ipc';
+import { TelemetryReporter } from './telemetry';
 // const adal = require('adal-node');
 
 // function turnOnLogging() {
@@ -236,6 +236,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		// ipc
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const queue = new Queue<any>();
+		// eslint-disable-next-line @typescript-eslint/no-misused-promises
 		const ipc = await createServer('vscode-cloud-console', async (req, res) => {
 			let dequeue = false;
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -448,7 +449,7 @@ async function waitForLoginStatus(api: AzureAccount) {
 	if (api.status !== 'Initializing') {
 		return api.status;
 	}
-	return new Promise<typeof api.status>(resolve => {
+	return new Promise<AzureLoginStatus>(resolve => {
 		const subscription = api.onStatusChanged(() => {
 			subscription.dispose();
 			resolve(waitForLoginStatus(api));

@@ -24,7 +24,6 @@ import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
 import { TelemetryReporter } from './telemetry';
 
-
 const localize = nls.loadMessageBundle();
 
 const keytar = getNodeModule<typeof keytarType>('keytar');

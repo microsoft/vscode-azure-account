@@ -1,0 +1,48 @@
+variables:
+  ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+    ENABLE_LONG_RUNNING_TESTS: true
+    ENABLE_COMPLIANCE: true
+
+jobs:
+- job: Windows
+  pool:
+    vmImage: windows-latest
+  steps:
+  - template: common/build.yml
+  - template: common/package.yml
+  - template: common/lint.yml
+  - template: compliance/compliance.yml # Only works on Windows
+
+- job: Linux
+  pool:
+    vmImage: ubuntu-latest
+  steps:
+  - template: common/build.yml
+  - template: common/package.yml
+  - template: common/lint.yml
+
+- job: macOS
+  pool:
+    vmImage: macOS-10.14 # Using 10.14 instead of latest (10.15) because of "ENOTCONN" errors during tests
+  steps:
+  - template: common/build.yml
+  - template: common/package.yml
+  - template: common/lint.yml
+
+trigger:
+  branches:
+    include:
+    - '*'
+
+pr:
+  branches:
+    include:
+    - '*'
+
+schedules:
+- cron: "30 11 * * *"
+  displayName: Nightly at 4:30 PT
+  always: true # Run even when there are no code changes
+  branches:
+    include:
+    - main

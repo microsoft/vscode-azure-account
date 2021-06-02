@@ -12,6 +12,7 @@ import * as http from 'http';
 import * as https from 'https';
 import * as net from 'net';
 import * as path from 'path';
+import { parse, ParsedUrlQuery } from 'querystring';
 import * as url from 'url';
 import * as vscode from 'vscode';
 
@@ -231,7 +232,10 @@ function createTerminateServer(server: http.Server) {
 		});
 	});
 	return async () => {
-		const result = new Promise<void>(() => server.close());
+		const result = new Promise<void>((resolve, reject) => {
+			server.close(reject)
+			resolve();
+		});
 		for (const id in sockets) {
 			sockets[id].destroy();
 		}
@@ -342,22 +346,29 @@ async function startServer(server: http.Server, adfs: boolean) {
 }
 
 async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
-	let state: string | undefined;
-	let code: string | undefined;
-	if (reqUrl.query && typeof reqUrl.query !== 'string') {
-		state = reqUrl.query.state.toString() || '';
-		code = reqUrl.query.code.toString() || '';
-	}
-
+	let query: ParsedUrlQuery;
 	let error: string | undefined;
-	const receivedNonce: string = (state?.split(',')[1] || '').replace(/ /g, '+');
-	if (receivedNonce !== nonce) {
-		error = 'Nonce does not match.';
+	let code: string | undefined;
+
+	if (reqUrl.query) {
+		query = typeof reqUrl.query === 'string' ? parse(reqUrl.query) : reqUrl.query;
+		error = query.error_description.toString() || query.error.toString() || '';
+		code = query.code.toString() || '';
+
+		if (!error) {
+			const state: string = query.state.toString() || '';
+			const receivedNonce: string = (state?.split(',')[1] || '').replace(/ /g, '+');
+
+			if (receivedNonce !== nonce) {
+				error = 'Nonce does not match.';
+			}
+		}
 	}
 
 	if (!error && code) {
 		return code;
 	}
+
 	throw new Error(error || 'No code received.');
 }
 

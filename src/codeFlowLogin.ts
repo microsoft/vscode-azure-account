@@ -349,11 +349,11 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 
 	if (reqUrl.query) {
 		query = typeof reqUrl.query === 'string' ? parse(reqUrl.query) : reqUrl.query;
-		error = query.error_description.toString() || query.error.toString() || '';
-		code = query.code.toString() || '';
+		error = getQueryProp(query, 'error_description') || getQueryProp(query, 'error');
+		code = getQueryProp(query, 'code');
 
 		if (!error) {
-			const state: string = query.state.toString() || '';
+			const state: string = getQueryProp(query, 'state');
 			const receivedNonce: string = (state?.split(',')[1] || '').replace(/ /g, '+');
 
 			if (receivedNonce !== nonce) {
@@ -367,6 +367,11 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 	}
 
 	throw new Error(error || 'No code received.');
+}
+
+function getQueryProp(query: ParsedUrlQuery, propName: string): string {
+	const value = query[propName];
+	return typeof value === 'string' ? value : '';
 }
 
 export async function tokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string): Promise<TokenResponse> {

@@ -232,10 +232,7 @@ function createTerminateServer(server: http.Server) {
 		});
 	});
 	return async () => {
-		const result = new Promise<void>((resolve, reject) => {
-			server.close(reject)
-			resolve();
-		});
+		const result = new Promise<void>((resolve: () => void) => server.close(resolve));
 		for (const id in sockets) {
 			sockets[id].destroy();
 		}

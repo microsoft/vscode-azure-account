@@ -1,6 +1,7 @@
 .DS_Store
 .github
 .vscode
+gulp*
 out
 node_modules
 redirect

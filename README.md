@@ -1,4 +1,11 @@
 # Azure Account and Sign-In
+
+<!-- region exclude-from-marketplace -->
+
+[![Version](https://vsmarketplacebadge.apphb.com/version/ms-vscode.azure-account.svg)](https://marketplace.visualstudio.com/items?itemName=ms-vscode.azure-account) [![Installs](https://vsmarketplacebadge.apphb.com/installs-short/ms-vscode.azure-account.svg)](https://marketplace.visualstudio.com/items?itemName=ms-vscode.azure-account) [![Build Status](https://dev.azure.com/ms-azuretools/AzCode/_apis/build/status/vscode-azure-account?branchName=main)](https://dev.azure.com/ms-azuretools/AzCode/_build/latest?definitionId=37&branchName=main)
+
+<!-- endregion exclude-from-marketplace -->
+
 The Azure Account extension provides a single Azure sign-in and subscription filtering experience for all other Azure extensions. It makes Azure's Cloud Shell service available in VS Code's integrated terminal.
 
 ## Commands

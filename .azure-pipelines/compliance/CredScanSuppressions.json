@@ -4,10 +4,6 @@
         {
             "folder": "node_modules\\",
             "_justification": "No need to scan external node modules."
-        },
-        {
-            "folder": "resources\\backupTemplates\\",
-            "_justification": "No need to scan backup templates."
         }
     ]
 }

@@ -8,23 +8,21 @@ const CacheDriver = require('adal-node/lib/cache-driver');
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
-import { MemoryCache, AuthenticationContext, Logging, UserCodeInfo } from 'adal-node';
-import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
-import * as nls from 'vscode-nls';
-import * as keytarType from 'keytar';
+import { Environment } from '@azure/ms-rest-azure-env';
+import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
+import { AuthenticationContext, Logging, MemoryCache, TokenResponse, UserCodeInfo } from 'adal-node';
 import * as http from 'http';
 import * as https from 'https';
-
-import { window, commands, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget, WorkspaceConfiguration, env, OutputChannel, QuickPickItem, CancellationTokenSource, Uri } from 'vscode';
-import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter, AzureSubscription } from './azure-account.api';
+import * as keytarType from 'keytar';
+import { DeviceTokenCredentials } from 'ms-rest-azure';
+import fetch from 'node-fetch';
+import { CancellationTokenSource, commands, ConfigurationTarget, env, EventEmitter, ExtensionContext, MessageItem, OutputChannel, QuickPickItem, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
+import * as nls from 'vscode-nls';
+import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
 import { TelemetryReporter } from './telemetry';
-import { TokenResponse } from 'adal-node';
-import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
-import { Environment } from '@azure/ms-rest-azure-env';
-import fetch from 'node-fetch';
 
 const localize = nls.loadMessageBundle();
 
@@ -189,7 +187,7 @@ interface Cache {
 class ProxyTokenCache {
 	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 	public initEnd?: () => void;
-	private init = new Promise(resolve => {
+	private init = new Promise<void>(resolve => {
 		this.initEnd = resolve;
 	});
 
@@ -1014,7 +1012,7 @@ async function tokensFromToken(environment: Environment, firstTokenResponse: Tok
 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 async function addTokenToCache(environment: Environment, tokenCache: any, tokenResponse: TokenResponse) {
-	return new Promise<any | void>((resolve, reject) => {
+	return new Promise<void>((resolve, reject) => {
 		const driver = new CacheDriver(
 			{ _logContext: createLogContext('') },
 			`${environment.activeDirectoryEndpointUrl}${tokenResponse.tenantId}`,
@@ -1085,8 +1083,8 @@ function timeout(ms: number, result: any = 'timeout') {
 	return new Promise<never>((_, reject) => setTimeout(() => reject(result), ms));
 }
 
-function delay<T = void>(ms: number, result?: T) {
-	return new Promise<T>(resolve => setTimeout(() => resolve(result), ms));
+function delay<T = void>(ms: number, result?: T | PromiseLike<T>) {
+	return new Promise(resolve => setTimeout(() => resolve(result), ms));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1130,7 +1128,7 @@ async function becomeOnline(environment: Environment, interval: number, token = 
 
 async function isOnline(environment: Environment) {
 	try {
-		await new Promise<http.IncomingMessage | https.IncomingMessage>((resolve, reject) => {
+		await new Promise<http.IncomingMessage>((resolve, reject) => {
 			const url = environment.activeDirectoryEndpointUrl;
 			(url.startsWith('https:') ? https : http).get(url, resolve)
 				.on('error', reject);

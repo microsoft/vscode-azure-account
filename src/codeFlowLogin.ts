@@ -4,16 +4,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Environment } from '@azure/ms-rest-azure-env';
+import { AuthenticationContext, TokenResponse } from 'adal-node';
+import * as crypto from 'crypto';
+import * as fs from 'fs';
 import * as http from 'http';
 import * as https from 'https';
-import * as url from 'url';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
 import * as net from 'net';
+import * as path from 'path';
+import { parse, ParsedUrlQuery } from 'querystring';
+import * as url from 'url';
 import * as vscode from 'vscode';
-import { Environment } from '@azure/ms-rest-azure-env';
-import { TokenResponse, AuthenticationContext } from 'adal-node';
 
 export const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
 const portADFS = 19472;
@@ -231,7 +232,7 @@ function createTerminateServer(server: http.Server) {
 		});
 	});
 	return async () => {
-		const result = new Promise<void>(resolve => server.close(resolve));
+		const result = new Promise<void>((resolve: () => void) => server.close(resolve));
 		for (const id in sockets) {
 			sockets[id].destroy();
 		}
@@ -247,7 +248,7 @@ interface Deferred<T> {
 
 function createServer(nonce: string) {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	type RedirectResult = { req: http.ServerRequest; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
+	type RedirectResult = { req: http.IncomingMessage, res: http.ServerResponse } | { err: any; res: http.ServerResponse; };
 	let deferredRedirect: Deferred<RedirectResult>;
 	const redirectPromise = new Promise<RedirectResult>((resolve, reject) => deferredRedirect = { resolve, reject });
 
@@ -267,8 +268,7 @@ function createServer(nonce: string) {
 		const reqUrl = url.parse(req.url!, /* parseQueryString */ true);
 		switch (reqUrl.pathname) {
 			case '/signin':
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-				const receivedNonce = (reqUrl.query.nonce || '').replace(/ /g, '+');
+				const receivedNonce = (reqUrl.query.nonce.toString() || '').replace(/ /g, '+');
 				if (receivedNonce === nonce) {
 					deferredRedirect.resolve({ req, res });
 				} else {
@@ -325,8 +325,10 @@ async function startServer(server: http.Server, adfs: boolean) {
 			reject(new Error('Timeout waiting for port'));
 		}, 5000);
 		server.on('listening', () => {
-			const address = server.address();
-			resolve(address.port);
+			const address: string | net.AddressInfo | null = server.address();
+			if (address && typeof address !== 'string') {
+				resolve(address.port);
+			}
 		});
 		server.on('error', err => {
 			reject(err);
@@ -340,27 +342,37 @@ async function startServer(server: http.Server, adfs: boolean) {
 	return port;
 }
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
-	let error = reqUrl.query.error_description || reqUrl.query.error;
+	let query: ParsedUrlQuery;
+	let error: string | undefined;
+	let code: string | undefined;
 
-	if (!error) {
-		const state = reqUrl.query.state || '';
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-		const receivedNonce = (state.split(',')[1] || '').replace(/ /g, '+');
-		if (receivedNonce !== nonce) {
-			error = 'Nonce does not match.';
+	if (reqUrl.query) {
+		query = typeof reqUrl.query === 'string' ? parse(reqUrl.query) : reqUrl.query;
+		error = getQueryProp(query, 'error_description') || getQueryProp(query, 'error');
+		code = getQueryProp(query, 'code');
+
+		if (!error) {
+			const state: string = getQueryProp(query, 'state');
+			const receivedNonce: string = (state?.split(',')[1] || '').replace(/ /g, '+');
+
+			if (receivedNonce !== nonce) {
+				error = 'Nonce does not match.';
+			}
 		}
 	}
 
-	const code = reqUrl.query.code;
 	if (!error && code) {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 		return code;
 	}
+
 	throw new Error(error || 'No code received.');
 }
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+
+function getQueryProp(query: ParsedUrlQuery, propName: string): string {
+	const value = query[propName];
+	return typeof value === 'string' ? value : '';
+}
 
 export async function tokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string): Promise<TokenResponse> {
 	return new Promise<TokenResponse>((resolve, reject) => {

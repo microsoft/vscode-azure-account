@@ -5,12 +5,12 @@
 
 'use strict';
 
-import * as path from 'path';
+import * as crypto from 'crypto';
 import * as http from 'http';
 import * as os from 'os';
-import * as crypto from 'crypto';
+import * as path from 'path';
 
-export async function createServer(ipcHandlePrefix: string, onRequest: (req: http.ServerRequest, res: http.ServerResponse) => Promise<void> | void): Promise<Server> {
+export async function createServer(ipcHandlePrefix: string, onRequest: http.RequestListener): Promise<Server> {
 	const buffer = await randomBytes(20);
 	const nonce = buffer.toString('hex');
 	const ipcHandlePath = getIPCHandlePath(`${ipcHandlePrefix}-${nonce}`);
@@ -23,7 +23,7 @@ export class Server {
 
 	public server: http.Server;
 
-	constructor(public ipcHandlePath: string, onRequest: (req: http.ServerRequest, res: http.ServerResponse) => Promise<void> | void) {
+	constructor(public ipcHandlePath: string, onRequest: http.RequestListener) {
 		this.server = http.createServer((req, res) => {
 			Promise.resolve(onRequest(req, res))
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -42,7 +42,7 @@ export class Server {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function readJSON<T>(req: http.ServerRequest): Promise<any> {
+export async function readJSON<T>(req: http.IncomingMessage): Promise<any> {
 	return new Promise<T>((resolve, reject) => {
 		const chunks: string[] = [];
 		req.setEncoding('utf8');

@@ -14,30 +14,12 @@ import * as semver from 'semver';
 import { parse } from 'url';
 import { v4 as uuid } from 'uuid';
 import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
-import * as nls from 'vscode-nls';
 import { tokenFromRefreshToken } from './azure-account';
 import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
 import { createServer, Queue, readJSON } from './ipc';
 import { TelemetryReporter } from './telemetry';
-// const adal = require('adal-node');
-
-// function turnOnLogging() {
-//   var log = adal.Logging;
-//   log.setLoggingOptions(
-//   {
-//     level : log.LOGGING_LEVEL.VERBOSE,
-//     log : function(level: number, message: string, error: any) {
-//       console.log(message);
-//       if (error) {
-//         console.log(error);
-//       }
-//     }
-//   });
-// }
-// turnOnLogging();
-
-const localize = nls.loadMessageBundle();
+import { localize } from './utils/localize';
 
 interface OS {
 	id: string;

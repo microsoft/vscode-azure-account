@@ -3,50 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace, env, ConfigurationTarget } from 'vscode';
-import { AzureLoginHelper } from './azure-account';
-import { AzureAccount } from './azure-account.api';
-import { createReporter } from './telemetry';
-import * as nls from 'vscode-nls';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
-import { shells, OSes } from './cloudConsole';
+import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { AzureLogin } from './azure-account';
+import { AzureAccount } from './azure-account.api';
+import { OSes, shells } from './cloudConsole';
+import { cloudSetting, enableLogging, prefix, showSignedInEmailSetting } from './constants';
 import { survey } from './nps';
-
-const localize = nls.loadMessageBundle();
-const enableLogging = false;
+import { createReporter, TelemetryReporter } from './telemetry';
+import { localize } from './utils/localize';
 
 export async function activate(context: ExtensionContext): Promise<AzureAccount> {
 	await migrateEnvironmentSetting();
-	const reporter = createReporter(context);
-	const azureLogin = new AzureLoginHelper(context, reporter);
+	const reporter: TelemetryReporter = createReporter(context);
+	const azureLogin: AzureLogin = new AzureLogin(context, reporter);
+
 	if (enableLogging) {
 		logDiagnostics(context, azureLogin.api);
 	}
-	const subscriptions = context.subscriptions;
-	subscriptions.push(createStatusBarItem(context, azureLogin.api));
-	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
-	subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
+
+	context.subscriptions.push(createStatusBarItem(context, azureLogin.api));
+	context.subscriptions.push(commands.registerCommand('azure-account.login', () => azureLogin.login('login').catch(console.error)));
+	context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => azureLogin.login('loginWithDeviceCode').catch(console.error)));
+	context.subscriptions.push(commands.registerCommand('azure-account.logout', () => azureLogin.logout().catch(console.error)));
+	context.subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => azureLogin.loginToCloud().catch(console.error)));
+	context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => azureLogin.askForLogin().catch(console.error)));
+	context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => azureLogin.selectSubscriptions().catch(console.error)));
+	context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
+	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
+	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
+	context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
+
 	survey(context, reporter);
 	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
 }
 
 async function migrateEnvironmentSetting() {
-	const configuration = workspace.getConfiguration('azure');
-	const CLOUD_SETTING = 'cloud';
-	const configInfo = configuration.inspect(CLOUD_SETTING);
+	const config: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+	const configInfo = config.inspect(cloudSetting);
 
 	async function migrateSetting(oldValue: string, newValue: string): Promise<void> {
 		if (configInfo?.globalValue === oldValue) {
-			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.Global);
+			await config.update(cloudSetting, newValue, ConfigurationTarget.Global);
 		}
 		if (configInfo?.workspaceValue === oldValue) {
-			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.Workspace);
+			await config.update(cloudSetting, newValue, ConfigurationTarget.Workspace);
 		}
 		if (configInfo?.workspaceFolderValue === oldValue) {
-			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.WorkspaceFolder);
+			await config.update(cloudSetting, newValue, ConfigurationTarget.WorkspaceFolder);
 		}
 	}
 
@@ -128,8 +133,8 @@ function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {
 				break;
 			case 'LoggedIn':
 				if (api.sessions.length) {
-					const azureConfig = workspace.getConfiguration('azure');
-					const showSignedInEmail = azureConfig.get<boolean>('showSignedInEmail');
+					const azureConfig = workspace.getConfiguration(prefix);
+					const showSignedInEmail = azureConfig.get<boolean>(showSignedInEmailSetting);
 					statusBarItem.text = showSignedInEmail ? localize('azure-account.loggedIn', "Azure: {0}", api.sessions[0].userId) : localize('azure-account.loggedIn', "Azure: Signed In");
 					statusBarItem.show();
 				}

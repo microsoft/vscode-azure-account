@@ -15,6 +15,7 @@ import * as path from 'path';
 import { parse, ParsedUrlQuery } from 'querystring';
 import * as url from 'url';
 import * as vscode from 'vscode';
+import { clientId, commonTenantId } from './constants';
 
 export const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
 const portADFS = 19472;
@@ -386,11 +387,12 @@ export async function tokenWithAuthorizationCode(clientId: string, environment: 
 			} else {
 				resolve(<TokenResponse>response);
 			}
-		});
+	});
 	});
 }
 
+// Determine if this module has been run directly
 if (require.main === module) {
-	login('aebc6443-996d-45c2-90f0-388ff96faa56', Environment.AzureCloud, false, 'common', async uri => console.log(`Open: ${uri}`), async () => console.log('Browser did not connect to local server within 10 seconds.'))
+	login(clientId, Environment.AzureCloud, false, commonTenantId, async uri => console.log(`Open: ${uri}`), async () => console.log('Browser did not connect to local server within 10 seconds.'))
 		.catch(console.error);
 }

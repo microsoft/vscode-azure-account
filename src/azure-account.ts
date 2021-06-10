@@ -3,279 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
-const CacheDriver = require('adal-node/lib/cache-driver');
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-const createLogContext = require('adal-node/lib/log').createLogContext;
-
-import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
+import { SubscriptionClient } from '@azure/arm-subscriptions';
+import { TenantIdDescription } from '@azure/arm-subscriptions/esm/models';
 import { Environment } from '@azure/ms-rest-azure-env';
-import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
-import { AuthenticationContext, Logging, MemoryCache, TokenResponse, UserCodeInfo } from 'adal-node';
-import * as http from 'http';
-import * as https from 'https';
-import * as keytarType from 'keytar';
-import { DeviceTokenCredentials } from 'ms-rest-azure';
-import fetch from 'node-fetch';
-import { CancellationTokenSource, commands, ConfigurationTarget, env, EventEmitter, ExtensionContext, MessageItem, OutputChannel, QuickPickItem, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
-import * as nls from 'vscode-nls';
+import { DeviceTokenCredentials as DeviceTokenCredentials2, TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
+import { AuthenticationContext, Logging, MemoryCache, TokenResponse } from 'adal-node';
+import { DeviceTokenCredentials as DeviceTokenCredentials } from 'ms-rest-azure';
+import { CancellationTokenSource, commands, ConfigurationChangeEvent, ConfigurationTarget, EventEmitter, ExtensionContext, MessageItem, OutputChannel, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from './azure-account.api';
+import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, ISubscriptionCache, ProxyTokenCache, storeRefreshToken } from './cache';
+import { checkIsOnline } from './checkIsOnline';
 import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
+import { azureCustomCloud, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, displayName, enableLogging, environmentLabels, prefix, resourceFilterSetting, staticEnvironmentNames, tenantSetting } from './constants';
+import { deviceLogin } from './deviceLogin';
+import { getEnvironments, getSelectedEnvironment } from './environments';
+import { AzureLoginError, getErrorMessage } from './errors';
+import { addFilter, getNewFilters, removeFilter } from './filters';
 import { TelemetryReporter } from './telemetry';
+import { listAll } from './utils/arrayUtils';
+import { localize } from './utils/localize';
+import { openUri } from './utils/openUri';
+import { getSettingValue, getSettingWithPrefix } from './utils/settingUtils';
+import { delay } from './utils/timeUtils';
 
-const localize = nls.loadMessageBundle();
-
-const keytar = getNodeModule<typeof keytarType>('keytar');
-
-declare const __webpack_require__: typeof require;
-declare const __non_webpack_require__: typeof require;
-function getNodeModule<T>(moduleName: string): T | undefined {
-	const r = typeof __webpack_require__ === "function" ? __non_webpack_require__ : require;
-	try {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
-		return r(`${env.appRoot}/node_modules.asar/${moduleName}`);
-	} catch (err) {
-		// Not in ASAR.
-	}
-	try {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
-		return r(`${env.appRoot}/node_modules/${moduleName}`);
-	} catch (err) {
-		// Not available.
-	}
-	return undefined;
-}
-
-const credentialsSection = 'VS Code Azure';
-
-async function getStoredCredentials(environment: Environment, migrateToken?: boolean) {
-	if (!keytar) {
-		return;
-	}
-	try {
-		if (migrateToken) {
-			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
-			if (token) {
-				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
-					await keytar.setPassword(credentialsSection, 'Azure', token);
-				}
-				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
-			}
-		}
-	} catch (err) {
-		// ignore
-	}
-	try {
-		return keytar.getPassword(credentialsSection, environment.name);
-	} catch (err) {
-		// ignore
-	}
-}
-
-async function storeRefreshToken(environment: Environment, token: string) {
-	if (keytar) {
-		try {
-			await keytar.setPassword(credentialsSection, environment.name, token);
-		} catch (err) {
-			// ignore
-		}
-	}
-}
-
-async function deleteRefreshToken(environmentName: string) {
-	if (keytar) {
-		try {
-			await keytar.deletePassword(credentialsSection, environmentName);
-		} catch (err) {
-			// ignore
-		}
-	}
-}
-
-const staticEnvironments: Environment[] = [
-	Environment.AzureCloud,
-	Environment.ChinaCloud,
-	Environment.GermanCloud,
-	Environment.USGovernment
-];
-
-const azurePPE = 'AzurePPE';
-const azureCustomCloud = 'AzureCustomCloud';
-const customCloudArmUrlKey = 'customCloud.resourceManagerEndpointUrl';
-
-const staticEnvironmentNames = [
-	...staticEnvironments.map(environment => environment.name),
-	azureCustomCloud,
-	azurePPE
-];
-
-const environmentLabels: Record<string, string> = {
-	AzureCloud: localize('azure-account.azureCloud', 'Azure'),
-	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
-	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
-	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
-	[azureCustomCloud]: localize('azure-account.azureCustomCloud', 'Azure Custom Cloud'),
-	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
-};
-
-interface ICloudMetadata {
-	portal: string;
-	authentication: {
-		loginEndpoint: string;
-		audiences: string[];
-	};
-	graphAudience: string;
-	graph: string;
-	name: string;
-	suffixes: {
-		acrLoginServer: string;
-		keyVaultDns: string;
-		sqlServerHostname: string;
-		storage: string;
-	}
-	batch: string;
-	resourceManager: string;
-	sqlManagement: string;
-	gallery: string;
-}
-
-interface IResourceManagerMetadata {
-	galleryEndpoint: string;
-	graphEndpoint: string;
-	portalEndpoint: string;
-	authentication: {
-		loginEndpoint: string,
-		audiences: [
-			string
-		]
-	};
-}
-
-const logVerbose = false;
-const commonTenantId = 'common';
-const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
-
-interface AzureAccountWriteable extends AzureAccount {
+interface IAzureAccountWriteable extends AzureAccount {
 	status: AzureLoginStatus;
 }
 
-class AzureLoginError extends Error {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	constructor(message: string, public reason?: any) {
-		super(message);
-	}
-}
-
-interface SubscriptionItem extends QuickPickItem {
-	type: 'item';
+export interface ISubscriptionItem extends QuickPickItem {
 	subscription: AzureSubscription;
-	picked: boolean;
-}
-
-interface Cache {
-	subscriptions: {
-		session: {
-			environment: string;
-			userId: string;
-			tenantId: string;
-		};
-		subscription: SubscriptionModels.Subscription;
-	}[];
-}
-
-class ProxyTokenCache {
-	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-	public initEnd?: () => void;
-	private init = new Promise<void>(resolve => {
-		this.initEnd = resolve;
-	});
-
-	constructor(private target: any) {
-	}
-
-	remove(entries: any, callback: any) {
-		this.target.remove(entries, callback)
-	}
-
-	add(entries: any, callback: any) {
-		this.target.add(entries, callback)
-	}
-
-	find(query: any, callback: any) {
-		void this.init.then(() => {
-			this.target.find(query, callback);
-		});
-	}
-	/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 }
 
 type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange' | 'customCloudARMUrlChange';
 type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
 
-export class AzureLoginHelper {
+export class AzureLogin {
+	private onStatusChanged: EventEmitter<AzureLoginStatus> = new EventEmitter<AzureLoginStatus>();
+	private onSessionsChanged: EventEmitter<void> = new EventEmitter<void>();
 
-	private onStatusChanged = new EventEmitter<AzureLoginStatus>();
-	private onSessionsChanged = new EventEmitter<void>();
+	private subscriptionsTask: Promise<AzureSubscription[]> = Promise.resolve(<AzureSubscription[]>[]);
+	private onSubscriptionsChanged: EventEmitter<void> = new EventEmitter<void>();
 
-	private subscriptions = Promise.resolve(<AzureSubscription[]>[]);
-	private onSubscriptionsChanged = new EventEmitter<void>();
+	private filtersTask: Promise<AzureResourceFilter[]> = Promise.resolve(<AzureResourceFilter[]>[]);
+	private onFiltersChanged: EventEmitter<void> = new EventEmitter<void>();
 
-	private filters = Promise.resolve(<AzureResourceFilter[]>[]);
+	private tokenCache: MemoryCache = new MemoryCache();
+	private delayedCache: ProxyTokenCache = new ProxyTokenCache(this.tokenCache);
+	private oldResourceFilter: string = '';
+	private doLogin: boolean = false;
 
-	private onFiltersChanged = new EventEmitter<void>();
-
-	private tokenCache = new MemoryCache();
-	private delayedCache = new ProxyTokenCache(this.tokenCache);
-	private oldResourceFilter = '';
-	private doLogin = false;
-
-	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
-		const subscriptions = context.subscriptions;
-		subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
-		subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
-		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
-		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
-		subscriptions.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant') || e.affectsConfiguration('azure.customCloud.resourceManagerEndpointUrl')) {
-				const doLogin = this.doLogin;
-				this.doLogin = false;
-				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : e.affectsConfiguration('azure.tenant') ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
-					.catch(console.error);
-			} else if (e.affectsConfiguration('azure.resourceFilter')) {
-				this.updateFilters(true);
-			}
-		}));
-		this.initialize('activation', false, true)
-			.catch(console.error);
-
-		if (logVerbose) {
-			const outputChannel = window.createOutputChannel('Azure Account');
-			subscriptions.push(outputChannel);
-			this.enableLogging(outputChannel);
-		}
-	}
-
-	private enableLogging(channel: OutputChannel) {
-		Logging.setLoggingOptions({
-			level: 3 /* Logging.LOGGING_LEVEL.VERBOSE */,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			log: (level: any, message: any, error: any) => {
-				if (message) {
-					channel.appendLine(message);
-				}
-				if (error) {
-					channel.appendLine(error);
-				}
-			}
-		});
-	}
-
-	api: AzureAccount = {
+	public api: AzureAccount = {
 		status: 'Initializing',
 		onStatusChanged: this.onStatusChanged.event,
 		waitForLogin: () => this.waitForLogin(),
@@ -290,20 +68,55 @@ export class AzureLoginHelper {
 		createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
 	};
 
-	// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-	async login(trigger: LoginTrigger) {
+	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
+		context.subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
+		context.subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
+		context.subscriptions.push(workspace.onDidChangeConfiguration((e: ConfigurationChangeEvent) => {
+			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
+				const doLogin: boolean = this.doLogin;
+				this.doLogin = false;
+				this.initialize(e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
+					.catch(console.error);
+			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
+				this.updateFilters(true);
+			}
+		}));
+
+		this.initialize('activation', false, true)
+			.catch(console.error);
+
+		if (enableLogging) {
+			const outputChannel: OutputChannel = window.createOutputChannel(displayName);
+			context.subscriptions.push(outputChannel);
+			Logging.setLoggingOptions({
+				level: 3 /* Logging.LOGGING_LEVEL.VERBOSE */,
+				log: (_level, message, error) => {
+					if (message) {
+						outputChannel.appendLine(message);
+					}
+					if (error) {
+						outputChannel.appendLine(error.message);
+					}
+				}
+			});
+		}
+	}
+
+	public async login(trigger: LoginTrigger): Promise<void> {
 		let path: CodePath = 'newLogin';
-		let environmentName = 'uninitialized';
-		const cancelSource = new CancellationTokenSource();
+		let environmentName: string = 'uninitialized';
+		const cancelSource: CancellationTokenSource = new CancellationTokenSource();
+
 		try {
-			const environment = await getSelectedEnvironment();
+			const environment: Environment = await getSelectedEnvironment();
 			environmentName = environment.name;
-			const online = becomeOnline(environment, 2000, cancelSource.token);
-			const timer = delay(2000, true);
-			if (await Promise.race([online, timer])) {
-				const cancel = { title: localize('azure-account.cancel', "Cancel") };
+			const onlineTask: Promise<void> = checkIsOnline(environment, 2000, cancelSource.token);
+			const timerTask: Promise<unknown> = delay(2000, true);
+
+			if (await Promise.race([onlineTask, timerTask])) {
+				const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel") };
 				await Promise.race([
-					online,
+					onlineTask,
 					window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
 						.then(result => {
 							if (result === cancel) {
@@ -311,17 +124,35 @@ export class AzureLoginHelper {
 							}
 						})
 				]);
-				await online;
+				await onlineTask;
 			}
-			this.beginLoggingIn();
-			const tenantId = getTenantId();
-			const adfs = codeFlowLogin.isADFS(environment);
-			const useCodeFlow = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer(adfs);
+
+			this.setLoggedInStatus();
+			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
+			const adfs: boolean = codeFlowLogin.isADFS(environment);
+			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer(adfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			const tokenResponse = await (useCodeFlow ? codeFlowLogin.login(clientId, environment, adfs, tenantId, openUri, () => redirectTimeout()) : deviceLogin(environment, tenantId));
+
+			// Get the token from logging in (via "code flow" or device code)
+			const tokenResponse: TokenResponse = useCodeFlow ? 
+				await codeFlowLogin.login(clientId, environment, adfs, tenantId, openUri, async () => {
+					const message: string = localize('azure-account.browserDidNotConnect', 'Browser did not connect to local server within 10 seconds. Do you want to try the alternate sign in using a device code instead?');
+					const useDeviceCode: string = localize('azure-account.useDeviceCode', 'Use Device Code');
+					const response: string | undefined = await window.showInformationMessage(message, useDeviceCode);
+					if (response) {
+						await commands.executeCommand('azure-account.loginWithDeviceCode');
+					}
+				}) : 
+				await deviceLogin(environment, tenantId);
+
+			// Get the ADAL refresh token (not exposed in MSAL)
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			const refreshToken = tokenResponse.refreshToken!;
-			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
+			const refreshToken: string = tokenResponse.refreshToken!;
+
+			// If using the common tenant, pass through tokenResponse. Otherwise do some work to get the tokenResponses
+			const tokenResponses: TokenResponse[] = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
+
+			// Save refresh token using keytar
 			await storeRefreshToken(environment, refreshToken);
 			await this.updateSessions(environment, tokenResponses);
 			void this.sendLoginTelemetry(trigger, path, environmentName, 'success', undefined, true);
@@ -340,8 +171,7 @@ export class AzureLoginHelper {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-	async sendLoginTelemetry(trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string, includeSubscriptions?: boolean) {
+	private async sendLoginTelemetry(trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string, includeSubscriptions?: boolean): Promise<void> {
 		/* __GDPR__
 		   "login" : {
 			  "trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -359,13 +189,12 @@ export class AzureLoginHelper {
 		if (includeSubscriptions) {
 			await this.waitForSubscriptions();
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			event.subscriptions = JSON.stringify((await this.subscriptions).map(s => s.subscription.subscriptionId!));
+			event.subscriptions = JSON.stringify((await this.subscriptionsTask).map(s => s.subscription.subscriptionId!));
 		}
 		this.reporter.sendSanitizedEvent('login', event);
 	}
 
-	// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-	async logout() {
+	public async logout(): Promise<void> {
 		await this.api.waitForLogin();
 		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
 		const allEnvironmentNames: string[] = staticEnvironmentNames.concat(['Azure', 'AzureChina', 'AzurePPE'])
@@ -376,9 +205,9 @@ export class AzureLoginHelper {
 		this.updateStatus();
 	}
 
-	async loginToCloud(): Promise<void> {
-		const current = await getSelectedEnvironment();
-		const selected = await window.showQuickPick<{ label: string, description?: string, environment: Environment }>(getEnvironments(true /* includePartial */)
+	public async loginToCloud(): Promise<void> {
+		const current: Environment = await getSelectedEnvironment();
+		const selected: QuickPickItem & { environment: Environment } | undefined = await window.showQuickPick<QuickPickItem & { environment: Environment }>(getEnvironments(true /* includePartial */)
 			.then(environments => environments.map(environment => ({
 				label: environmentLabels[environment.name],
 				description: environment.name === current.name ? localize('azure-account.currentCloud', '(Current)') : undefined,
@@ -388,9 +217,9 @@ export class AzureLoginHelper {
 		});
 
 		if (selected) {
-			const config = workspace.getConfiguration('azure');
-			if (config.get('cloud') !== selected.environment.name) {
-				let armUrl;
+			const config: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+			if (config.get(cloudSetting) !== selected.environment.name) {
+				let armUrl: string | undefined;
 				if (selected.environment.name === azureCustomCloud) {
 					armUrl = await window.showInputBox({
 						prompt: localize('azure-account.enterArmUrl', "Enter the Azure Resource Manager endpoint"),
@@ -402,17 +231,17 @@ export class AzureLoginHelper {
 						return;
 					}
 				}
-				const tenantId = await window.showInputBox({
+				const tenantId: string | undefined = await window.showInputBox({
 					prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
 					placeHolder: localize('azure-account.tenantIdPlaceholder', "Enter your tenant id, or '{0}' for the default tenant", commonTenantId),
 					ignoreFocusOut: true});
 				if (tenantId) {
 					if (armUrl) {
-						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
+						await config.update(customCloudArmUrlSetting, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlSetting)));
 					}
-					await config.update('tenant', tenantId, getCurrentTarget(config.inspect('tenant')));
+					await config.update(tenantSetting, tenantId, getCurrentTarget(config.inspect(tenantSetting)));
 					// if outside of normal range, set ppe setting
-					await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+					await config.update(cloudSetting, selected.environment.name, getCurrentTarget(config.inspect(cloudSetting)));
 				} else {
 					return;
 				}
@@ -421,27 +250,29 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private async initialize(trigger: LoginTrigger, doLogin?: boolean, migrateToken?: boolean) {
-		let environmentName = 'uninitialized';
+	private async initialize(trigger: LoginTrigger, doLogin?: boolean, migrateToken?: boolean): Promise<void> {
+		let environmentName: string = 'uninitialized';
 		try {
-			const timing = false;
-			const start = Date.now();
+			const timing: boolean = false;
+			const start: number = Date.now();
 			await this.loadCache();
 			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
-			const environment = await getSelectedEnvironment();
+			const environment: Environment = await getSelectedEnvironment();
 			environmentName = environment.name;
-			const tenantId = getTenantId();
-			const storedCreds = await getStoredCredentials(environment, migrateToken);
+			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
+			const storedCreds: string | undefined = await getStoredCredentials(environment, migrateToken);
 
 			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
 			if (!storedCreds) {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
-			await becomeOnline(environment, 5000);
-			this.beginLoggingIn();
+			await checkIsOnline(environment, 5000);
+			this.setLoggedInStatus();
 
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			let parsedCreds: any;
 			let tokenResponse: TokenResponse | undefined;
-			let parsedCreds;
 			try {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				parsedCreds = JSON.parse(storedCreds);
@@ -465,10 +296,10 @@ export class AzureLoginHelper {
 
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
 			// For testing
-			if (workspace.getConfiguration('azure').get('testTokenFailure')) {
+			if (getSettingValue('testTokenFailure')) {
 				throw new AzureLoginError(localize('azure-account.testingAcquiringTokenFailed', "Testing: Acquiring token failed"));
 			}
-			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
+			const tokenResponses: TokenResponse[] = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
 			timing && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
 			await this.updateSessions(environment, tokenResponses);
 			timing && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
@@ -488,22 +319,22 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private async loadCache() {
-		const cache = this.context.globalState.get<Cache>('cache');
+	private async loadCache(): Promise<void> {
+		const cache: ISubscriptionCache | undefined = this.context.globalState.get<ISubscriptionCache>(cacheKey);
 		if (cache) {
-			(<AzureAccountWriteable>this.api).status = 'LoggedIn';
+			(<IAzureAccountWriteable>this.api).status = 'LoggedIn';
 			const sessions = await this.initializeSessions(cache);
 			const subscriptions = this.initializeSubscriptions(cache, sessions);
 			this.initializeFilters(subscriptions);
 		}
 	}
 
-	private updateCache() {
+	private updateCache(): void {
 		if (this.api.status !== 'LoggedIn') {
-			void this.context.globalState.update('cache', undefined);
+			void this.context.globalState.update(cacheKey, undefined);
 			return;
 		}
-		const cache: Cache = {
+		const cache: ISubscriptionCache = {
 			subscriptions: this.api.subscriptions.map(({ session, subscription }) => ({
 				session: {
 					environment: session.environment.name,
@@ -513,25 +344,25 @@ export class AzureLoginHelper {
 				subscription
 			}))
 		}
-		void this.context.globalState.update('cache', cache);
+		void this.context.globalState.update(cacheKey, cache);
 	}
 
-	private beginLoggingIn() {
+	private setLoggedInStatus(): void {
 		if (this.api.status !== 'LoggedIn') {
-			(<AzureAccountWriteable>this.api).status = 'LoggingIn';
+			(<IAzureAccountWriteable>this.api).status = 'LoggingIn';
 			this.onStatusChanged.fire(this.api.status);
 		}
 	}
 
-	private updateStatus() {
+	private updateStatus(): void {
 		const status = this.api.sessions.length ? 'LoggedIn' : 'LoggedOut';
 		if (this.api.status !== status) {
-			(<AzureAccountWriteable>this.api).status = status;
+			(<IAzureAccountWriteable>this.api).status = status;
 			this.onStatusChanged.fire(this.api.status);
 		}
 	}
 
-	private async initializeSessions(cache: Cache) {
+	private async initializeSessions(cache: ISubscriptionCache): Promise<Record<string, AzureSession>> {
 		const sessions: Record<string, AzureSession> = {};
 		for (const { session } of cache.subscriptions) {
 			const { environment, userId, tenantId } = session;
@@ -553,14 +384,18 @@ export class AzureLoginHelper {
 		return sessions;
 	}
 
-	private async updateSessions(environment: Environment, tokenResponses: TokenResponse[]) {
+	private async updateSessions(environment: Environment, tokenResponses: TokenResponse[]): Promise<void> {
+		// We just signed in so clear out the ADAL token cache
 		await clearTokenCache(this.tokenCache);
+
+		// Add the new tokens to the ADAL cache
 		for (const tokenResponse of tokenResponses) {
 			await addTokenToCache(environment, this.tokenCache, tokenResponse);
 		}
+
 		/* eslint-disable @typescript-eslint/no-non-null-assertion */
 		this.delayedCache.initEnd!();
-		const sessions = this.api.sessions;
+		const sessions: AzureSession[] = this.api.sessions;
 		sessions.splice(0, sessions.length, ...tokenResponses.map<AzureSession>(tokenResponse => ({
 			environment,
 			userId: tokenResponse.userId!,
@@ -573,7 +408,7 @@ export class AzureLoginHelper {
 		/* eslint-enable @typescript-eslint/no-non-null-assertion */
 	}
 
-	private async clearSessions() {
+	private async clearSessions(): Promise<void> {
 		await clearTokenCache(this.tokenCache);
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		this.delayedCache.initEnd!();
@@ -582,16 +417,16 @@ export class AzureLoginHelper {
 		this.onSessionsChanged.fire();
 	}
 
-	private async waitForSubscriptions() {
+	private async waitForSubscriptions(): Promise<boolean> {
 		if (!(await this.api.waitForLogin())) {
 			return false;
 		}
-		await this.subscriptions;
+		await this.subscriptionsTask;
 		return true;
 	}
 
-	private initializeSubscriptions(cache: Cache, sessions: Record<string, AzureSession>) {
-		const subscriptions = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
+	private initializeSubscriptions(cache: ISubscriptionCache, sessions: Record<string, AzureSession>): AzureSubscription[] {
+		const subscriptions: AzureSubscription[] = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
 			const { environment, userId, tenantId } = session;
 			const key = `${environment} ${userId} ${tenantId}`;
 			return {
@@ -599,41 +434,41 @@ export class AzureLoginHelper {
 				subscription
 			};
 		});
-		this.subscriptions = Promise.resolve(subscriptions);
+		this.subscriptionsTask = Promise.resolve(subscriptions);
 		this.api.subscriptions.push(...subscriptions);
 		return subscriptions;
 	}
 
-	private async updateSubscriptions() {
+	private async updateSubscriptions(): Promise<void> {
 		await this.api.waitForLogin();
-		this.subscriptions = this.loadSubscriptions();
-		this.api.subscriptions.splice(0, this.api.subscriptions.length, ...await this.subscriptions);
+		this.subscriptionsTask = this.loadSubscriptions();
+		this.api.subscriptions.splice(0, this.api.subscriptions.length, ...await this.subscriptionsTask);
 		this.updateCache();
 		this.onSubscriptionsChanged.fire();
 	}
 
-	private async askForLogin() {
+	public async askForLogin(): Promise<boolean | unknown> {
 		if (this.api.status === 'LoggedIn') {
 			return;
 		}
-		const login = { title: localize('azure-account.login', "Sign In") };
-		const result = await window.showInformationMessage(localize('azure-account.loginFirst', "You are not signed in. Sign in to continue."), login);
+		const login: MessageItem = { title: localize('azure-account.login', "Sign In") };
+		const result: MessageItem | undefined = await window.showInformationMessage(localize('azure-account.loginFirst', "You are not signed in. Sign in to continue."), login);
 		return result === login && commands.executeCommand('azure-account.login');
 	}
 
-	private async selectSubscriptions() {
+	public async selectSubscriptions(): Promise<unknown> {
 		if (!(await this.waitForSubscriptions())) {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = (azureConfig.get<string[]>('resourceFilter') || ['all']).slice();
-		let changed = false;
+		const config: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+		const resourceFilter: string[] = (config.get<string[]>(resourceFilterSetting) || ['all']).slice();
+		let changed: boolean = false;
 
-		const subscriptions = this.subscriptions
+		const subscriptionItemsTask: Promise<ISubscriptionItem[]> = this.subscriptionsTask
 			.then(list => this.asSubscriptionItems(list, resourceFilter));
 		const source = new CancellationTokenSource();
-		const cancellable = subscriptions.then(s => {
+		const cancellableTask: Promise<ISubscriptionItem[]> = subscriptionItemsTask.then(s => {
 			if (!s.length) {
 				source.cancel();
 				this.noSubscriptionsFound()
@@ -641,73 +476,59 @@ export class AzureLoginHelper {
 			}
 			return s;
 		});
-		const picks = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
+		const picks: QuickPickItem[] | undefined = await window.showQuickPick(cancellableTask, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
 		if (picks) {
 			if (resourceFilter[0] === 'all') {
 				resourceFilter.splice(0, 1);
-				for (const subscription of await subscriptions) {
-					this.addFilter(resourceFilter, subscription);
+				for (const subscription of await subscriptionItemsTask) {
+					addFilter(resourceFilter, subscription);
 				}
 			}
-			for (const subscription of await subscriptions) {
+			for (const subscription of await subscriptionItemsTask) {
 				if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
 					changed = true;
 					if (subscription.picked) {
-						this.removeFilter(resourceFilter, subscription);
+						removeFilter(resourceFilter, subscription);
 					} else {
-						this.addFilter(resourceFilter, subscription);
+						addFilter(resourceFilter, subscription);
 					}
 				}
 			}
 		}
 
 		if (changed) {
-			await this.updateConfiguration(azureConfig, resourceFilter);
+			await this.updateConfiguration(config, resourceFilter);
 		}
 	}
 
-	async noSubscriptionsFound(): Promise<void> {
+	private async noSubscriptionsFound(): Promise<void> {
 		const open: MessageItem = { title: localize('azure-account.open', "Open") };
-		const response = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
+		const response: MessageItem | undefined = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
 		if (response === open) {
-			void env.openExternal(Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
+			void openUri('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account');
 		}
 	}
 
-	private addFilter(resourceFilter: string[], item: SubscriptionItem) {
-		const { session, subscription } = item.subscription;
-		resourceFilter.push(`${session.tenantId}/${subscription.subscriptionId}`);
-		item.picked = true;
-	}
-
-	private removeFilter(resourceFilter: string[], item: SubscriptionItem) {
-		const { session, subscription } = item.subscription;
-		const remove = resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`);
-		resourceFilter.splice(remove, 1);
-		item.picked = false;
-	}
-
-	private async loadSubscriptions() {
-		const lists = await Promise.all(this.api.sessions.map(session => {
-			const credentials = session.credentials2;
-			const client = new SubscriptionClient(credentials, { baseUri: session.environment.resourceManagerEndpointUrl });
+	private async loadSubscriptions(): Promise<AzureSubscription[]> {
+		const lists: AzureSubscription[][] = await Promise.all(this.api.sessions.map(session => {
+			const credentials: TokenCredentialsBase = session.credentials2;
+			const client: SubscriptionClient = new SubscriptionClient(credentials, { baseUri: session.environment.resourceManagerEndpointUrl });
 			return listAll(client.subscriptions, client.subscriptions.list())
 				.then(list => list.map(subscription => ({
 					session,
 					subscription,
 				})));
 		}));
-		const subscriptions = (<AzureSubscription[]>[]).concat(...lists);
+		const subscriptions: AzureSubscription[] = (<AzureSubscription[]>[]).concat(...lists);
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		subscriptions.sort((a, b) => a.subscription.displayName!.localeCompare(b.subscription.displayName!));
 		return subscriptions;
 	}
 
-	private asSubscriptionItems(subscriptions: AzureSubscription[], resourceFilter: string[]): SubscriptionItem[] {
+	private asSubscriptionItems(subscriptions: AzureSubscription[], resourceFilter: string[]): ISubscriptionItem[] {
 		return subscriptions.map(subscription => {
-			const picked = resourceFilter.indexOf(`${subscription.session.tenantId}/${subscription.subscription.subscriptionId}`) !== -1 || resourceFilter[0] === 'all';
-			return <SubscriptionItem>{
-				type: 'item',
+			const picked: boolean = resourceFilter.indexOf(`${subscription.session.tenantId}/${subscription.subscription.subscriptionId}`) !== -1 || resourceFilter[0] === 'all';
+			return <ISubscriptionItem>{
 				label: subscription.subscription.displayName,
 				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 				description: subscription.subscription.subscriptionId!,
@@ -717,53 +538,37 @@ export class AzureLoginHelper {
 		});
 	}
 
-	private async updateConfiguration(azureConfig: WorkspaceConfiguration, resourceFilter: string[]) {
-		const resourceFilterConfig = azureConfig.inspect<string[]>('resourceFilter');
-		const target = getCurrentTarget(resourceFilterConfig);
-		await azureConfig.update('resourceFilter', resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
+	private async updateConfiguration(azureConfig: WorkspaceConfiguration, resourceFilter: string[]): Promise<void> {
+		const resourceFilterConfig = azureConfig.inspect<string[]>(resourceFilterSetting);
+		const target: ConfigurationTarget = getCurrentTarget(resourceFilterConfig);
+		await azureConfig.update(resourceFilterSetting, resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
 	}
 
-	private initializeFilters(subscriptions: AzureSubscription[]) {
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = azureConfig.get<string[]>('resourceFilter');
+	private initializeFilters(subscriptions: AzureSubscription[]): void {
+		const resourceFilter: string[] | undefined = getSettingValue(resourceFilterSetting);
 		this.oldResourceFilter = JSON.stringify(resourceFilter);
-		const newFilters = this.newFilters(subscriptions, resourceFilter);
-		this.filters = Promise.resolve(newFilters);
+		const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
+		this.filtersTask = Promise.resolve(newFilters);
 		this.api.filters.push(...newFilters);
 	}
 
-	private updateFilters(configChange = false) {
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = azureConfig.get<string[]>('resourceFilter');
+	private updateFilters(configChange: boolean = false): void {
+		const resourceFilter: string[] | undefined = getSettingValue(resourceFilterSetting);
 		if (configChange && JSON.stringify(resourceFilter) === this.oldResourceFilter) {
 			return;
 		}
-		this.filters = (async () => {
+		this.filtersTask = (async () => {
 			await this.waitForSubscriptions();
-			const subscriptions = await this.subscriptions;
+			const subscriptions: AzureSubscription[] = await this.subscriptionsTask;
 			this.oldResourceFilter = JSON.stringify(resourceFilter);
-			const newFilters = this.newFilters(subscriptions, resourceFilter);
+			const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
 			this.api.filters.splice(0, this.api.filters.length, ...newFilters);
 			this.onFiltersChanged.fire();
 			return this.api.filters;
 		})();
 	}
 
-	private newFilters(subscriptions: AzureSubscription[], resourceFilter: string[] | undefined): AzureResourceFilter[] {
-		if (resourceFilter && !Array.isArray(resourceFilter)) {
-			resourceFilter = [];
-		}
-		const filters = resourceFilter && resourceFilter.reduce((f, s) => {
-			if (typeof s === 'string') {
-				f[s] = true;
-			}
-			return f;
-		}, <Record<string, boolean>>{});
-
-		return filters ? subscriptions.filter(s => filters[`${s.session.tenantId}/${s.subscription.subscriptionId}`]) : subscriptions;
-	}
-
-	private async waitForLogin() {
+	private async waitForLogin(): Promise<boolean> {
 		switch (this.api.status) {
 			case 'LoggedIn':
 				return true;
@@ -783,197 +588,21 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private async waitForFilters() {
+	private async waitForFilters(): Promise<boolean> {
 		if (!(await this.waitForSubscriptions())) {
 			return false;
 		}
-		await this.filters;
+		await this.filtersTask;
 		return true;
 	}
 }
 
-async function getSelectedEnvironment(): Promise<Environment> {
-	const envConfig = workspace.getConfiguration('azure');
-	const envSetting = envConfig.get<string>('cloud');
-	return (await getEnvironments()).find(environment => environment.name === envSetting) || Environment.AzureCloud;
-}
-
-/**
- * @param includePartial Include partial environments for the sake of UI (i.e. Azure Stack). Endpoint data will be filled in later
- */
-async function getEnvironments(includePartial: boolean = false): Promise<Environment[]> {
-	const metadataDiscoveryUrl = process.env['ARM_CLOUD_METADATA_URL'];
-	if (metadataDiscoveryUrl) {
-		try {
-			const response = await fetch(metadataDiscoveryUrl);
-			if (response.ok) {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-				const endpoints: ICloudMetadata[] = await response.json();
-				return endpoints.map(endpoint => {
-					return {
-						name: endpoint.name,
-						portalUrl: endpoint.portal,
-						managementEndpointUrl: endpoint.authentication.audiences[0],
-						resourceManagerEndpointUrl: endpoint.resourceManager,
-						activeDirectoryEndpointUrl: endpoint.authentication.loginEndpoint,
-						activeDirectoryResourceId: endpoint.authentication.audiences[0],
-						sqlManagementEndpointUrl: endpoint.sqlManagement,
-						sqlServerHostnameSuffix: endpoint.suffixes.sqlServerHostname,
-						galleryEndpointUrl: endpoint.gallery,
-						batchResourceId: endpoint.batch,
-						storageEndpointSuffix: endpoint.suffixes.storage,
-						keyVaultDnsSuffix: endpoint.suffixes.keyVaultDns,
-						validateAuthority: true
-					}
-				})
-			}
-		} catch (e) {
-			// ignore, fallback to static environments
-		}
-	}
-
-	const result = [...staticEnvironments]; // make a clone
-
-	const config = workspace.getConfiguration('azure');
-	const ppe = config.get<Environment>('ppe');
-	if (ppe) {
-		result.push({
-			...ppe,
-			name: azurePPE,
-			validateAuthority: getValidateAuthority(ppe.activeDirectoryEndpointUrl)
-		});
-	}
-
-	const customCloudEnvironment: Environment | undefined = await getCustomCloudEnvironment(config, includePartial);
-	if (customCloudEnvironment) {
-		result.push(customCloudEnvironment);
-	}
-
-	return result;
-}
-
-async function getCustomCloudEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<Environment | undefined> {
-	const armUrl = config.get<string>(customCloudArmUrlKey);
-	if (armUrl) {
-		try {
-			const endpointsUrl = getMetadataEndpoints(armUrl);
-			const endpointsResponse = await fetch(endpointsUrl);
-			if (endpointsResponse.ok) {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();
-				return <Environment>{
-					name: azureCustomCloud,
-					resourceManagerEndpointUrl: armUrl,
-					activeDirectoryEndpointUrl: endpoints.authentication.loginEndpoint.endsWith('/') ? endpoints.authentication.loginEndpoint : endpoints.authentication.loginEndpoint.concat('/'),
-					activeDirectoryGraphResourceId: endpoints.graphEndpoint,
-					activeDirectoryResourceId: endpoints.authentication.audiences[0],
-					portalUrl: endpoints.portalEndpoint,
-					galleryEndpointUrl: endpoints.galleryEndpoint,
-					storageEndpointSuffix: armUrl.substring(armUrl.indexOf('.')),
-					keyVaultDnsSuffix: '.vault'.concat(armUrl.substring(armUrl.indexOf('.'))),
-					managementEndpointUrl: endpoints.authentication.audiences[0],
-					validateAuthority: getValidateAuthority(endpoints.authentication.loginEndpoint)
-				};
-			}
-		} catch {
-			const openSettings = localize('openSettings', 'Open Settings');
-			void window.showErrorMessage(
-				localize("azure-account.armUrlFetchFailed", "Fetching custom cloud environment data failed. Please check your custom cloud settings."),
-				openSettings
-			).then(result => {
-				if(result === openSettings){
-					void commands.executeCommand('workbench.action.openSettings', '@ext:ms-vscode.azure-account customCloud');
-				}
-			})
-		}
-	}
-
-	return includePartial ? <Environment>{ name: azureCustomCloud } : undefined;
-}
-
-function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {
-	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
-	let validateAuthority: boolean = true;
-	if (activeDirectoryEndpointUrl) {
-		const activeDirectoryUrl = activeDirectoryEndpointUrl.endsWith('/') ? activeDirectoryEndpointUrl.slice(0, -1) : activeDirectoryEndpointUrl;
-		validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
-	}
-	return validateAuthority;
-}
-
-function getMetadataEndpoints(resourceManagerUrl: string): string {
-	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0, -1) : resourceManagerUrl;
-	const endpointSuffix = '/metadata/endpoints';
-	const apiVersion = '2018-05-01';
-	// return ppe metadata endpoints Url
-	return `${resourceManagerUrl}${endpointSuffix}?api-version=${apiVersion}`
-}
-
-function getTenantId() {
-	const envConfig = workspace.getConfiguration('azure');
-	return envConfig.get<string>('tenant') || commonTenantId;
-}
-
-async function deviceLogin(environment: Environment, tenantId: string) {
-	const deviceLogin = await deviceLogin1(environment, tenantId);
-	const message = showDeviceCodeMessage(deviceLogin);
-	const login2 = deviceLogin2(environment, tenantId, deviceLogin);
-	return Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
-}
-
-async function showDeviceCodeMessage(deviceLogin: UserCodeInfo): Promise<void> {
-	const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
-	const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen);
-	if (response === copyAndOpen) {
-		void env.clipboard.writeText(deviceLogin.userCode);
-		await openUri(deviceLogin.verificationUrl);
-	} else {
-		return Promise.reject('user canceled');
-	}
-}
-
-async function deviceLogin1(environment: Environment, tenantId: string): Promise<UserCodeInfo> {
-	return new Promise<UserCodeInfo>((resolve, reject) => {
-		const cache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, cache);
-		context.acquireUserCode(environment.activeDirectoryResourceId, clientId, 'en-us', (err, response) => {
-			if (err) {
-				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Acquiring user code failed"), err));
-			} else {
-				resolve(response);
-			}
-		});
-	});
-}
-
-async function deviceLogin2(environment: Environment, tenantId: string, deviceLogin: UserCodeInfo) {
+export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string): Promise<TokenResponse> {
 	return new Promise<TokenResponse>((resolve, reject) => {
-		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
-		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, deviceLogin, (err, tokenResponse) => {
-			if (err) {
-				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
-			} else if (tokenResponse.error) {
-				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), tokenResponse));
-			} else {
-				resolve(<TokenResponse>tokenResponse);
-			}
-		});
-	});
-}
-
-async function redirectTimeout() {
-	const response = await window.showInformationMessage('Browser did not connect to local server within 10 seconds. Do you want to try the alternate sign in using a device code instead?', 'Use Device Code');
-	if (response) {
-		await commands.executeCommand('azure-account.loginWithDeviceCode');
-	}
-}
-
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string) {
-	return new Promise<TokenResponse>((resolve, reject) => {
-		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
+		const tokenCache: MemoryCache = new MemoryCache();
+		// ADAL's authentication context
+		const context: AuthenticationContext = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
+		// Manually get a new token from the given refresh token
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		context.acquireTokenWithRefreshToken(refreshToken, clientId, <any>resource, (err, tokenResponse) => {
 			if (err) {
@@ -987,84 +616,40 @@ export async function tokenFromRefreshToken(environment: Environment, refreshTok
 	});
 }
 
-async function tokensFromToken(environment: Environment, firstTokenResponse: TokenResponse) {
-	const tokenCache = new MemoryCache();
+// Gets all tokens from using `DeviceTokenCredentials2` given the first token response
+async function tokensFromToken(environment: Environment, firstTokenResponse: TokenResponse): Promise<TokenResponse[]> {
+	// Create ADAL memory cache
+	const tokenCache: MemoryCache = new MemoryCache();
+	// Add firstTokenResponse to cache using ADAL cache driver
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
-	const credentials = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
-	const client = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
-	const tenants = await listAll(client.tenants, client.tenants.list());
-	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant) => {
+	// Get device token credentials from firstTokenResponse
+	const credentials: DeviceTokenCredentials2 = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
+	// Create an Azure subscription client from the credentials
+	const client: SubscriptionClient = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
+	// Get a list of tenants from the subscription client
+	const tenants: TenantIdDescription[] = await listAll(client.tenants, client.tenants.list());
+	const responses: TokenResponse[] = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
+			// This tenant corresponds to the firstTokenResponse's tenant --> pass it through
 			return firstTokenResponse;
 		}
+		// Use the refresh token to generate a new token
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		return tokenFromRefreshToken(environment, firstTokenResponse.refreshToken!, tenant.tenantId!)
 			.catch(err => {
 				console.error(err instanceof AzureLoginError && err.reason ? err.reason : err);
 				return null;
 			});
+	// Useless filter?
 	}))).filter(r => r);
-	if (!responses.some(response => response.tenantId === firstTokenResponse.tenantId)) {
+	if (!responses.some(response => response?.tenantId === firstTokenResponse.tenantId)) {
+		// The firstTokenResponse wasn't found in the tenants. Add it here
 		responses.unshift(firstTokenResponse);
 	}
 	return responses;
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-async function addTokenToCache(environment: Environment, tokenCache: any, tokenResponse: TokenResponse) {
-	return new Promise<void>((resolve, reject) => {
-		const driver = new CacheDriver(
-			{ _logContext: createLogContext('') },
-			`${environment.activeDirectoryEndpointUrl}${tokenResponse.tenantId}`,
-			environment.activeDirectoryResourceId,
-			clientId,
-			tokenCache,
-			(entry: any, resource: any, callback: (err: any, response: any) => {}) => {
-				callback(null, entry);
-			}
-		);
-		driver.add(tokenResponse, function (err: any) {
-			if (err) {
-				reject(err);
-			} else {
-				resolve();
-			}
-		});
-	});
-}
-
-async function clearTokenCache(tokenCache: any) {
-	await new Promise<void>((resolve, reject) => {
-		tokenCache.find({}, (err: any, entries: any[]) => {
-			if (err) {
-				reject(err);
-			} else {
-				tokenCache.remove(entries, (err: any) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve();
-					}
-				});
-			}
-		});
-	});
-}
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-
-export interface PartialList<T> extends Array<T> {
-	nextLink?: string;
-}
-
-export async function listAll<T>(client: { listNext(nextPageLink: string): Promise<PartialList<T>>; }, first: Promise<PartialList<T>>): Promise<T[]> {
-	const all: T[] = [];
-	for (let list = await first; list.length || list.nextLink; list = list.nextLink ? await client.listNext(list.nextLink) : []) {
-		all.push(...list);
-	}
-	return all;
-}
-
-function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalValue?: unknown; workspaceValue?: unknown, workspaceFolderValue?: unknown } | undefined) {
+function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalValue?: unknown; workspaceValue?: unknown, workspaceFolderValue?: unknown } | undefined): ConfigurationTarget {
 	if (config) {
 		if (config.workspaceFolderValue) {
 			return ConfigurationTarget.WorkspaceFolder;
@@ -1075,79 +660,4 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 		}
 	}
 	return ConfigurationTarget.Global;
-}
-
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function timeout(ms: number, result: any = 'timeout') {
-	return new Promise<never>((_, reject) => setTimeout(() => reject(result), ms));
-}
-
-function delay<T = void>(ms: number, result?: T | PromiseLike<T>) {
-	return new Promise(resolve => setTimeout(() => resolve(result), ms));
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getErrorMessage(err: any): string | undefined {
-	if (!err) {
-		return;
-	}
-
-	/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
-	if (err.message && typeof err.message === 'string') {
-		return err.message;
-	}
-
-	if (err.stack && typeof err.stack === 'string') {
-		// eslint-disable-next-line  @typescript-eslint/no-unsafe-call
-		return err.stack.split('\n')[0];
-	}
-
-	const str = String(err);
-	if (!str || str === '[object Object]') {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-		const ctr = err.constructor;
-		if (ctr && ctr.name && typeof ctr.name === 'string') {
-			return ctr.name;
-		}
-	}
-	/* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
-
-	return str;
-}
-
-async function becomeOnline(environment: Environment, interval: number, token = new CancellationTokenSource().token) {
-	let o = isOnline(environment);
-	let d = delay(interval, false);
-	while (!token.isCancellationRequested && !await Promise.race([o, d])) {
-		await d;
-		o = asyncOr(o, isOnline(environment));
-		d = delay(interval, false);
-	}
-}
-
-async function isOnline(environment: Environment) {
-	try {
-		await new Promise<http.IncomingMessage>((resolve, reject) => {
-			const url = environment.activeDirectoryEndpointUrl;
-			(url.startsWith('https:') ? https : http).get(url, resolve)
-				.on('error', reject);
-		});
-		return true;
-	} catch (err) {
-		console.warn(err);
-		return false;
-	}
-}
-
-async function asyncOr<A, B>(a: Promise<A>, b: Promise<B>) {
-	return Promise.race([awaitAOrB(a, b), awaitAOrB(b, a)]);
-}
-
-async function awaitAOrB<A, B>(a: Promise<A>, b: Promise<B>) {
-	return (await a) || b;
-}
-
-async function openUri(uri: string) {
-	await env.openExternal(Uri.parse(uri));
 }

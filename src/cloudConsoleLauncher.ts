@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as http from 'http';
 import * as request from 'request-promise';
 import * as WS from 'ws';
-import * as http from 'http';
-import { sendData, readJSON } from './ipc';
+import { readJSON, sendData } from './ipc';
+import { delay } from './utils/timeUtils';
 import HttpProxyAgent = require('http-proxy-agent');
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
 const HttpsProxyAgent = require('https-proxy-agent');
@@ -315,10 +316,6 @@ function connectSocket(ipcHandle: string, url: string) {
 		}, 60000);
 		timer.unref();
 	}
-}
-
-async function delay(ms: number) {
-	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types

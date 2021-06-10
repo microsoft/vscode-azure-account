@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import TReporter from 'vscode-extension-telemetry';
-import { name, version, aiKey } from '../package.json';
 import { ExtensionContext } from 'vscode';
+import TReporter from 'vscode-extension-telemetry';
+import { aiKey, name, version } from '../package.json';
 
 export interface TelemetryReporter {
     sendSanitizedEvent(eventName: string, properties?: { [key: string]: string; }): void;

@@ -5,11 +5,9 @@
 
 'use strict';
 
-import { ExtensionContext, env, window, extensions, Uri } from 'vscode';
-import * as nls from 'vscode-nls';
+import { env, ExtensionContext, extensions, Uri, window } from 'vscode';
 import { TelemetryReporter } from './telemetry';
-
-const localize = nls.loadMessageBundle();
+import { localize } from './utils/localize';
 
 const NPS_SURVEY_URL= 'https://www.surveymonkey.com/r/SMQM3DH';
 

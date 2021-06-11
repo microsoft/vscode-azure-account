@@ -17,7 +17,7 @@ import { azureCustomCloud, clientId, commonTenantId, customCloudArmUrlKey, envir
 import { deviceLogin } from './deviceLogin';
 import { getEnvironments, getSelectedEnvironment } from './environments';
 import { AzureLoginError, getErrorMessage } from './errors';
-import { addFilter, newFilters as getNewFilters, removeFilter } from './filters';
+import { addFilter, getNewFilters, removeFilter } from './filters';
 import { TelemetryReporter } from './telemetry';
 import { addTokenToCache, Cache, clearTokenCache, deleteRefreshToken, getStoredCredentials, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken } from './tokens';
 import { listAll } from './utils/arrayUtils';

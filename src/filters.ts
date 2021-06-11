@@ -21,7 +21,7 @@ export function removeFilter(resourceFilter: string[], item: SubscriptionItem) {
 	item.picked = false;
 }
 
-export function newFilters(subscriptions: AzureSubscription[], resourceFilter: string[] | undefined): AzureResourceFilter[] {
+export function getNewFilters(subscriptions: AzureSubscription[], resourceFilter: string[] | undefined): AzureResourceFilter[] {
 	if (resourceFilter && !Array.isArray(resourceFilter)) {
 		resourceFilter = [];
 	}

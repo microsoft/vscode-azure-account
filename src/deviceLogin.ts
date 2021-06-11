@@ -12,29 +12,28 @@ import { localize } from "./utils/localize";
 import { openUri } from "./utils/openUri";
 import { timeout } from "./utils/timeUtils";
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function deviceLogin(environment: Environment, tenantId: string) {
-	const deviceLogin = await deviceLogin1(environment, tenantId);
-	const message = showDeviceCodeMessage(deviceLogin);
-	const login2 = deviceLogin2(environment, tenantId, deviceLogin);
-	return Promise.race([login2, message.then(() => Promise.race([login2, timeout(3 * 60 * 1000)]))]); // 3 minutes
+export async function loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TokenResponse> {
+	const userCode: UserCodeInfo = await getUserCode(environment, tenantId);
+	const messageTask: Promise<void> = showDeviceCodeMessage(userCode);
+	const tokenResponseTask: Promise<TokenResponse> = getTokenResponse(environment, tenantId, userCode);
+	return Promise.race([tokenResponseTask, messageTask.then(() => Promise.race([tokenResponseTask, timeout(3 * 60 * 1000)]))]); // 3 minutes
 }
 
-async function showDeviceCodeMessage(deviceLogin: UserCodeInfo): Promise<void> {
+async function showDeviceCodeMessage(userCode: UserCodeInfo): Promise<void> {
 	const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
-	const response = await window.showInformationMessage(deviceLogin.message, copyAndOpen);
+	const response: MessageItem | undefined = await window.showInformationMessage(userCode.message, copyAndOpen);
 	if (response === copyAndOpen) {
-		void env.clipboard.writeText(deviceLogin.userCode);
-		await openUri(deviceLogin.verificationUrl);
+		void env.clipboard.writeText(userCode.userCode);
+		await openUri(userCode.verificationUrl);
 	} else {
 		return Promise.reject('user canceled');
 	}
 }
 
-async function deviceLogin1(environment: Environment, tenantId: string): Promise<UserCodeInfo> {
+async function getUserCode(environment: Environment, tenantId: string): Promise<UserCodeInfo> {
 	return new Promise<UserCodeInfo>((resolve, reject) => {
-		const cache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, cache);
+		const cache: MemoryCache = new MemoryCache();
+		const context: AuthenticationContext = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, cache);
 		context.acquireUserCode(environment.activeDirectoryResourceId, clientId, 'en-us', (err, response) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.userCodeFailed', "Acquiring user code failed"), err));
@@ -45,11 +44,11 @@ async function deviceLogin1(environment: Environment, tenantId: string): Promise
 	});
 }
 
-async function deviceLogin2(environment: Environment, tenantId: string, deviceLogin: UserCodeInfo) {
+async function getTokenResponse(environment: Environment, tenantId: string, userCode: UserCodeInfo): Promise<TokenResponse> {
 	return new Promise<TokenResponse>((resolve, reject) => {
-		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
-		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, deviceLogin, (err, tokenResponse) => {
+		const tokenCache: MemoryCache = new MemoryCache();
+		const context: AuthenticationContext = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
+		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, userCode, (err, tokenResponse) => {
 			if (err) {
 				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
 			} else if (tokenResponse.error) {

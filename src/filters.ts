@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SubscriptionItem } from "./azure-account";
+import { ISubscriptionItem } from "./azure-account";
 import { AzureResourceFilter, AzureSubscription } from "./azure-account.api";
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function addFilter(resourceFilter: string[], item: SubscriptionItem) {
+export function addFilter(resourceFilter: string[], item: ISubscriptionItem): void {
 	const { session, subscription } = item.subscription;
 	resourceFilter.push(`${session.tenantId}/${subscription.subscriptionId}`);
 	item.picked = true;
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function removeFilter(resourceFilter: string[], item: SubscriptionItem) {
+export function removeFilter(resourceFilter: string[], item: ISubscriptionItem): void {
 	const { session, subscription } = item.subscription;
 	const remove = resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`);
 	resourceFilter.splice(remove, 1);

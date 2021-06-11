@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
-import fetch from "node-fetch";
+import fetch, { Response } from "node-fetch";
 import { commands, window, workspace, WorkspaceConfiguration } from "vscode";
-import { azureCustomCloud, azurePPE, customCloudArmUrlKey, staticEnvironments } from "./constants";
+import { azureCustomCloud, azurePPE, customCloudArmUrlSetting, staticEnvironments } from "./constants";
 import { localize } from "./utils/localize";
 
 interface ICloudMetadata {
@@ -52,10 +52,10 @@ export async function getSelectedEnvironment(): Promise<Environment> {
  * @param includePartial Include partial environments for the sake of UI (i.e. Azure Stack). Endpoint data will be filled in later
  */
 export async function getEnvironments(includePartial: boolean = false): Promise<Environment[]> {
-	const metadataDiscoveryUrl = process.env['ARM_CLOUD_METADATA_URL'];
+	const metadataDiscoveryUrl: string | undefined = process.env['ARM_CLOUD_METADATA_URL'];
 	if (metadataDiscoveryUrl) {
 		try {
-			const response = await fetch(metadataDiscoveryUrl);
+			const response: Response = await fetch(metadataDiscoveryUrl);
 			if (response.ok) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				const endpoints: ICloudMetadata[] = await response.json();
@@ -77,15 +77,15 @@ export async function getEnvironments(includePartial: boolean = false): Promise<
 					}
 				})
 			}
-		} catch (e) {
+		} catch {
 			// ignore, fallback to static environments
 		}
 	}
 
-	const result = [...staticEnvironments]; // make a clone
+	const result: Environment[] = [...staticEnvironments]; // make a clone
 
-	const config = workspace.getConfiguration('azure');
-	const ppe = config.get<Environment>('ppe');
+	const config: WorkspaceConfiguration = workspace.getConfiguration('azure');
+	const ppe: Environment | undefined = config.get('ppe');
 	if (ppe) {
 		result.push({
 			...ppe,
@@ -103,11 +103,11 @@ export async function getEnvironments(includePartial: boolean = false): Promise<
 }
 
 async function getCustomCloudEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<Environment | undefined> {
-	const armUrl = config.get<string>(customCloudArmUrlKey);
+	const armUrl: string | undefined = config.get(customCloudArmUrlSetting);
 	if (armUrl) {
 		try {
-			const endpointsUrl = getMetadataEndpoints(armUrl);
-			const endpointsResponse = await fetch(endpointsUrl);
+			const endpointsUrl: string = getMetadataEndpoints(armUrl);
+			const endpointsResponse: Response = await fetch(endpointsUrl);
 			if (endpointsResponse.ok) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();
@@ -126,7 +126,7 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 				};
 			}
 		} catch {
-			const openSettings = localize('openSettings', 'Open Settings');
+			const openSettings: string = localize('openSettings', 'Open Settings');
 			void window.showErrorMessage(
 				localize("azure-account.armUrlFetchFailed", "Fetching custom cloud environment data failed. Please check your custom cloud settings."),
 				openSettings
@@ -145,7 +145,7 @@ function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {
 	// get validateAuthority from activeDirectoryUrl from user setting, it should be set to false only under ADFS environemnt.
 	let validateAuthority: boolean = true;
 	if (activeDirectoryEndpointUrl) {
-		const activeDirectoryUrl = activeDirectoryEndpointUrl.endsWith('/') ? activeDirectoryEndpointUrl.slice(0, -1) : activeDirectoryEndpointUrl;
+		const activeDirectoryUrl: string = activeDirectoryEndpointUrl.endsWith('/') ? activeDirectoryEndpointUrl.slice(0, -1) : activeDirectoryEndpointUrl;
 		validateAuthority = activeDirectoryUrl.endsWith('/adfs') ? false : true;
 	}
 	return validateAuthority;
@@ -153,8 +153,8 @@ function getValidateAuthority(activeDirectoryEndpointUrl: string): boolean {
 
 function getMetadataEndpoints(resourceManagerUrl: string): string {
 	resourceManagerUrl = resourceManagerUrl.endsWith('/') ? resourceManagerUrl.slice(0, -1) : resourceManagerUrl;
-	const endpointSuffix = '/metadata/endpoints';
-	const apiVersion = '2018-05-01';
+	const endpointSuffix: string = '/metadata/endpoints';
+	const apiVersion: string = '2018-05-01';
 	// return ppe metadata endpoints Url
 	return `${resourceManagerUrl}${endpointSuffix}?api-version=${apiVersion}`
 }

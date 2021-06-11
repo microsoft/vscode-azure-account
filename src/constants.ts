@@ -6,12 +6,15 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { localize } from "./utils/localize";
 
-export const azureCustomCloud = 'AzureCustomCloud';
-export const azurePPE = 'AzurePPE';
-export const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56'; // VSC: 'aebc6443-996d-45c2-90f0-388ff96faa56'
-export const commonTenantId = 'common';
+export const customCloudArmUrlSetting: string = 'customCloud.resourceManagerEndpointUrl';
+
+export const azureCustomCloud: string = 'AzureCustomCloud';
+export const azurePPE: string = 'AzurePPE';
+export const clientId: string = 'aebc6443-996d-45c2-90f0-388ff96faa56';
+export const commonTenantId: string = 'common';
 export const credentialsSection: string = 'VS Code Azure';
-export const customCloudArmUrlKey = 'customCloud.resourceManagerEndpointUrl';
+export const displayName: string = 'Azure Account';
+export const enableLogging: boolean = false;
 
 export const staticEnvironments: Environment[] = [
 	Environment.AzureCloud,
@@ -20,7 +23,7 @@ export const staticEnvironments: Environment[] = [
 	Environment.USGovernment
 ];
 
-export const staticEnvironmentNames = [
+export const staticEnvironmentNames: string[] = [
 	...staticEnvironments.map(environment => environment.name),
 	azureCustomCloud,
 	azurePPE

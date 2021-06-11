@@ -13,7 +13,7 @@ import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, Azur
 import { becomeOnline } from './checkIsOnline';
 import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
-import { azureCustomCloud, clientId, commonTenantId, customCloudArmUrlKey, environmentLabels, staticEnvironmentNames } from './constants';
+import { azureCustomCloud, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, environmentLabels, prefix, resourceFilterSetting, staticEnvironmentNames, tenantSetting } from './constants';
 import { deviceLogin } from './deviceLogin';
 import { getEnvironments, getSelectedEnvironment } from './environments';
 import { AzureLoginError, getErrorMessage } from './errors';
@@ -23,6 +23,7 @@ import { addTokenToCache, Cache, clearTokenCache, deleteRefreshToken, getStoredC
 import { listAll } from './utils/arrayUtils';
 import { localize } from './utils/localize';
 import { openUri } from './utils/openUri';
+import { getSettingValue, getSettingWithPrefix } from './utils/settingUtils';
 import { delay } from './utils/timeUtils';
 
 const logVerbose = false;
@@ -68,12 +69,12 @@ export class AzureLoginHelper {
 		subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
 		subscriptions.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('azure.cloud') || e.affectsConfiguration('azure.tenant') || e.affectsConfiguration('azure.customCloud.resourceManagerEndpointUrl')) {
-				const doLogin = this.doLogin;
+			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
+				const doLogin: boolean = this.doLogin;
 				this.doLogin = false;
-				this.initialize(e.affectsConfiguration('azure.cloud') ? 'cloudChange' : e.affectsConfiguration('azure.tenant') ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
+				this.initialize(e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
 					.catch(console.error);
-			} else if (e.affectsConfiguration('azure.resourceFilter')) {
+			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				this.updateFilters(true);
 			}
 		}));
@@ -141,7 +142,7 @@ export class AzureLoginHelper {
 				await online;
 			}
 			this.beginLoggingIn();
-			const tenantId = getTenantId();
+			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
 			const adfs = codeFlowLogin.isADFS(environment);
 			const useCodeFlow = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer(adfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
@@ -215,8 +216,8 @@ export class AzureLoginHelper {
 		});
 
 		if (selected) {
-			const config = workspace.getConfiguration('azure');
-			if (config.get('cloud') !== selected.environment.name) {
+			const config: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+			if (config.get(cloudSetting) !== selected.environment.name) {
 				let armUrl;
 				if (selected.environment.name === azureCustomCloud) {
 					armUrl = await window.showInputBox({
@@ -235,11 +236,11 @@ export class AzureLoginHelper {
 					ignoreFocusOut: true});
 				if (tenantId) {
 					if (armUrl) {
-						await config.update(customCloudArmUrlKey, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlKey)));
+						await config.update(customCloudArmUrlSetting, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlSetting)));
 					}
-					await config.update('tenant', tenantId, getCurrentTarget(config.inspect('tenant')));
+					await config.update(tenantSetting, tenantId, getCurrentTarget(config.inspect(tenantSetting)));
 					// if outside of normal range, set ppe setting
-					await config.update('cloud', selected.environment.name, getCurrentTarget(config.inspect('cloud')));
+					await config.update(cloudSetting, selected.environment.name, getCurrentTarget(config.inspect(cloudSetting)));
 				} else {
 					return;
 				}
@@ -257,7 +258,7 @@ export class AzureLoginHelper {
 			timing && console.log(`loadCache: ${(Date.now() - start) / 1000}s`);
 			const environment = await getSelectedEnvironment();
 			environmentName = environment.name;
-			const tenantId = getTenantId();
+			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
 			const storedCreds = await getStoredCredentials(environment, migrateToken);
 
 			timing && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
@@ -292,7 +293,7 @@ export class AzureLoginHelper {
 
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
 			// For testing
-			if (workspace.getConfiguration('azure').get('testTokenFailure')) {
+			if (workspace.getConfiguration(prefix).get('testTokenFailure')) {
 				throw new AzureLoginError(localize('azure-account.testingAcquiringTokenFailed', "Testing: Acquiring token failed"));
 			}
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
@@ -453,8 +454,8 @@ export class AzureLoginHelper {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = (azureConfig.get<string[]>('resourceFilter') || ['all']).slice();
+		const azureConfig: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+		const resourceFilter: string[] = (azureConfig.get<string[]>(resourceFilterSetting) || ['all']).slice();
 		let changed = false;
 
 		const subscriptions = this.subscriptions
@@ -531,15 +532,14 @@ export class AzureLoginHelper {
 		});
 	}
 
-	private async updateConfiguration(azureConfig: WorkspaceConfiguration, resourceFilter: string[]) {
-		const resourceFilterConfig = azureConfig.inspect<string[]>('resourceFilter');
-		const target = getCurrentTarget(resourceFilterConfig);
-		await azureConfig.update('resourceFilter', resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
+	private async updateConfiguration(azureConfig: WorkspaceConfiguration, resourceFilter: string[]): Promise<void> {
+		const resourceFilterConfig = azureConfig.inspect<string[]>(resourceFilterSetting);
+		const target: ConfigurationTarget = getCurrentTarget(resourceFilterConfig);
+		await azureConfig.update(resourceFilterSetting, resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
 	}
 
 	private initializeFilters(subscriptions: AzureSubscription[]) {
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = azureConfig.get<string[]>('resourceFilter');
+		const resourceFilter: string[] | undefined = getSettingValue(resourceFilterSetting);
 		this.oldResourceFilter = JSON.stringify(resourceFilter);
 		const newFilters = getNewFilters(subscriptions, resourceFilter);
 		this.filters = Promise.resolve(newFilters);
@@ -547,8 +547,7 @@ export class AzureLoginHelper {
 	}
 
 	private updateFilters(configChange = false) {
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = azureConfig.get<string[]>('resourceFilter');
+		const resourceFilter: string[] | undefined = getSettingValue(resourceFilterSetting);
 		if (configChange && JSON.stringify(resourceFilter) === this.oldResourceFilter) {
 			return;
 		}
@@ -590,11 +589,6 @@ export class AzureLoginHelper {
 		await this.filters;
 		return true;
 	}
-}
-
-function getTenantId() {
-	const envConfig = workspace.getConfiguration('azure');
-	return envConfig.get<string>('tenant') || commonTenantId;
 }
 
 async function redirectTimeout() {

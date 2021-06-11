@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace, env, ConfigurationTarget } from 'vscode';
-import { AzureLoginHelper } from './azure-account';
-import { AzureAccount } from './azure-account.api';
-import { createReporter } from './telemetry';
-import * as nls from 'vscode-nls';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
-import { shells, OSes } from './cloudConsole';
+import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
+import * as nls from 'vscode-nls';
+import { AzureLoginHelper } from './azure-account';
+import { AzureAccount } from './azure-account.api';
+import { OSes, shells } from './cloudConsole';
+import { cloudSetting, prefix, showSignedInEmailSetting } from './constants';
 import { survey } from './nps';
+import { createReporter } from './telemetry';
+import { getSettingValue } from './utils/settingUtils';
 
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
@@ -34,19 +36,18 @@ export async function activate(context: ExtensionContext): Promise<AzureAccount>
 }
 
 async function migrateEnvironmentSetting() {
-	const configuration = workspace.getConfiguration('azure');
-	const CLOUD_SETTING = 'cloud';
-	const configInfo = configuration.inspect(CLOUD_SETTING);
+	const configuration: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+	const configInfo = configuration.inspect(cloudSetting);
 
 	async function migrateSetting(oldValue: string, newValue: string): Promise<void> {
 		if (configInfo?.globalValue === oldValue) {
-			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.Global);
+			await configuration.update(cloudSetting, newValue, ConfigurationTarget.Global);
 		}
 		if (configInfo?.workspaceValue === oldValue) {
-			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.Workspace);
+			await configuration.update(cloudSetting, newValue, ConfigurationTarget.Workspace);
 		}
 		if (configInfo?.workspaceFolderValue === oldValue) {
-			await configuration.update(CLOUD_SETTING, newValue, ConfigurationTarget.WorkspaceFolder);
+			await configuration.update(cloudSetting, newValue, ConfigurationTarget.WorkspaceFolder);
 		}
 	}
 
@@ -128,8 +129,7 @@ function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {
 				break;
 			case 'LoggedIn':
 				if (api.sessions.length) {
-					const azureConfig = workspace.getConfiguration('azure');
-					const showSignedInEmail = azureConfig.get<boolean>('showSignedInEmail');
+					const showSignedInEmail: boolean | undefined = getSettingValue(showSignedInEmailSetting);
 					statusBarItem.text = showSignedInEmail ? localize('azure-account.loggedIn', "Azure: {0}", api.sessions[0].userId) : localize('azure-account.loggedIn', "Azure: Signed In");
 					statusBarItem.show();
 				}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SubscriptionClient, SubscriptionModels } from "@azure/arm-subscriptions";
+import { SubscriptionClient } from "@azure/arm-subscriptions";
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AuthenticationContext, MemoryCache, TokenResponse } from "adal-node";
@@ -19,17 +19,6 @@ const CacheDriver = require('adal-node/lib/cache-driver');
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
 const keytar = tryGetKeyTar();
-
-export interface Cache {
-	subscriptions: {
-		session: {
-			environment: string;
-			userId: string;
-			tenantId: string;
-		};
-		subscription: SubscriptionModels.Subscription;
-	}[];
-}
 
 export class ProxyTokenCache {
 	/* eslint-disable */

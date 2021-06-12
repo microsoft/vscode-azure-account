@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SubscriptionClient } from '@azure/arm-subscriptions';
+import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { Logging, MemoryCache, TokenResponse } from 'adal-node';
@@ -50,6 +50,17 @@ export interface SubscriptionItem extends QuickPickItem {
 	type: 'item';
 	subscription: AzureSubscription;
 	picked: boolean;
+}
+
+interface Cache {
+	subscriptions: {
+		session: {
+			environment: string;
+			userId: string;
+			tenantId: string;
+		};
+		subscription: SubscriptionModels.Subscription;
+	}[];
 }
 
 type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange' | 'customCloudARMUrlChange';

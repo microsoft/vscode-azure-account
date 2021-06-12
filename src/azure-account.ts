@@ -13,7 +13,7 @@ import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, Azur
 import { becomeOnline } from './checkIsOnline';
 import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
-import { azureCustomCloud, clientId, commonTenantId, customCloudArmUrlKey, environmentLabels, staticEnvironmentNames } from './constants';
+import { azureCustomCloud, azurePPE, clientId, commonTenantId, customCloudArmUrlKey, environmentLabels, staticEnvironmentNames, staticEnvironments } from './constants';
 import { deviceLogin } from './deviceLogin';
 import { getEnvironments, getSelectedEnvironment } from './environments';
 import { AzureLoginError, getErrorMessage } from './errors';
@@ -24,6 +24,21 @@ import { listAll } from './utils/arrayUtils';
 import { localize } from './utils/localize';
 import { openUri } from './utils/openUri';
 import { delay } from './utils/timeUtils';
+
+const staticEnvironmentNames = [
+	...staticEnvironments.map(environment => environment.name),
+	azureCustomCloud,
+	azurePPE
+];
+
+const environmentLabels: Record<string, string> = {
+	AzureCloud: localize('azure-account.azureCloud', 'Azure'),
+	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
+	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
+	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
+	[azureCustomCloud]: localize('azure-account.azureCustomCloud', 'Azure Custom Cloud'),
+	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
+};
 
 const logVerbose = false;
 

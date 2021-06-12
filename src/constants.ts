@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
-import { localize } from "./utils/localize";
 
 export const azureCustomCloud = 'AzureCustomCloud';
 export const azurePPE = 'AzurePPE';
@@ -19,18 +18,3 @@ export const staticEnvironments: Environment[] = [
 	Environment.GermanCloud,
 	Environment.USGovernment
 ];
-
-export const staticEnvironmentNames = [
-	...staticEnvironments.map(environment => environment.name),
-	azureCustomCloud,
-	azurePPE
-];
-
-export const environmentLabels: Record<string, string> = {
-	AzureCloud: localize('azure-account.azureCloud', 'Azure'),
-	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
-	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
-	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
-	[azureCustomCloud]: localize('azure-account.azureCustomCloud', 'Azure Custom Cloud'),
-	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
-};

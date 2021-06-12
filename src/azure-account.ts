@@ -13,13 +13,13 @@ import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, Azur
 import { becomeOnline } from './checkIsOnline';
 import { createCloudConsole } from './cloudConsole';
 import * as codeFlowLogin from './codeFlowLogin';
-import { azureCustomCloud, azurePPE, clientId, commonTenantId, customCloudArmUrlKey, environmentLabels, staticEnvironmentNames, staticEnvironments } from './constants';
+import { azureCustomCloud, azurePPE, clientId, commonTenantId, customCloudArmUrlKey, staticEnvironments } from './constants';
 import { deviceLogin } from './deviceLogin';
 import { getEnvironments, getSelectedEnvironment } from './environments';
 import { AzureLoginError, getErrorMessage } from './errors';
 import { addFilter, getNewFilters, removeFilter } from './filters';
 import { TelemetryReporter } from './telemetry';
-import { addTokenToCache, Cache, clearTokenCache, deleteRefreshToken, getStoredCredentials, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken } from './tokens';
+import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken } from './tokens';
 import { listAll } from './utils/arrayUtils';
 import { localize } from './utils/localize';
 import { openUri } from './utils/openUri';

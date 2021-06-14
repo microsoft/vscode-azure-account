@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISubscriptionItem } from "./azure-account";
 import { AzureResourceFilter, AzureSubscription } from "./azure-account.api";
+import { ISubscriptionItem } from "./AzureLoginHelper";
 
 export function addFilter(resourceFilter: string[], item: ISubscriptionItem): void {
 	const { session, subscription } = item.subscription;

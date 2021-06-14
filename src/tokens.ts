@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SubscriptionClient } from "@azure/arm-subscriptions";
+import { SubscriptionClient, SubscriptionModels } from "@azure/arm-subscriptions";
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AuthenticationContext, MemoryCache, TokenResponse } from "adal-node";
@@ -23,7 +23,7 @@ const keytar = tryGetKeyTar();
 export class ProxyTokenCache {
 	/* eslint-disable */
 	public initEnd?: () => void;
-	private init = new Promise<void>(resolve => {
+	private initTask: Promise<void> = new Promise<void>(resolve => {
 		this.initEnd = resolve;
 	});
 
@@ -39,17 +39,16 @@ export class ProxyTokenCache {
 	}
 
 	find(query: any, callback: any) {
-		void this.init.then(() => {
+		void this.initTask.then(() => {
 			this.target.find(query, callback);
 		});
 	}
 	/* eslint-enable */
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function getStoredCredentials(environment: Environment, migrateToken?: boolean) {
+export async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
 	if (!keytar) {
-		return;
+		return undefined;
 	}
 	try {
 		if (migrateToken) {
@@ -61,43 +60,40 @@ export async function getStoredCredentials(environment: Environment, migrateToke
 				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
 			}
 		}
-	} catch (err) {
+	} catch {
 		// ignore
 	}
 	try {
-		return keytar.getPassword(credentialsSection, environment.name);
-	} catch (err) {
+		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
+	} catch {
 		// ignore
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function storeRefreshToken(environment: Environment, token: string) {
+export async function storeRefreshToken(environment: Environment, token: string): Promise<void> {
 	if (keytar) {
 		try {
 			await keytar.setPassword(credentialsSection, environment.name, token);
-		} catch (err) {
+		} catch {
 			// ignore
 		}
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function deleteRefreshToken(environmentName: string) {
+export async function deleteRefreshToken(environmentName: string): Promise<void> {
 	if (keytar) {
 		try {
 			await keytar.deletePassword(credentialsSection, environmentName);
-		} catch (err) {
+		} catch {
 			// ignore
 		}
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string) {
+export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string): Promise<TokenResponse> {
 	return new Promise<TokenResponse>((resolve, reject) => {
-		const tokenCache = new MemoryCache();
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
+		const tokenCache: MemoryCache = new MemoryCache();
+		const context: AuthenticationContext = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		context.acquireTokenWithRefreshToken(refreshToken, clientId, <any>resource, (err, tokenResponse) => {
 			if (err) {
@@ -111,14 +107,13 @@ export async function tokenFromRefreshToken(environment: Environment, refreshTok
 	});
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function tokensFromToken(environment: Environment, firstTokenResponse: TokenResponse) {
-	const tokenCache = new MemoryCache();
+export async function tokensFromToken(environment: Environment, firstTokenResponse: TokenResponse): Promise<TokenResponse[]> {
+	const tokenCache: MemoryCache = new MemoryCache();
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
-	const credentials = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
-	const client = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
-	const tenants = await listAll(client.tenants, client.tenants.list());
-	const responses = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant) => {
+	const credentials: DeviceTokenCredentials2 = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
+	const client: SubscriptionClient = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
+	const tenants: SubscriptionModels.TenantIdDescription[] = await listAll(client.tenants, client.tenants.list());
+	const responses: TokenResponse[] = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {
 			return firstTokenResponse;
 		}
@@ -136,7 +131,7 @@ export async function tokensFromToken(environment: Environment, firstTokenRespon
 }
 
 /* eslint-disable */
-export async function addTokenToCache(environment: Environment, tokenCache: any, tokenResponse: TokenResponse) {
+export async function addTokenToCache(environment: Environment, tokenCache: any, tokenResponse: TokenResponse): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
 		const driver = new CacheDriver(
 			{ _logContext: createLogContext('') },
@@ -144,7 +139,7 @@ export async function addTokenToCache(environment: Environment, tokenCache: any,
 			environment.activeDirectoryResourceId,
 			clientId,
 			tokenCache,
-			(entry: any, resource: any, callback: (err: any, response: any) => {}) => {
+			(entry: any, _resource: any, callback: (err: any, response: any) => {}) => {
 				callback(null, entry);
 			}
 		);
@@ -158,7 +153,7 @@ export async function addTokenToCache(environment: Environment, tokenCache: any,
 	});
 }
 
-export async function clearTokenCache(tokenCache: any) {
+export async function clearTokenCache(tokenCache: any): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
 		tokenCache.find({}, (err: any, entries: any[]) => {
 			if (err) {

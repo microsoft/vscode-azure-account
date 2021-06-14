@@ -6,8 +6,8 @@
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace } from 'vscode';
-import { AzureLoginHelper } from './azure-account';
 import { AzureAccount } from './azure-account.api';
+import { AzureLoginHelper } from './AzureLoginHelper';
 import { OSes, shells } from './cloudConsole';
 import { survey } from './nps';
 import { createReporter } from './telemetry';

@@ -10,20 +10,20 @@ import { Logging, MemoryCache, TokenResponse } from 'adal-node';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { CancellationTokenSource, commands, ConfigurationTarget, EventEmitter, ExtensionContext, MessageItem, OutputChannel, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from './azure-account.api';
-import { waitUntilOnline } from './checkIsOnline';
 import { createCloudConsole } from './cloudConsole';
-import * as codeFlowLogin from './codeFlowLogin';
 import { azureCustomCloud, azurePPE, clientId, commonTenantId, customCloudArmUrlKey, displayName, staticEnvironments } from './constants';
-import { loginWithDeviceCode } from './deviceLogin';
 import { getEnvironments, getSelectedEnvironment } from './environments';
 import { AzureLoginError, getErrorMessage } from './errors';
 import { addFilter, getNewFilters, removeFilter } from './filters';
+import * as codeFlowLogin from './login';
+import { loginWithDeviceCode } from './loginWithDeviceCode';
 import { TelemetryReporter } from './telemetry';
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken } from './tokens';
 import { listAll } from './utils/arrayUtils';
 import { localize } from './utils/localize';
 import { openUri } from './utils/openUri';
 import { delay } from './utils/timeUtils';
+import { waitUntilOnline } from './waitUntilOnline';
 
 const staticEnvironmentNames = [
 	...staticEnvironments.map(environment => environment.name),

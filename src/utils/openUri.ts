@@ -5,7 +5,6 @@
 
 import { env, Uri } from "vscode";
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function openUri(uri: string) {
+export async function openUri(uri: string): Promise<void> {
 	await env.openExternal(Uri.parse(uri));
 }

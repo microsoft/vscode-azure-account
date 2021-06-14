@@ -3,34 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace, env, ConfigurationTarget } from 'vscode';
-import { AzureLoginHelper } from './azure-account';
-import { AzureAccount } from './azure-account.api';
-import { createReporter } from './telemetry';
-import * as nls from 'vscode-nls';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
-import { shells, OSes } from './cloudConsole';
+import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace } from 'vscode';
+import { AzureLoginHelper } from './azure-account';
+import { AzureAccount } from './azure-account.api';
+import { OSes, shells } from './cloudConsole';
 import { survey } from './nps';
+import { createReporter } from './telemetry';
+import { localize } from './utils/localize';
 
-const localize = nls.loadMessageBundle();
-const enableLogging = false;
+const enableLogging: boolean = false;
 
 export async function activate(context: ExtensionContext): Promise<AzureAccount> {
 	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
-	const azureLogin = new AzureLoginHelper(context, reporter);
+	const azureLoginHelper: AzureLoginHelper = new AzureLoginHelper(context, reporter);
 	if (enableLogging) {
-		logDiagnostics(context, azureLogin.api);
+		logDiagnostics(context, azureLoginHelper.api);
 	}
-	const subscriptions = context.subscriptions;
-	subscriptions.push(createStatusBarItem(context, azureLogin.api));
-	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
-	subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
+	context.subscriptions.push(createStatusBarItem(context, azureLoginHelper.api));
+	context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
+	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLoginHelper.api, 'Linux')));
+	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLoginHelper.api, 'Windows')));
+	context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
 	survey(context, reporter);
-	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
+	return Promise.resolve(azureLoginHelper.api); // Return promise to work around weird error in WinJS.
 }
 
 async function migrateEnvironmentSetting() {

@@ -5,12 +5,19 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 
+export const prefix: string = 'azure';
+export const cloudSetting: string = 'cloud';
+export const customCloudArmUrlSetting: string = 'customCloud.resourceManagerEndpointUrl';
+export const ppeSetting: string = 'ppe';
+export const resourceFilterSetting: string = 'resourceFilter';
+export const showSignedInEmailSetting: string = 'showSignedInEmail';
+export const tenantSetting: string = 'tenant';
+
 export const azureCustomCloud: string = 'AzureCustomCloud';
 export const azurePPE: string = 'AzurePPE';
 export const clientId: string = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 export const commonTenantId: string = 'common';
 export const credentialsSection: string = 'VS Code Azure';
-export const customCloudArmUrlKey: string = 'azure.customCloud.resourceManagerEndpointUrl';
 export const displayName: string = 'Azure Account';
 
 export const staticEnvironments: Environment[] = [

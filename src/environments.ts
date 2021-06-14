@@ -6,8 +6,9 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import fetch, { Response } from "node-fetch";
 import { commands, window, workspace, WorkspaceConfiguration } from "vscode";
-import { azureCustomCloud, azurePPE, customCloudArmUrlKey, staticEnvironments } from "./constants";
+import { azureCustomCloud, azurePPE, cloudSetting, customCloudArmUrlSetting, ppeSetting, prefix, staticEnvironments } from "./constants";
 import { localize } from "./utils/localize";
+import { getSettingValue } from "./utils/settingUtils";
 
 interface ICloudMetadata {
 	portal: string;
@@ -43,8 +44,7 @@ interface IResourceManagerMetadata {
 }
 
 export async function getSelectedEnvironment(): Promise<Environment> {
-	const envConfig = workspace.getConfiguration('azure');
-	const envSetting = envConfig.get<string>('cloud');
+	const envSetting: string | undefined = getSettingValue(cloudSetting);
 	return (await getEnvironments()).find(environment => environment.name === envSetting) || Environment.AzureCloud;
 }
 
@@ -84,8 +84,8 @@ export async function getEnvironments(includePartial: boolean = false): Promise<
 
 	const result: Environment[] = [...staticEnvironments]; // make a clone
 
-	const config: WorkspaceConfiguration = workspace.getConfiguration('azure');
-	const ppe: Environment | undefined = config.get('ppe');
+	const config: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+	const ppe: Environment | undefined = config.get(ppeSetting);
 	if (ppe) {
 		result.push({
 			...ppe,
@@ -103,7 +103,7 @@ export async function getEnvironments(includePartial: boolean = false): Promise<
 }
 
 async function getCustomCloudEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<Environment | undefined> {
-	const armUrl: string | undefined = config.get(customCloudArmUrlKey);
+	const armUrl: string | undefined = config.get(customCloudArmUrlSetting);
 	if (armUrl) {
 		try {
 			const endpointsUrl: string = getMetadataEndpoints(armUrl);

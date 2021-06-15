@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, WorkspaceConfiguration } from "vscode";
-import { prefix } from "../constants";
+import { extensionPrefix } from "../constants";
 
 export function getSettingWithPrefix(settingName: string): string { 
-	return `${prefix}.${settingName}`; 
+	return `${extensionPrefix}.${settingName}`; 
 }
 
 export function getSettingValue<T>(settingName: string): T | undefined {
-	const config: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+	const config: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
 	return config.get(settingName);
 }

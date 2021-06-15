@@ -6,7 +6,7 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import fetch, { Response } from "node-fetch";
 import { commands, window, workspace, WorkspaceConfiguration } from "vscode";
-import { azureCustomCloud, azurePPE, cloudSetting, customCloudArmUrlSetting, ppeSetting, prefix, staticEnvironments } from "./constants";
+import { azureCustomCloud, azurePPE, cloudSetting, customCloudArmUrlSetting, extensionPrefix, ppeSetting, staticEnvironments } from "./constants";
 import { localize } from "./utils/localize";
 import { getSettingValue } from "./utils/settingUtils";
 
@@ -84,7 +84,7 @@ export async function getEnvironments(includePartial: boolean = false): Promise<
 
 	const result: Environment[] = [...staticEnvironments]; // make a clone
 
-	const config: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+	const config: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
 	const ppe: Environment | undefined = config.get(ppeSetting);
 	if (ppe) {
 		result.push({

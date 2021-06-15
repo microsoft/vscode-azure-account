@@ -11,7 +11,7 @@ import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { CancellationTokenSource, commands, ConfigurationTarget, EventEmitter, ExtensionContext, MessageItem, OutputChannel, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
-import { azureCustomCloud, azurePPE, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, displayName, prefix, resourceFilterSetting, staticEnvironments, tenantSetting } from './constants';
+import { azureCustomCloud, azurePPE, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, displayName, extensionPrefix, resourceFilterSetting, staticEnvironments, tenantSetting } from './constants';
 import { getEnvironments, getSelectedEnvironment } from './environments';
 import { AzureLoginError, getErrorMessage } from './errors';
 import { addFilter, getNewFilters, removeFilter } from './filters';
@@ -233,7 +233,7 @@ export class AzureLoginHelper {
 		});
 
 		if (selected) {
-			const config: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+			const config: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
 			if (config.get(cloudSetting) !== selected.environment.name) {
 				let armUrl;
 				if (selected.environment.name === azureCustomCloud) {
@@ -310,7 +310,7 @@ export class AzureLoginHelper {
 
 			timing && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
 			// For testing
-			if (workspace.getConfiguration(prefix).get('testTokenFailure')) {
+			if (workspace.getConfiguration(extensionPrefix).get('testTokenFailure')) {
 				throw new AzureLoginError(localize('azure-account.testingAcquiringTokenFailed', "Testing: Acquiring token failed"));
 			}
 			const tokenResponses = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
@@ -471,7 +471,7 @@ export class AzureLoginHelper {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
-		const azureConfig: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+		const azureConfig: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
 		const resourceFilter: string[] = (azureConfig.get<string[]>(resourceFilterSetting) || ['all']).slice();
 		let changed = false;
 

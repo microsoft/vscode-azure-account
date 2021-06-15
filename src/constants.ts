@@ -5,7 +5,7 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 
-export const prefix: string = 'azure';
+export const extensionPrefix: string = 'azure';
 export const cloudSetting: string = 'cloud';
 export const customCloudArmUrlSetting: string = 'customCloud.resourceManagerEndpointUrl';
 export const ppeSetting: string = 'ppe';

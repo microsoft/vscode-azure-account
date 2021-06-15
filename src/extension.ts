@@ -9,7 +9,7 @@ import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation,
 import { AzureAccount } from './azure-account.api';
 import { AzureLoginHelper } from './AzureLoginHelper';
 import { OSes, shells } from './cloudConsole';
-import { cloudSetting, prefix, showSignedInEmailSetting } from './constants';
+import { cloudSetting, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { survey } from './nps';
 import { createReporter } from './telemetry';
 import { localize } from './utils/localize';
@@ -34,7 +34,7 @@ export async function activate(context: ExtensionContext): Promise<AzureAccount>
 }
 
 async function migrateEnvironmentSetting() {
-	const configuration: WorkspaceConfiguration = workspace.getConfiguration(prefix);
+	const configuration: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
 	const configInfo = configuration.inspect(cloudSetting);
 
 	async function migrateSetting(oldValue: string, newValue: string): Promise<void> {

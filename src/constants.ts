@@ -7,6 +7,7 @@ import { Environment } from "@azure/ms-rest-azure-env";
 
 export const azureCustomCloud: string = 'AzureCustomCloud';
 export const azurePPE: string = 'AzurePPE';
+export const cacheKey: string = 'cache';
 export const clientId: string = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 export const commonTenantId: string = 'common';
 export const credentialsSection: string = 'VS Code Azure';

@@ -159,7 +159,7 @@ export class AzureLoginHelper {
 				await onlineTask;
 			}
 
-			this.setLoggedInStatus();
+			this.beginLoggingIn();
 
 			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
 			const isAdfs: boolean = codeFlowLogin.isADFS(environment);
@@ -287,7 +287,7 @@ export class AzureLoginHelper {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
 			await waitUntilOnline(environment, 5000);
-			this.setLoggedInStatus();
+			this.beginLoggingIn();
 
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			let parsedCreds: any;
@@ -367,7 +367,7 @@ export class AzureLoginHelper {
 		void this.context.globalState.update(cacheKey, cache);
 	}
 
-	private setLoggedInStatus(): void {
+	private beginLoggingIn(): void {
 		if (this.api.status !== 'LoggedIn') {
 			(<IAzureAccountWriteable>this.api).status = 'LoggingIn';
 			this.onStatusChanged.fire(this.api.status);

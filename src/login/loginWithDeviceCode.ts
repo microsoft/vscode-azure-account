@@ -6,11 +6,11 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { AuthenticationContext, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
 import { env, MessageItem, window } from "vscode";
-import { clientId } from "./constants";
-import { AzureLoginError } from "./errors";
-import { localize } from "./utils/localize";
-import { openUri } from "./utils/openUri";
-import { timeout } from "./utils/timeUtils";
+import { clientId } from "../constants";
+import { AzureLoginError } from "../errors";
+import { localize } from "../utils/localize";
+import { openUri } from "../utils/openUri";
+import { timeout } from "../utils/timeUtils";
 
 export async function loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TokenResponse> {
 	const userCode: UserCodeInfo = await getUserCode(environment, tenantId);

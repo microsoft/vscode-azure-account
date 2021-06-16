@@ -10,7 +10,7 @@ import * as net from 'net';
 import * as path from 'path';
 import { parse, ParsedUrlQuery } from 'querystring';
 import * as url from 'url';
-import { portADFS, redirectUrlAAD } from './constants';
+import { portADFS, redirectUrlAAD } from '../constants';
 
 interface Deferred<T> {
 	resolve: (result: T | Promise<T>) => void;

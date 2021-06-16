@@ -7,9 +7,9 @@ import { Environment } from "@azure/ms-rest-azure-env";
 import fetch, { Response } from "node-fetch";
 import * as url from 'url';
 import { commands, window, workspace, WorkspaceConfiguration } from "vscode";
-import { azureCustomCloud, azurePPE, cloudSetting, customCloudArmUrlSetting, extensionPrefix, ppeSetting, staticEnvironments } from "./constants";
-import { localize } from "./utils/localize";
-import { getSettingValue } from "./utils/settingUtils";
+import { azureCustomCloud, azurePPE, cloudSetting, customCloudArmUrlSetting, extensionPrefix, ppeSetting, staticEnvironments } from "../constants";
+import { localize } from "../utils/localize";
+import { getSettingValue } from "../utils/settingUtils";
 
 interface ICloudMetadata {
 	portal: string;

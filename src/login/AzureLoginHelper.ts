@@ -9,22 +9,22 @@ import { DeviceTokenCredentials as DeviceTokenCredentials2, TokenCredentialsBase
 import { Logging, MemoryCache, TokenResponse } from 'adal-node';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { CancellationTokenSource, commands, ConfigurationTarget, Disposable, EventEmitter, ExtensionContext, MessageItem, OutputChannel, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from './azure-account.api';
-import { createCloudConsole } from './cloudConsole';
-import { azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, displayName, extensionPrefix, resourceFilterSetting, staticEnvironments, tenantSetting } from './constants';
+import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
+import { createCloudConsole } from '../cloudConsole/cloudConsole';
+import { azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, displayName, extensionPrefix, resourceFilterSetting, staticEnvironments, tenantSetting } from '../constants';
+import { AzureLoginError, getErrorMessage } from '../errors';
+import { TelemetryReporter } from '../telemetry';
+import { listAll } from '../utils/arrayUtils';
+import { localize } from '../utils/localize';
+import { openUri } from '../utils/openUri';
+import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
+import { delay } from '../utils/timeUtils';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
-import { AzureLoginError, getErrorMessage } from './errors';
 import { addFilter, getNewFilters, removeFilter } from './filters';
 import { login } from './login';
 import { loginWithDeviceCode } from './loginWithDeviceCode';
 import { checkRedirectServer } from './server';
-import { TelemetryReporter } from './telemetry';
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken } from './tokens';
-import { listAll } from './utils/arrayUtils';
-import { localize } from './utils/localize';
-import { openUri } from './utils/openUri';
-import { getSettingValue, getSettingWithPrefix } from './utils/settingUtils';
-import { delay } from './utils/timeUtils';
 import { waitUntilOnline } from './waitUntilOnline';
 
 const staticEnvironmentNames: string[] = [

@@ -20,6 +20,9 @@ export const clientId: string = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 export const commonTenantId: string = 'common';
 export const credentialsSection: string = 'VS Code Azure';
 export const displayName: string = 'Azure Account';
+export const redirectUrlAAD: string = 'https://vscode-redirect.azurewebsites.net/';
+export const portADFS: number = 19472;
+export const redirectUrlADFS: string = `http://127.0.0.1:${portADFS}/callback`;
 
 export const staticEnvironments: Environment[] = [
 	Environment.AzureCloud,

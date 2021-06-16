@@ -12,13 +12,14 @@ import { CancellationTokenSource, commands, ConfigurationTarget, Disposable, Eve
 import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from './azure-account.api';
 import { createCloudConsole } from './cloudConsole';
 import { azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, displayName, extensionPrefix, resourceFilterSetting, staticEnvironments, tenantSetting } from './constants';
-import { getEnvironments, getSelectedEnvironment } from './environments';
+import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { AzureLoginError, getErrorMessage } from './errors';
 import { addFilter, getNewFilters, removeFilter } from './filters';
-import * as codeFlowLogin from './login';
+import { login } from './login';
 import { loginWithDeviceCode } from './loginWithDeviceCode';
+import { checkRedirectServer } from './server';
 import { TelemetryReporter } from './telemetry';
-import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken } from './tokens';
+import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken, tokenWithAuthorizationCode } from './tokens';
 import { listAll } from './utils/arrayUtils';
 import { localize } from './utils/localize';
 import { openUri } from './utils/openUri';
@@ -162,11 +163,11 @@ export class AzureLoginHelper {
 			this.beginLoggingIn();
 
 			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
-			const isAdfs: boolean = codeFlowLogin.isADFS(environment);
-			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await codeFlowLogin.checkRedirectServer(isAdfs);
+			const isAdfs: boolean = isADFS(environment);
+			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
 			const tokenResponse: TokenResponse = useCodeFlow ? 
-				await codeFlowLogin.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) : 
+				await login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) : 
 				await loginWithDeviceCode(environment, tenantId);
 
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -306,7 +307,7 @@ export class AzureLoginHelper {
 					throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
 				}
 
-				tokenResponse = await codeFlowLogin.tokenWithAuthorizationCode(clientId, Environment.AzureCloud, redirectionUrl, tenantId, code);
+				tokenResponse = await tokenWithAuthorizationCode(clientId, Environment.AzureCloud, redirectionUrl, tenantId, code);
 			}
 
 			if (!tokenResponse) {

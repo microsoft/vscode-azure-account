@@ -9,7 +9,7 @@ import { TokenResponse } from 'adal-node';
 import * as crypto from 'crypto';
 import { ServerResponse } from 'http';
 import * as vscode from 'vscode';
-import { redirectUrlAAD, redirectUrlADFS } from './constants';
+import { redirectUrlAAD, redirectUrlADFS } from '../constants';
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 import { getTokenWithAuthorizationCode } from './tokens';
 

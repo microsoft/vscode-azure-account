@@ -15,11 +15,11 @@ import { parse } from 'url';
 import { v4 as uuid } from 'uuid';
 import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
-import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
+import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
+import { tokenFromRefreshToken } from '../login/tokens';
+import { TelemetryReporter } from '../telemetry';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
 import { createServer, Queue, readJSON } from './ipc';
-import { TelemetryReporter } from './telemetry';
-import { tokenFromRefreshToken } from './tokens';
 // const adal = require('adal-node');
 
 // function turnOnLogging() {

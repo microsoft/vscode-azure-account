@@ -8,6 +8,7 @@ import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AuthenticationContext, MemoryCache, TokenResponse } from "adal-node";
 import { clientId, credentialsSection } from "./constants";
+import { isADFS } from "./environments";
 import { AzureLoginError } from "./errors";
 import { listAll } from "./utils/arrayUtils";
 import { tryGetKeyTar } from "./utils/keytar";
@@ -171,3 +172,19 @@ export async function clearTokenCache(tokenCache: any): Promise<void> {
 	});
 }
 /* eslint-enable */
+
+export async function tokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string): Promise<TokenResponse> {
+	return new Promise<TokenResponse>((resolve, reject) => {
+		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, !isADFS(environment));
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		context.acquireTokenWithAuthorizationCode(code, redirectUrl, environment.activeDirectoryResourceId, clientId, <any>undefined, (err, response) => {
+			if (err) {
+				reject(err);
+			} if (response && response.error) {
+				reject(new Error(`${response.error}: ${response.errorDescription}`));
+			} else {
+				resolve(<TokenResponse>response);
+			}
+		});
+	});
+}

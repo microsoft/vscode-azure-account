@@ -5,6 +5,7 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 import fetch, { Response } from "node-fetch";
+import * as url from 'url';
 import { commands, window, workspace, WorkspaceConfiguration } from "vscode";
 import { azureCustomCloud, azurePPE, cloudSetting, customCloudArmUrlSetting, extensionPrefix, ppeSetting, staticEnvironments } from "./constants";
 import { localize } from "./utils/localize";
@@ -100,6 +101,12 @@ export async function getEnvironments(includePartial: boolean = false): Promise<
 	}
 
 	return result;
+}
+
+export function isADFS(environment: Environment): boolean {
+	const u = url.parse(environment.activeDirectoryEndpointUrl);
+	const pathname = (u.pathname || '').toLowerCase();
+	return pathname === '/adfs' || pathname.startsWith('/adfs/');
 }
 
 async function getCustomCloudEnvironment(config: WorkspaceConfiguration, includePartial: boolean): Promise<Environment | undefined> {

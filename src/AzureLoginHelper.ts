@@ -19,7 +19,7 @@ import { login } from './login';
 import { loginWithDeviceCode } from './loginWithDeviceCode';
 import { checkRedirectServer } from './server';
 import { TelemetryReporter } from './telemetry';
-import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken, tokenWithAuthorizationCode } from './tokens';
+import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken } from './tokens';
 import { listAll } from './utils/arrayUtils';
 import { localize } from './utils/localize';
 import { openUri } from './utils/openUri';
@@ -307,7 +307,7 @@ export class AzureLoginHelper {
 					throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
 				}
 
-				tokenResponse = await tokenWithAuthorizationCode(clientId, Environment.AzureCloud, redirectionUrl, tenantId, code);
+				tokenResponse = await getTokenWithAuthorizationCode(clientId, Environment.AzureCloud, redirectionUrl, tenantId, code);
 			}
 
 			if (!tokenResponse) {

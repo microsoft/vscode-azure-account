@@ -18,18 +18,24 @@ interface Deferred<T> {
 	reject: (reason: any) => void;
 }
 
-export async function checkRedirectServer(adfs: boolean): Promise<boolean> {
-	if (adfs) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type RedirectResult = { req: http.IncomingMessage, res: http.ServerResponse } | { err: any; res: http.ServerResponse; };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type CodeResult = { code: string; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
+
+export async function checkRedirectServer(isAdfs: boolean): Promise<boolean> {
+	if (isAdfs) {
 		return true;
 	}
 	let timer: NodeJS.Timer | undefined;
-	const promise = new Promise<boolean>(resolve => {
-		const req = https.get({
+	const checkServerPromise = new Promise<boolean>(resolve => {
+		const req: http.ClientRequest = https.get({
 			...url.parse(`${redirectUrlAAD}?state=3333,cccc`),
 		}, res => {
-			const key = Object.keys(res.headers)
+			const key: string | undefined = Object.keys(res.headers)
 				.find(key => key.toLowerCase() === 'location');
-			const location = key && res.headers[key]
+			const location: string | string[] | undefined = key && res.headers[key]
 			resolve(res.statusCode === 302 && typeof location === 'string' && location.startsWith('http://127.0.0.1:3333/callback'));
 		});
 		req.on('error', err => {
@@ -49,34 +55,35 @@ export async function checkRedirectServer(adfs: boolean): Promise<boolean> {
 			clearTimeout(timer);
 		}
 	}
-	promise.then(cancelTimer, cancelTimer);
-	return promise;
+	checkServerPromise.then(cancelTimer, cancelTimer);
+	return checkServerPromise;
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function createServer(nonce: string) {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	type RedirectResult = { req: http.IncomingMessage, res: http.ServerResponse } | { err: any; res: http.ServerResponse; };
+export function createServer(nonce: string): {
+    server: http.Server;
+    redirectPromise: Promise<RedirectResult>;
+    codePromise: Promise<CodeResult>;
+} {
 	let deferredRedirect: Deferred<RedirectResult>;
 	const redirectPromise = new Promise<RedirectResult>((resolve, reject) => deferredRedirect = { resolve, reject });
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	type CodeResult = { code: string; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
 	let deferredCode: Deferred<CodeResult>;
 	const codePromise = new Promise<CodeResult>((resolve, reject) => deferredCode = { resolve, reject });
 
 	const codeTimer = setTimeout(() => {
 		deferredCode.reject(new Error('Timeout waiting for code'));
 	}, 5 * 60 * 1000);
+
 	function cancelCodeTimer() {
 		clearTimeout(codeTimer);
 	}
-	const server = http.createServer(function (req, res) {
+
+	const server: http.Server = http.createServer(function (req, res) {
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		const reqUrl = url.parse(req.url!, /* parseQueryString */ true);
+		const reqUrl: url.UrlWithParsedQuery = url.parse(req.url!, /* parseQueryString */ true);
 		switch (reqUrl.pathname) {
 			case '/signin':
-				const receivedNonce = (reqUrl.query.nonce.toString() || '').replace(/ /g, '+');
+				const receivedNonce: string = (reqUrl.query.nonce.toString() || '').replace(/ /g, '+');
 				if (receivedNonce === nonce) {
 					deferredRedirect.resolve({ req, res });
 				} else {
@@ -109,8 +116,7 @@ export function createServer(nonce: string) {
 	};
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function createTerminateServer(server: http.Server) {
+export function createTerminateServer(server: http.Server): () => Promise<void> {
 	const sockets: Record<number, net.Socket> = {};
 	let socketCount = 0;
 	server.on('connection', socket => {
@@ -129,13 +135,12 @@ export function createTerminateServer(server: http.Server) {
 	};
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export async function startServer(server: http.Server, adfs: boolean) {
+export async function startServer(server: http.Server, adfs: boolean): Promise<number> {
 	let portTimer: NodeJS.Timer;
 	function cancelPortTimer() {
 		clearTimeout(portTimer);
 	}
-	const port = new Promise<number>((resolve, reject) => {
+	const portPromise = new Promise<number>((resolve, reject) => {
 		portTimer = setTimeout(() => {
 			reject(new Error('Timeout waiting for port'));
 		}, 5000);
@@ -153,11 +158,11 @@ export async function startServer(server: http.Server, adfs: boolean) {
 		});
 		server.listen(adfs ? portADFS : 0, '127.0.0.1');
 	});
-	port.then(cancelPortTimer, cancelPortTimer);
-	return port;
+	portPromise.then(cancelPortTimer, cancelPortTimer);
+	return portPromise;
 }
 
-function sendFile(res: http.ServerResponse, filepath: string, contentType: string) {
+function sendFile(res: http.ServerResponse, filepath: string, contentType: string): void {
 	fs.readFile(filepath, (err, body) => {
 		if (err) {
 			console.error(err);

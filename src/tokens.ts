@@ -173,9 +173,9 @@ export async function clearTokenCache(tokenCache: any): Promise<void> {
 }
 /* eslint-enable */
 
-export async function tokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string): Promise<TokenResponse> {
+export async function getTokenWithAuthorizationCode(clientId: string, environment: Environment, redirectUrl: string, tenantId: string, code: string): Promise<TokenResponse> {
 	return new Promise<TokenResponse>((resolve, reject) => {
-		const context = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, !isADFS(environment));
+		const context: AuthenticationContext = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, !isADFS(environment));
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		context.acquireTokenWithAuthorizationCode(code, redirectUrl, environment.activeDirectoryResourceId, clientId, <any>undefined, (err, response) => {
 			if (err) {

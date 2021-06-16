@@ -12,7 +12,7 @@ import { parse, ParsedUrlQuery } from 'querystring';
 import * as url from 'url';
 import { portADFS, redirectUrlAAD } from './constants';
 
-interface IDeferred<T> {
+interface Deferred<T> {
 	resolve: (result: T | Promise<T>) => void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	reject: (reason: any) => void;
@@ -64,10 +64,10 @@ export function createServer(nonce: string): {
     redirectPromise: Promise<RedirectResult>;
     codePromise: Promise<CodeResult>;
 } {
-	let deferredRedirect: IDeferred<RedirectResult>;
+	let deferredRedirect: Deferred<RedirectResult>;
 	const redirectPromise = new Promise<RedirectResult>((resolve, reject) => deferredRedirect = { resolve, reject });
 
-	let deferredCode: IDeferred<CodeResult>;
+	let deferredCode: Deferred<CodeResult>;
 	const codePromise = new Promise<CodeResult>((resolve, reject) => deferredCode = { resolve, reject });
 
 	const codeTimer = setTimeout(() => {

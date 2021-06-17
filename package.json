@@ -34,7 +34,8 @@
     "onCommand:azure-account.createAccount",
     "onCommand:azure-account.openCloudConsoleLinux",
     "onCommand:azure-account.openCloudConsoleWindows",
-    "onCommand:azure-account.uploadFileCloudConsole"
+    "onCommand:azure-account.uploadFileCloudConsole",
+    "onCommand:azure-account.msalLogin"
   ],
   "main": "./dist/extension",
   "contributes": {
@@ -82,6 +83,11 @@
       {
         "command": "azure-account.uploadFileCloudConsole",
         "title": "%azure-account.commands.uploadFileCloudConsole%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.msalLogin",
+        "title": "%azure-account.commands.msalLogin%",
         "category": "%azure-account.commands.azure%"
       }
     ],
@@ -249,6 +255,7 @@
     "@azure/arm-subscriptions": "^2.0.0",
     "@azure/ms-rest-azure-env": "^2.0.0",
     "@azure/ms-rest-nodeauth": "3.0.5",
+    "@azure/msal-node": "^1.1.0",
     "adal-node": "0.1.28",
     "form-data": "2.3.3",
     "http-proxy-agent": "2.1.0",

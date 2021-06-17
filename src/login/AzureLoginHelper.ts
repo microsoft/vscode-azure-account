@@ -614,7 +614,7 @@ export class AzureLoginHelper {
 	}
 }
 
-async function redirectTimeout(): Promise<void> {
+export async function redirectTimeout(): Promise<void> {
 	const message: string = localize('azure-account.browserDidNotConnect', 'Browser did not connect to local server within 10 seconds. Do you want to try the alternate sign in using a device code instead?');
 	const useDeviceCode: string = localize('azure-account.useDeviceCode', 'Use Device Code');
 	const response: string | undefined = await window.showInformationMessage(message, useDeviceCode);

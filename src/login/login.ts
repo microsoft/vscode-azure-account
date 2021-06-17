@@ -25,7 +25,7 @@ vscode.window.registerUriHandler(handler);
 let terminateServer: () => Promise<void>;
 
 /* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
-function parseQuery(uri: vscode.Uri): any {
+export function parseQuery(uri: vscode.Uri): any {
 	return uri.query.split('&').reduce((prev: any, current) => {
 		const queryString: string[] = current.split('=');
 		prev[queryString[0]] = queryString[1];

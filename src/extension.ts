@@ -10,6 +10,7 @@ import { AzureAccount } from './azure-account.api';
 import { OSes, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
+import { login } from './login/msal/login';
 import { survey } from './nps';
 import { createReporter } from './telemetry';
 import { localize } from './utils/localize';
@@ -29,6 +30,7 @@ export async function activate(context: ExtensionContext): Promise<AzureAccount>
 	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLoginHelper.api, 'Linux')));
 	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLoginHelper.api, 'Windows')));
 	context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
+	context.subscriptions.push(commands.registerCommand('azure-account.msalLogin', login));
 	survey(context, reporter);
 	return Promise.resolve(azureLoginHelper.api); // Return promise to work around weird error in WinJS.
 }

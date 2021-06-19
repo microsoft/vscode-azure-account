@@ -4,12 +4,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AuthorizationCodeCredential } from '@azure/identity';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { TokenResponse } from 'adal-node';
 import * as crypto from 'crypto';
 import { ServerResponse } from 'http';
 import * as vscode from 'vscode';
-import { redirectUrlAAD, redirectUrlADFS } from '../constants';
+import { AuthLibrary, authLibrarySetting, redirectUrlAAD, redirectUrlADFS } from '../constants';
+import { getSettingValue } from '../utils/settingUtils';
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 import { getTokenWithAuthorizationCode } from './tokens';
 
@@ -105,7 +107,7 @@ async function loginWithoutLocalServer(clientId: string, environment: Environmen
 	return Promise.race([exchangeCodeForToken(clientId, environment, tenantId, redirectUrlAAD, state), timeoutPromise]);
 }
 
-export async function login(clientId: string, environment: Environment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TokenResponse> {
+export async function login(clientId: string, environment: Environment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TokenResponse | AuthorizationCodeCredential> {
 	if (vscode.env.uiKind === vscode.UIKind.Web) {
 		return loginWithoutLocalServer(clientId, environment, adfs, tenantId);
 	}
@@ -154,10 +156,17 @@ export async function login(clientId: string, environment: Environment, adfs: bo
 			if ('err' in codeResult) {
 				throw codeResult.err;
 			}
-			const tokenResponse: TokenResponse = await getTokenWithAuthorizationCode(clientId, environment, redirectUrl, tenantId, codeResult.code);
-			serverResponse.writeHead(302, { Location: '/' });
-			serverResponse.end();
-			return tokenResponse;
+
+			try {
+				if (getSettingValue<AuthLibrary>(authLibrarySetting) === 'ADAL') {
+					return await getTokenWithAuthorizationCode(clientId, environment, redirectUrl, tenantId, codeResult.code);
+				} else {
+					return new AuthorizationCodeCredential(tenantId, clientId, codeResult.code, redirectUrl);
+				}
+			} finally {
+				serverResponse.writeHead(302, { Location: '/' });
+				serverResponse.end();
+			}
 		} catch (err) {
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 			serverResponse.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });

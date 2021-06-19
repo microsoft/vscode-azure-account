@@ -5,7 +5,10 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 
+export type AuthLibrary = 'ADAL' | 'MSAL';
+
 export const extensionPrefix: string = 'azure';
+export const authLibrarySetting: string = 'authenticationLibrary';
 export const cloudSetting: string = 'cloud';
 export const customCloudArmUrlSetting: string = 'customCloud.resourceManagerEndpointUrl';
 export const ppeSetting: string = 'ppe';

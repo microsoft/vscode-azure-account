@@ -48,18 +48,24 @@ module.exports = (_, argv) => {
 			// require("prefix" + expr + "surfix")
 			wrappedContextRegExp: /$^/,
 			wrappedContextCritical: false,
-			rules: [{
-				test: /\.ts$/,
-				exclude: /node_modules/,
-				use: [{
-						loader: 'ts-loader',
-						options: {
-							compilerOptions: {
-								sourceMap: true,
+			rules: [
+				{
+					test: /\.ts$/,
+					exclude: /node_modules/,
+					use: [{
+							loader: 'ts-loader',
+							options: {
+								compilerOptions: {
+									sourceMap: true,
+								}
 							}
-						}
-					}]
-			}]
+						}]
+				},
+				{
+					test: /\.node$/,
+					loader: "node-loader"
+				}
+			]
 		},
 
 		// Workaround for https://github.com/node-fetch/node-fetch/issues/784

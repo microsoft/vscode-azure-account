@@ -27,6 +27,9 @@ export const redirectUrlAAD: string = 'https://vscode-redirect.azurewebsites.net
 export const portADFS: number = 19472;
 export const redirectUrlADFS: string = `http://127.0.0.1:${portADFS}/callback`;
 
+// TODO: What scopes to use?
+export const scopes: string[] = ['user.read'];
+
 export const staticEnvironments: Environment[] = [
 	Environment.AzureCloud,
 	Environment.ChinaCloud,

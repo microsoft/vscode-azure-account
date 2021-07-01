@@ -15,7 +15,7 @@ import { parse } from 'url';
 import { v4 as uuid } from 'uuid';
 import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
-import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
+import { AzureAccount, AzureLoginStatus, AzureSessionAdal, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { tokenFromRefreshToken } from '../login/tokens';
 import { TelemetryReporter } from '../telemetry';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
@@ -181,7 +181,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 	let liveQueue: Queue<any> | undefined;
 	const event = new EventEmitter<CloudShellStatus>();
 	let deferredTerminal: Deferred<Terminal>;
-	let deferredSession: Deferred<AzureSession>;
+	let deferredSession: Deferred<AzureSessionAdal>;
 	let deferredTokens: Deferred<AccessTokens>;
 	const tokensPromise = new Promise<AccessTokens>((resolve, reject) => deferredTokens = { resolve, reject });
 	let deferredUris: Deferred<ConsoleUris>;
@@ -193,7 +193,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		onStatusChanged: event.event,
 		waitForConnection,
 		terminal: new Promise<Terminal>((resolve, reject) => deferredTerminal = { resolve, reject }),
-		session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
+		session: new Promise<AzureSessionAdal>((resolve, reject) => deferredSession = { resolve, reject }),
 		uploadFile: uploadFile(tokensPromise, urisPromise)
 	};
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -326,13 +326,13 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		const sessions = [...new Set(api.subscriptions.map(subscription => subscription.session))]; // Only consider those with at least one subscription.
 		if (sessions.length > 1) {
 			queue.push({ type: 'log', args: [localize('azure-account.selectDirectory', "Select directory...")] });
-			const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(session)
+			const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(<AzureSessionAdal>session)
 				.catch(err => {
 					console.error(err);
 					return undefined;
 				})))
 				.then(tenantDetails => tenantDetails.filter(details => details));
-			const pick = await window.showQuickPick<QuickPickItem & { session: AzureSession }>(fetchingDetails
+			const pick = await window.showQuickPick<QuickPickItem & { session: AzureSessionAdal }>(fetchingDetails
 				.then(tenantDetails => tenantDetails.map(details => {
 					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 					const tenantDetails = details!.tenantDetails;
@@ -355,7 +355,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			}
 			token = await acquireToken(pick.session);
 		} else if (sessions.length === 1) {
-			token = await acquireToken(sessions[0]);
+			token = await acquireToken(<AzureSessionAdal>sessions[0]);
 		}
 
 		const result = token && await findUserSettings(token);
@@ -501,12 +501,12 @@ async function deploymentConflict(reporter: TelemetryReporter, os: OS) {
 }
 
 interface Token {
-	session: AzureSession;
+	session: AzureSessionAdal;
 	accessToken: string;
 	refreshToken: string;
 }
 
-async function acquireToken(session: AzureSession) {
+async function acquireToken(session: AzureSessionAdal) {
 	return new Promise<Token>((resolve, reject) => {
 		/* eslint-disable @typescript-eslint/no-explicit-any */
 		const credentials: any = session.credentials;
@@ -535,7 +535,7 @@ interface TenantDetails {
 	verifiedDomains: { name: string; default: boolean; }[];
 }
 
-async function fetchTenantDetails(session: AzureSession): Promise<{ session: AzureSession, tenantDetails: TenantDetails }> {
+async function fetchTenantDetails(session: AzureSessionAdal): Promise<{ session: AzureSessionAdal, tenantDetails: TenantDetails }> {
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
 	const { username, clientId, tokenCache, domain } = <any>session.credentials;
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

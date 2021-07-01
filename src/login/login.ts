@@ -4,14 +4,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AuthorizationCodeCredential } from '@azure/identity';
 import { Environment } from '@azure/ms-rest-azure-env';
+import { AuthenticationResult, PublicClientApplication } from '@azure/msal-node';
 import { TokenResponse } from 'adal-node';
 import * as crypto from 'crypto';
 import { ServerResponse } from 'http';
 import * as vscode from 'vscode';
-import { AuthLibrary, authLibrarySetting, redirectUrlAAD, redirectUrlADFS } from '../constants';
-import { getSettingValue } from '../utils/settingUtils';
+import { redirectUrlAAD, redirectUrlADFS, scopes } from '../constants';
+import { localize } from '../utils/localize';
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 import { getTokenWithAuthorizationCode } from './tokens';
 
@@ -107,7 +107,7 @@ async function loginWithoutLocalServer(clientId: string, environment: Environmen
 	return Promise.race([exchangeCodeForToken(clientId, environment, tenantId, redirectUrlAAD, state), timeoutPromise]);
 }
 
-export async function login(clientId: string, environment: Environment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TokenResponse | AuthorizationCodeCredential> {
+export async function login(clientId: string, environment: Environment, adfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>, publicClientApp?: PublicClientApplication): Promise<TokenResponse | AuthenticationResult> {
 	if (vscode.env.uiKind === vscode.UIKind.Web) {
 		return loginWithoutLocalServer(clientId, environment, adfs, tenantId);
 	}
@@ -158,10 +158,20 @@ export async function login(clientId: string, environment: Environment, adfs: bo
 			}
 
 			try {
-				if (getSettingValue<AuthLibrary>(authLibrarySetting) === 'ADAL') {
-					return await getTokenWithAuthorizationCode(clientId, environment, redirectUrl, tenantId, codeResult.code);
+				if (publicClientApp) {
+					const authResult: AuthenticationResult | null = await publicClientApp.acquireTokenByCode({
+						scopes,
+						code: codeResult.code,
+						redirectUri: redirectUrl,
+					});
+
+					if (authResult) {
+						return authResult;
+					}
+
+					throw new Error(localize('azure-account.msalAuthFailed', 'MSAL authentication failed.'));
 				} else {
-					return new AuthorizationCodeCredential(tenantId, clientId, codeResult.code, redirectUrl);
+					return await getTokenWithAuthorizationCode(clientId, environment, redirectUrl, tenantId, codeResult.code);
 				}
 			} finally {
 				serverResponse.writeHead(302, { Location: '/' });

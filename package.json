@@ -248,7 +248,7 @@
     "@azure/arm-resources": "^3.0.0",
     "@azure/arm-subscriptions": "^2.0.0",
     "@azure/ms-rest-azure-env": "^2.0.0",
-    "@azure/ms-rest-nodeauth": "3.0.5",
+    "@azure/ms-rest-nodeauth": "^3.0.10",
     "adal-node": "0.1.28",
     "form-data": "2.3.3",
     "http-proxy-agent": "2.1.0",

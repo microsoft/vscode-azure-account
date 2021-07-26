@@ -7,12 +7,12 @@ import { SubscriptionClient, SubscriptionModels } from "@azure/arm-subscriptions
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AuthenticationContext, MemoryCache, TokenResponse } from "adal-node";
-import { clientId, credentialsSection } from "../constants";
-import { AzureLoginError } from "../errors";
-import { listAll } from "../utils/arrayUtils";
-import { tryGetKeyTar } from "../utils/keytar";
-import { localize } from "../utils/localize";
-import { isADFS } from "./environments";
+import { clientId, credentialsSection } from "../../constants";
+import { AzureLoginError } from "../../errors";
+import { listAll } from "../../utils/arrayUtils";
+import { tryGetKeyTar } from "../../utils/keytar";
+import { localize } from "../../utils/localize";
+import { isADFS } from "../environments";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
 const CacheDriver = require('adal-node/lib/cache-driver');
@@ -45,30 +45,6 @@ export class ProxyTokenCache {
 		});
 	}
 	/* eslint-enable */
-}
-
-export async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
-	if (!keytar) {
-		return undefined;
-	}
-	try {
-		if (migrateToken) {
-			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
-			if (token) {
-				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
-					await keytar.setPassword(credentialsSection, 'Azure', token);
-				}
-				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
-			}
-		}
-	} catch {
-		// ignore
-	}
-	try {
-		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
-	} catch {
-		// ignore
-	}
 }
 
 export async function storeRefreshToken(environment: Environment, token: string): Promise<void> {

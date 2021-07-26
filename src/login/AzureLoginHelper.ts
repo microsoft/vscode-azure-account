@@ -6,36 +6,30 @@
 import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
-import { DeviceTokenCredentials as DeviceTokenCredentials2, TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
-import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from '@azure/msal-node';
-import { Logging, MemoryCache, TokenResponse } from 'adal-node';
-import { DeviceTokenCredentials } from 'ms-rest-azure';
-import { CancellationTokenSource, commands, ConfigurationTarget, Disposable, EventEmitter, ExtensionContext, MessageItem, OutputChannel, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
+import { AccountInfo } from '@azure/msal-node';
+import { CancellationTokenSource, commands, ConfigurationTarget, Disposable, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { createCloudConsole } from '../cloudConsole/cloudConsole';
-import { AuthLibrary, authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, displayName, extensionPrefix, resourceFilterSetting, scopes, staticEnvironments, tenantSetting } from '../constants';
+import { azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, credentialsSection, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { TelemetryReporter } from '../telemetry';
 import { listAll } from '../utils/arrayUtils';
+import { KeyTar, tryGetKeyTar } from '../utils/keytar';
 import { localize } from '../utils/localize';
 import { openUri } from '../utils/openUri';
 import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
+import { AbstractAuthProvider } from './AbstractAuthProvider';
+import { AbstractLoginResult } from './AbstractLoginResult';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { addFilter, getNewFilters, removeFilter } from './filters';
-import { login } from './login';
-import { loginWithDeviceCode } from './loginWithDeviceCode';
-import { cachePlugin } from './msal/cachePlugin';
-import { PublicClientCredential } from './msal/PublicClientCredential';
+import { getKey } from './getKey';
 import { checkRedirectServer } from './server';
-import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken, tokensFromToken } from './tokens';
 import { waitUntilOnline } from './waitUntilOnline';
 
-const staticEnvironmentNames: string[] = [
-	...staticEnvironments.map(environment => environment.name),
-	azureCustomCloud,
-	azurePPE
-];
+const enableVerboseLogs: boolean = false;
+const keytar: KeyTar | undefined = tryGetKeyTar();
 
 const environmentLabels: Record<string, string> = {
 	AzureCloud: localize('azure-account.azureCloud', 'Azure'),
@@ -46,8 +40,6 @@ const environmentLabels: Record<string, string> = {
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
 
-const logVerbose: boolean = false;
-
 interface IAzureAccountWriteable extends AzureAccount {
 	status: AzureLoginStatus;
 }
@@ -56,7 +48,7 @@ export interface ISubscriptionItem extends QuickPickItem {
 	subscription: AzureSubscription;
 }
 
-interface ISubscriptionCache {
+export interface ISubscriptionCache {
 	subscriptions: {
 		session: {
 			environment: string;
@@ -81,12 +73,10 @@ export class AzureLoginHelper {
 	private filtersTask: Promise<AzureResourceFilter[]> = Promise.resolve(<AzureResourceFilter[]>[]);
 	private onFiltersChanged: EventEmitter<void> = new EventEmitter<void>();
 
-	private tokenCache: MemoryCache = new MemoryCache();
-	private delayedTokenCache: ProxyTokenCache = new ProxyTokenCache(this.tokenCache);
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
 
-	private publicClientApp: PublicClientApplication;
+	private authProvider: AbstractAuthProvider;
 
 	public api: AzureAccount = {
 		status: 'Initializing',
@@ -104,6 +94,8 @@ export class AzureLoginHelper {
 	};
 
 	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
+		this.authProvider = new AbstractAuthProvider(context, enableVerboseLogs);
+
 		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
@@ -124,43 +116,6 @@ export class AzureLoginHelper {
 		}));
 		this.initialize('activation', false, true)
 			.catch(console.error);
-
-		const msalConfiguration: Configuration = {
-			auth: { clientId },
-			cache: { cachePlugin }
-		};
-
-		if (logVerbose) {
-			const outputChannel: OutputChannel = window.createOutputChannel(displayName);
-			context.subscriptions.push(outputChannel);
-
-			// Setup ADAL logging
-			Logging.setLoggingOptions({
-				level: 3 /* Logging.LOGGING_LEVEL.VERBOSE */,
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				log: (_level: any, message: any, error: any) => {
-					if (message) {
-						outputChannel.appendLine(message);
-					}
-					if (error) {
-						outputChannel.appendLine(error);
-					}
-				}
-			});
-
-			// Setup MSAL logging
-			msalConfiguration.system = {
-				loggerOptions: {
-					loggerCallback(_loglevel, message, _containsPii) {
-						outputChannel.appendLine(message);
-					},
-					piiLoggingEnabled: false,
-					logLevel: logVerbose ? LogLevel.Verbose : LogLevel.Error,
-				}
-			}
-		}
-
-		this.publicClientApp = new PublicClientApplication(msalConfiguration);
 	}
 
 	public async login(trigger: LoginTrigger): Promise<void> {
@@ -193,21 +148,9 @@ export class AzureLoginHelper {
 			const isAdfs: boolean = isADFS(environment);
 			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			let loginResult: TokenResponse[] | AuthenticationResult;
-
-			if (getSettingValue<AuthLibrary>(authLibrarySetting) === 'ADAL') {
-				const tokenResponse: TokenResponse = <TokenResponse>(useCodeFlow ? 
-					await login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) : 
-					await loginWithDeviceCode(environment, tenantId));
-
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-				const refreshToken: string = tokenResponse.refreshToken!;
-				loginResult = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
-				await storeRefreshToken(environment, refreshToken);
-			} else {
-				loginResult = <AuthenticationResult>(await login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout, this.publicClientApp));
-			} 
-
+			const loginResult: AbstractLoginResult = useCodeFlow ? 
+				await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
+				await this.authProvider.loginWithDeviceCode(environment, tenantId);
 			await this.updateSessions(environment, loginResult);
 			void this.sendLoginTelemetry(trigger, path, environmentName, 'success', undefined, true);
 		} catch (err) {
@@ -250,11 +193,7 @@ export class AzureLoginHelper {
 
 	public async logout(): Promise<void> {
 		await this.api.waitForLogin();
-		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
-		const allEnvironmentNames: string[] = staticEnvironmentNames.concat(['Azure', 'AzureChina', 'AzurePPE'])
-		for (const name of allEnvironmentNames) {
-			await deleteRefreshToken(name);
-		}
+		await this.authProvider.deleteRefreshTokens();
 		await this.clearSessions();
 		this.updateLoginStatus();
 	}
@@ -307,80 +246,21 @@ export class AzureLoginHelper {
 	private async initialize(trigger: LoginTrigger, doLogin?: boolean, migrateToken?: boolean): Promise<void> {
 		let environmentName: string = 'uninitialized';
 		try {
-			const showTimingLogs: boolean = false;
-			const start: number = Date.now();
 			await this.loadSubscriptionCache();
-			showTimingLogs && console.log(`loadSubscriptionCache: ${(Date.now() - start) / 1000}s`);
 			const environment: Environment = await getSelectedEnvironment();
 			environmentName = environment.name;
 			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
 			const storedCreds: string | undefined = await getStoredCredentials(environment, migrateToken);
 
-			showTimingLogs && console.log(`keytar: ${(Date.now() - start) / 1000}s`);
 			if (!storedCreds) {
 				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
 			}
 			await waitUntilOnline(environment, 5000);
 			this.beginLoggingIn();
 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			let parsedCreds: any;
-			let tokenResponse: TokenResponse | undefined;
-			let authResult: AuthenticationResult | null = null;
 
-			if (getSettingValue<AuthLibrary>(authLibrarySetting) === 'ADAL') {
-				try {
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-					parsedCreds = JSON.parse(storedCreds);
-				} catch {
-					tokenResponse = await tokenFromRefreshToken(environment, storedCreds, tenantId);
-				}
-
-				if (parsedCreds) {
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-					const { redirectionUrl, code } = parsedCreds;
-					if (!redirectionUrl || !code) {
-						throw new AzureLoginError(localize('azure-account.malformedCredentials', "Stored credentials are invalid"));
-					}
-
-					tokenResponse = await getTokenWithAuthorizationCode(clientId, Environment.AzureCloud, redirectionUrl, tenantId, code);
-				}
-			} else {
-				const msalTokenCache: TokenCache = this.publicClientApp.getTokenCache();
-				const accountInfo: AccountInfo[] = await msalTokenCache.getAllAccounts();
-
-				if (accountInfo.length === 1) {
-					authResult = await this.publicClientApp.acquireTokenSilent({
-						scopes,
-						account: accountInfo[0]
-					});
-				} else {
-					throw new Error(localize('azure-account.multipleAccounts', 'Multiple accounts found when reading cache.'));
-				}
-			}
-
-			if (!tokenResponse && !authResult) {
-				throw new AzureLoginError(localize('azure-account.missingTokenResponse', "Using stored credentials failed"));
-			}
-
-			showTimingLogs && console.log(`tokenFromRefreshToken: ${(Date.now() - start) / 1000}s`);
-			// For testing
-			if (workspace.getConfiguration(extensionPrefix).get('testTokenFailure')) {
-				throw new AzureLoginError(localize('azure-account.testingAcquiringTokenFailed', "Testing: Acquiring token failed"));
-			}
-
-			let loginResult: TokenResponse[] | AuthenticationResult;
-
-			if (tokenResponse) {
-				loginResult = tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
-			} else {
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-				loginResult = authResult!;
-			}
-
-			showTimingLogs && console.log(`tokensFromToken: ${(Date.now() - start) / 1000}s`);
+			const loginResult: AbstractLoginResult = await this.authProvider.loginSilent(environment, storedCreds, tenantId);
 			await this.updateSessions(environment, loginResult);
-			showTimingLogs && console.log(`updateSessions: ${(Date.now() - start) / 1000}s`);
 			void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success', undefined, true);
 		} catch (err) {
 			await this.clearSessions(); // clear out cached data
@@ -401,7 +281,7 @@ export class AzureLoginHelper {
 		const cache: ISubscriptionCache | undefined = this.context.globalState.get(cacheKey);
 		if (cache) {
 			(<IAzureAccountWriteable>this.api).status = 'LoggedIn';
-			const sessions: Record<string, AzureSession> = await this.initializeSessions(cache);
+			const sessions: Record<string, AzureSession> = await this.authProvider.initializeSessions(cache, this.api);
 			const subscriptions: AzureSubscription[] = this.initializeSubscriptions(cache, sessions);
 			this.initializeFilters(subscriptions);
 		}
@@ -441,70 +321,13 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private async initializeSessions(cache: ISubscriptionCache): Promise<Record<string, AzureSession>> {
-		const sessions: Record<string, AzureSession> = {};
-		const environments: Environment[] = await getEnvironments();
-
-		for (const { session } of cache.subscriptions) {
-			const { environment, userId, tenantId, accountInfo } = session;
-			const key: string = this.getKey(environment, userId, tenantId);
-			const env: Environment | undefined = environments.find(e => e.name === environment);
-			if (!sessions[key] && env) {
-				sessions[key] = {
-					environment: env,
-					userId,
-					tenantId,
-					accountInfo,
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-					credentials: new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.delayedTokenCache, domain: tenantId }),
-					credentials2: accountInfo ? 
-						new AzureIdentityCredentialAdapter(new PublicClientCredential(this.publicClientApp, accountInfo)) : // TODO: Scopes?
-						new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, env, this.delayedTokenCache),
-				};
-				this.api.sessions.push(sessions[key]);
-			}
-		}
-		return sessions;
-	}
-
-	private async updateSessions(environment: Environment, loginResult: TokenResponse[] | AuthenticationResult): Promise<void> {
-		await clearTokenCache(this.tokenCache);
-		const sessions: AzureSession[] = this.api.sessions;
-
-		/* eslint-disable @typescript-eslint/no-non-null-assertion */
-		if(Array.isArray(loginResult)) {
-			for (const tokenResponse of loginResult) {
-				await addTokenToCache(environment, this.tokenCache, tokenResponse);
-			}
-			this.delayedTokenCache.initEnd!();
-			sessions.splice(0, sessions.length, ...loginResult.map<AzureSession>(tokenResponse => ({
-				environment,
-				userId: tokenResponse.userId!,
-				tenantId: tokenResponse.tenantId!,
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-				credentials: new DeviceTokenCredentials({ environment: (<any>environment), username: tokenResponse.userId, clientId, tokenCache: this.delayedTokenCache, domain: tokenResponse.tenantId }),
-				credentials2: new DeviceTokenCredentials2(clientId, tokenResponse.tenantId, tokenResponse.userId, undefined, environment, this.delayedTokenCache),
-			})));
-		} else {
-			sessions.splice(0, sessions.length, <AzureSession>{
-				environment,
-				userId: loginResult.account!.username,
-				tenantId: loginResult.account!.tenantId,
-				accountInfo: loginResult.account!,
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-				credentials: new DeviceTokenCredentials({ environment: (<any>environment), username: loginResult.account!.username, clientId, tokenCache: this.delayedTokenCache, domain: loginResult.tenantId }),
-				credentials2: new AzureIdentityCredentialAdapter(new PublicClientCredential(this.publicClientApp, loginResult.account!)) // TODO: Scopes?
-			});
-		}
-		/* eslint-enable @typescript-eslint/no-non-null-assertion */
-
+	private async updateSessions(environment: Environment, loginResult: AbstractLoginResult): Promise<void> {
+		await this.authProvider.updateSessions(environment, loginResult, this.api.sessions);
 		this.onSessionsChanged.fire();
 	}
 
 	private async clearSessions(): Promise<void> {
-		await clearTokenCache(this.tokenCache);
-		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		this.delayedTokenCache.initEnd!();
+		await this.authProvider.clearTokenCache();
 		const sessions: AzureSession[] = this.api.sessions;
 		sessions.length = 0;
 		this.onSessionsChanged.fire();
@@ -521,7 +344,7 @@ export class AzureLoginHelper {
 	private initializeSubscriptions(cache: ISubscriptionCache, sessions: Record<string, AzureSession>): AzureSubscription[] {
 		const subscriptions: AzureSubscription[] = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
 			const { environment, userId, tenantId } = session;
-			const key: string = this.getKey(environment, userId, tenantId);
+			const key: string = getKey(environment, userId, tenantId);
 			return {
 				session: sessions[key],
 				subscription
@@ -688,10 +511,6 @@ export class AzureLoginHelper {
 		await this.filtersTask;
 		return true;
 	}
-
-	private getKey(environment: string, userId: string, tenantId: string): string {
-		return `${environment} ${userId} ${tenantId}`;
-	}
 }
 
 async function redirectTimeout(): Promise<void> {
@@ -714,4 +533,28 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 		}
 	}
 	return ConfigurationTarget.Global;
+}
+
+async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
+	if (!keytar) {
+		return undefined;
+	}
+	try {
+		if (migrateToken) {
+			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
+			if (token) {
+				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
+					await keytar.setPassword(credentialsSection, 'Azure', token);
+				}
+				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
+			}
+		}
+	} catch {
+		// ignore
+	}
+	try {
+		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
+	} catch {
+		// ignore
+	}
 }

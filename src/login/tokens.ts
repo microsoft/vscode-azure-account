@@ -6,8 +6,8 @@
 import { SubscriptionClient, SubscriptionModels } from "@azure/arm-subscriptions";
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
-import { AuthenticationContext, MemoryCache, TokenResponse } from "adal-node";
-import { clientId, credentialsSection } from "../constants";
+import { AuthenticationContext, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
+import { clientId, commonTenantId, credentialsSection } from "../constants";
 import { AzureLoginError } from "../errors";
 import { listAll } from "../utils/arrayUtils";
 import { tryGetKeyTar } from "../utils/keytar";
@@ -45,30 +45,6 @@ export class ProxyTokenCache {
 		});
 	}
 	/* eslint-enable */
-}
-
-export async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
-	if (!keytar) {
-		return undefined;
-	}
-	try {
-		if (migrateToken) {
-			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
-			if (token) {
-				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
-					await keytar.setPassword(credentialsSection, 'Azure', token);
-				}
-				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
-			}
-		}
-	} catch {
-		// ignore
-	}
-	try {
-		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
-	} catch {
-		// ignore
-	}
 }
 
 export async function storeRefreshToken(environment: Environment, token: string): Promise<void> {
@@ -184,6 +160,26 @@ export async function getTokenWithAuthorizationCode(clientId: string, environmen
 				reject(new Error(`${response.error}: ${response.errorDescription}`));
 			} else {
 				resolve(<TokenResponse>response);
+			}
+		});
+	});
+}
+
+export async function getTokensFromToken(environment: Environment, tenantId: string, tokenResponse: TokenResponse): Promise<TokenResponse[]> {
+	return tenantId === commonTenantId ? await tokensFromToken(environment, tokenResponse) : [tokenResponse];
+}
+
+export async function getTokenResponse(environment: Environment, tenantId: string, userCode: UserCodeInfo): Promise<TokenResponse> {
+	return new Promise<TokenResponse>((resolve, reject) => {
+		const tokenCache: MemoryCache = new MemoryCache();
+		const context: AuthenticationContext = new AuthenticationContext(`${environment.activeDirectoryEndpointUrl}${tenantId}`, environment.validateAuthority, tokenCache);
+		context.acquireTokenWithDeviceCode(`${environment.managementEndpointUrl}`, clientId, userCode, (err, tokenResponse) => {
+			if (err) {
+				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), err));
+			} else if (tokenResponse.error) {
+				reject(new AzureLoginError(localize('azure-account.tokenFailed', "Acquiring token with device code failed"), tokenResponse));
+			} else {
+				resolve(<TokenResponse>tokenResponse);
 			}
 		});
 	});

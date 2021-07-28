@@ -4,34 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
+import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
+import { TokenResponse } from "adal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
+import { DeviceTokenCredentials } from "ms-rest-azure";
 import { env, ExtensionContext, OutputChannel, UIKind, window } from "vscode";
 import { AzureAccount, AzureSession } from "../azure-account.api";
 import { displayName, redirectUrlAAD, redirectUrlADFS } from "../constants";
-import { AbstractLoginResult } from "./AbstractLoginResult";
-import { AdalAuthProvider } from "./adal/AdalAuthProvider";
 import { ISubscriptionCache } from "./AzureLoginHelper";
 import { getEnvironments } from "./environments";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 
-export class AbstractAuthProvider {
-	private adalAuthProvider: AdalAuthProvider;
+export type AbstractLoginResult = TokenResponse[];
+export type AbstractCredentials = DeviceTokenCredentials;
+export type AbstractCredentials2 = DeviceTokenCredentials2;
 
+export abstract class AuthProviderBase {
 	private terminateServer: (() => Promise<void>) | undefined;
 
-	constructor(context: ExtensionContext, enableVerboseLogs: boolean) {
-		const outputChannel: OutputChannel = window.createOutputChannel(displayName);
-		context.subscriptions.push(outputChannel);
-		this.adalAuthProvider = new AdalAuthProvider(outputChannel, enableVerboseLogs);
+	protected outputChannel: OutputChannel;
+
+	constructor(context: ExtensionContext) {
+		this.outputChannel = window.createOutputChannel(displayName);
+		context.subscriptions.push(this.outputChannel);
 	}
 
-	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<AbstractLoginResult> {
-		const authProvider = this.getAuthProvider();
+	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<AbstractLoginResult>;
+	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<AbstractLoginResult>;
+	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AbstractLoginResult>;
+	public abstract loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<AbstractLoginResult>;
+	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
+	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string): AbstractCredentials2;
+	public abstract updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void>;
+	public abstract clearTokenCache(): Promise<void>;
+	public abstract deleteRefreshTokens(): Promise<void>;
 
+	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<AbstractLoginResult> {
 		if (env.uiKind === UIKind.Web) {
-			return await authProvider.loginWithoutLocalServer(clientId, environment, isAdfs, tenantId);
+			return await this.loginWithoutLocalServer(clientId, environment, isAdfs, tenantId);
 		}
 	
 		if (isAdfs && this.terminateServer) {
@@ -81,7 +93,7 @@ export class AbstractAuthProvider {
 				}
 	
 				try {
-					return await authProvider.loginWithAuthCode(codeResult.code, redirectUrl, clientId, environment, tenantId);
+					return await this.loginWithAuthCode(codeResult.code, redirectUrl, clientId, environment, tenantId);
 				} finally {
 					serverResponse.writeHead(302, { Location: '/' });
 					serverResponse.end();
@@ -99,20 +111,9 @@ export class AbstractAuthProvider {
 		}
 	}
 
-	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AbstractLoginResult> {
-		const authProvider = this.getAuthProvider();
-		return await authProvider.loginWithDeviceCode(environment, tenantId);
-	}
-
-	public async loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<AbstractLoginResult> {
-		const authProvider = this.getAuthProvider();
-		return await authProvider.loginSilent(environment, storedCreds, tenantId);
-	}
-
 	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount): Promise<Record<string, AzureSession>> {
 		const sessions: Record<string, AzureSession> = {};
 		const environments: Environment[] = await getEnvironments();
-		const authProvider = this.getAuthProvider();
 
 		for (const { session } of cache.subscriptions) {
 			const { environment, userId, tenantId } = session;
@@ -124,32 +125,13 @@ export class AbstractAuthProvider {
 					environment: env,
 					userId,
 					tenantId,
-					credentials: authProvider.getCredentials(environment, userId, tenantId),
-					credentials2: authProvider.getCredentials2(env, userId, tenantId)
+					credentials: this.getCredentials(environment, userId, tenantId),
+					credentials2: this.getCredentials2(env, userId, tenantId)
 				};
 				api.sessions.push(sessions[key]);
 			}
 		}
 
 		return sessions;
-	}
-
-	public async updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void> {
-		const authProvider = this.getAuthProvider();
-		await authProvider.updateSessions(environment, loginResult, sessions);
-	}
-
-	public async clearTokenCache(): Promise<void> {
-		const authProvider = this.getAuthProvider();
-		await authProvider.clearTokenCache();
-	}
-
-	public async deleteRefreshTokens(): Promise<void> {
-		const authProvider = this.getAuthProvider();
-		await authProvider.deleteRefreshTokens();
-	}
-
-	private getAuthProvider(): AdalAuthProvider {
-		return this.adalAuthProvider;
 	}
 }

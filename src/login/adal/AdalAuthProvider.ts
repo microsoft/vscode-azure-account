@@ -8,13 +8,13 @@ import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-res
 import { Logging, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
 import { randomBytes } from "crypto";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { Disposable, env, OutputChannel, Uri, window } from "vscode";
+import { Disposable, env, ExtensionContext, Uri, window } from "vscode";
 import { AzureSession } from "../../azure-account.api";
 import { azureCustomCloud, azurePPE, clientId, redirectUrlAAD, staticEnvironments } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
-import { AbstractLoginResult } from "../AbstractLoginResult";
+import { AbstractCredentials, AbstractCredentials2, AbstractLoginResult, AuthProviderBase } from "../AuthProviderBase";
 import { getCallbackEnvironment, parseQuery, UriEventHandler } from "../login";
 import { getUserCode, showDeviceCodeMessage } from "../loginWithDeviceCode";
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "../tokens";
@@ -25,15 +25,15 @@ const staticEnvironmentNames: string[] = [
 	azurePPE
 ];
 
-export class AdalAuthProvider {
+export class AdalAuthProvider extends AuthProviderBase {
 	private tokenCache: MemoryCache = new MemoryCache();
 	private delayedTokenCache: ProxyTokenCache = new ProxyTokenCache(this.tokenCache);
 
 	private handler: UriEventHandler = new UriEventHandler();
 
-	constructor(outputChannel: OutputChannel, enableVerboseLogs: boolean) {
+	constructor(context: ExtensionContext, enableVerboseLogs: boolean) {
+		super(context);
 		window.registerUriHandler(this.handler);
-
 		Logging.setLoggingOptions({
 			level: enableVerboseLogs ? 
 				3 /* Logging.LOGGING_LEVEL.VERBOSE */ : 
@@ -41,16 +41,16 @@ export class AdalAuthProvider {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			log: (_level: any, message: any, error: any) => {
 				if (message) {
-					outputChannel.appendLine(message);
+					super.outputChannel.appendLine(message);
 				}
 				if (error) {
-					outputChannel.appendLine(error);
+					super.outputChannel.appendLine(error);
 				}
 			}
 		});
 	}
 
-	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TokenResponse[]> {
+	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<AbstractLoginResult> {
 		const callbackUri: Uri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://ms-vscode.azure-account`));
 		const nonce: string = randomBytes(16).toString('base64');
 		const port: string | number = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
@@ -85,7 +85,7 @@ export class AdalAuthProvider {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TokenResponse[]> {
+	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AbstractLoginResult> {
 		const userCode: UserCodeInfo = await getUserCode(environment, tenantId);
 		const messageTask: Promise<void> = showDeviceCodeMessage(userCode);
 		const tokenResponseTask: Promise<TokenResponse> = getTokenResponse(environment, tenantId, userCode);
@@ -125,12 +125,12 @@ export class AdalAuthProvider {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public getCredentials(environment: string, userId: string, tenantId: string): DeviceTokenCredentials {
+	public getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials {
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
 		return new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.delayedTokenCache, domain: tenantId });
 	}
 
-	public getCredentials2(environment: Environment, userId: string, tenantId: string): DeviceTokenCredentials2 {
+	public getCredentials2(environment: Environment, userId: string, tenantId: string): AbstractCredentials2 {
 		return new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, environment, this.delayedTokenCache);
 	}
 

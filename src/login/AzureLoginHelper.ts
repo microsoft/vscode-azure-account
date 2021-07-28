@@ -17,8 +17,8 @@ import { localize } from '../utils/localize';
 import { openUri } from '../utils/openUri';
 import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
-import { AbstractAuthProvider } from './AbstractAuthProvider';
-import { AbstractLoginResult } from './AbstractLoginResult';
+import { AdalAuthProvider } from './adal/AdalAuthProvider';
+import { AbstractLoginResult } from './AuthProviderBase';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { addFilter, getNewFilters, removeFilter } from './filters';
 import { getKey } from './getKey';
@@ -72,7 +72,7 @@ export class AzureLoginHelper {
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
 
-	private authProvider: AbstractAuthProvider;
+	private authProvider: AdalAuthProvider;
 
 	public api: AzureAccount = {
 		status: 'Initializing',
@@ -90,7 +90,7 @@ export class AzureLoginHelper {
 	};
 
 	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
-		this.authProvider = new AbstractAuthProvider(context, enableVerboseLogs);
+		this.authProvider = new AdalAuthProvider(context, enableVerboseLogs);
 
 		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));

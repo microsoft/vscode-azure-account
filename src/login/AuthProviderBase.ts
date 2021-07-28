@@ -4,22 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
+import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
+import { AccountInfo, AuthenticationResult } from "@azure/msal-node";
 import { TokenResponse } from "adal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { env, ExtensionContext, OutputChannel, UIKind, window } from "vscode";
 import { AzureAccount, AzureSession } from "../azure-account.api";
-import { displayName, redirectUrlAAD, redirectUrlADFS } from "../constants";
+import { azureCustomCloud, azurePPE, credentialsSection, displayName, redirectUrlAAD, redirectUrlADFS, staticEnvironments } from "../constants";
+import { KeyTar, tryGetKeyTar } from "../utils/keytar";
+import { localize } from "../utils/localize";
 import { ISubscriptionCache } from "./AzureLoginHelper";
 import { getEnvironments } from "./environments";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 
-export type AbstractLoginResult = TokenResponse[];
+const staticEnvironmentNames: string[] = [
+	...staticEnvironments.map(environment => environment.name),
+	azureCustomCloud,
+	azurePPE,
+	// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
+	'Azure', 
+	'AzureChina',
+];
+const keytar: KeyTar | undefined = tryGetKeyTar();
+
+export type AbstractLoginResult = TokenResponse[] | AuthenticationResult;
 export type AbstractCredentials = DeviceTokenCredentials;
-export type AbstractCredentials2 = DeviceTokenCredentials2;
+export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCredentialAdapter;
+
+export const loginResultTypeError: Error = new Error(localize('azure-account.unexpectedType', 'Unexpected login result type.'));
+
+export function isAdalLoginResult(loginResult: AbstractLoginResult): boolean {
+	return Array.isArray(loginResult);
+}
 
 export abstract class AuthProviderBase {
 	private terminateServer: (() => Promise<void>) | undefined;
@@ -36,10 +56,9 @@ export abstract class AuthProviderBase {
 	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AbstractLoginResult>;
 	public abstract loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<AbstractLoginResult>;
 	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
-	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string): AbstractCredentials2;
+	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
 	public abstract updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void>;
-	public abstract clearTokenCache(): Promise<void>;
-	public abstract deleteRefreshTokens(): Promise<void>;
+	public abstract clearLibraryTokenCache(): Promise<void>;
 
 	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<AbstractLoginResult> {
 		if (env.uiKind === UIKind.Web) {
@@ -116,7 +135,7 @@ export abstract class AuthProviderBase {
 		const environments: Environment[] = await getEnvironments();
 
 		for (const { session } of cache.subscriptions) {
-			const { environment, userId, tenantId } = session;
+			const { environment, userId, tenantId, accountInfo } = session;
 			const key: string = getKey(environment, userId, tenantId);
 			const env: Environment | undefined = environments.find(e => e.name === environment);
 
@@ -125,13 +144,26 @@ export abstract class AuthProviderBase {
 					environment: env,
 					userId,
 					tenantId,
+					accountInfo,
 					credentials: this.getCredentials(environment, userId, tenantId),
-					credentials2: this.getCredentials2(env, userId, tenantId)
+					credentials2: this.getCredentials2(env, userId, tenantId, accountInfo)
 				};
 				api.sessions.push(sessions[key]);
 			}
 		}
 
 		return sessions;
+	}
+
+	public async clearLocalTokenCache(): Promise<void> {
+		if (keytar) {
+			for (const name of staticEnvironmentNames) {
+				try {
+					await keytar.deletePassword(credentialsSection, name);
+				} catch {
+					// ignore
+				}
+			}
+		}
 	}
 }

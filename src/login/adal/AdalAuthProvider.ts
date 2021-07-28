@@ -10,19 +10,13 @@ import { randomBytes } from "crypto";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { Disposable, env, ExtensionContext, Uri, window } from "vscode";
 import { AzureSession } from "../../azure-account.api";
-import { azureCustomCloud, azurePPE, clientId, redirectUrlAAD, staticEnvironments } from "../../constants";
+import { clientId, redirectUrlAAD } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
-import { AbstractCredentials, AbstractCredentials2, AbstractLoginResult, AuthProviderBase } from "../AuthProviderBase";
+import { AbstractCredentials, AbstractCredentials2, AbstractLoginResult, AuthProviderBase, isAdalLoginResult, loginResultTypeError } from "../AuthProviderBase";
 import { getCallbackEnvironment, getUserCode, parseQuery, showDeviceCodeMessage, UriEventHandler } from "./login";
-import { addTokenToCache, clearTokenCache, deleteRefreshToken, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
-
-const staticEnvironmentNames: string[] = [
-	...staticEnvironments.map(environment => environment.name),
-	azureCustomCloud,
-	azurePPE
-];
+import { addTokenToCache, clearTokenCache, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
 export class AdalAuthProvider extends AuthProviderBase {
 	private tokenCache: MemoryCache = new MemoryCache();
@@ -40,10 +34,10 @@ export class AdalAuthProvider extends AuthProviderBase {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			log: (_level: any, message: any, error: any) => {
 				if (message) {
-					super.outputChannel.appendLine(message);
+					this.outputChannel.appendLine(message);
 				}
 				if (error) {
-					super.outputChannel.appendLine(error);
+					this.outputChannel.appendLine(error);
 				}
 			}
 		});
@@ -136,6 +130,12 @@ export class AdalAuthProvider extends AuthProviderBase {
 	public async updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void> {
 		await clearTokenCache(this.tokenCache);
 
+		if (!isAdalLoginResult(loginResult)) {
+			throw loginResultTypeError;
+		}
+
+		loginResult = <TokenResponse[]>loginResult;
+
 		for (const tokenResponse of loginResult) {
 			await addTokenToCache(environment, this.tokenCache, tokenResponse);
 		}
@@ -154,18 +154,10 @@ export class AdalAuthProvider extends AuthProviderBase {
 		/* eslint-enable @typescript-eslint/no-non-null-assertion */
 	}
 
-	public async clearTokenCache(): Promise<void> {
+	public async clearLibraryTokenCache(): Promise<void> {
 		await clearTokenCache(this.tokenCache);
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		this.delayedTokenCache.initEnd!();
-	}
-
-	public async deleteRefreshTokens(): Promise<void> {
-		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
-		const allEnvironmentNames: string[] = staticEnvironmentNames.concat(['Azure', 'AzureChina', 'AzurePPE'])
-		for (const name of allEnvironmentNames) {
-			await deleteRefreshToken(name);
-		}
 	}
 
 	private async exchangeCodeForToken(clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TokenResponse> {

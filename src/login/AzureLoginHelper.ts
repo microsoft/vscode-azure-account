@@ -5,10 +5,11 @@
 
 import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
 import { Environment } from '@azure/ms-rest-azure-env';
+import { AccountInfo } from '@azure/msal-node';
 import { CancellationTokenSource, commands, ConfigurationTarget, Disposable, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { createCloudConsole } from '../cloudConsole/cloudConsole';
-import { azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, credentialsSection, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
+import { AuthLibrary, authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, credentialsSection, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { TelemetryReporter } from '../telemetry';
 import { listAll } from '../utils/arrayUtils';
@@ -18,10 +19,11 @@ import { openUri } from '../utils/openUri';
 import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
-import { AbstractLoginResult } from './AuthProviderBase';
+import { AbstractLoginResult, AuthProviderBase } from './AuthProviderBase';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { addFilter, getNewFilters, removeFilter } from './filters';
 import { getKey } from './getKey';
+import { MsalAuthProvider } from './msal/MsalAuthProvider';
 import { checkRedirectServer } from './server';
 import { waitUntilOnline } from './waitUntilOnline';
 
@@ -51,6 +53,7 @@ export interface ISubscriptionCache {
 			environment: string;
 			userId: string;
 			tenantId: string;
+			accountInfo?: AccountInfo;
 		};
 		subscription: SubscriptionModels.Subscription;
 	}[];
@@ -72,7 +75,7 @@ export class AzureLoginHelper {
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
 
-	private authProvider: AdalAuthProvider;
+	private authProvider: AuthProviderBase;
 
 	public api: AzureAccount = {
 		status: 'Initializing',
@@ -90,7 +93,10 @@ export class AzureLoginHelper {
 	};
 
 	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
-		this.authProvider = new AdalAuthProvider(context, enableVerboseLogs);
+		// Allow switching between libraries via a setting for testing purposes
+		this.authProvider = getSettingValue<AuthLibrary>(authLibrarySetting) === 'ADAL' ?
+			new AdalAuthProvider(context, enableVerboseLogs) :
+			new MsalAuthProvider(context, enableVerboseLogs);
 
 		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
@@ -189,7 +195,7 @@ export class AzureLoginHelper {
 
 	public async logout(): Promise<void> {
 		await this.api.waitForLogin();
-		await this.authProvider.deleteRefreshTokens();
+		await this.authProvider.clearLocalTokenCache();
 		await this.clearSessions();
 		this.updateLoginStatus();
 	}
@@ -291,7 +297,8 @@ export class AzureLoginHelper {
 				session: {
 					environment: session.environment.name,
 					userId: session.userId,
-					tenantId: session.tenantId
+					tenantId: session.tenantId,
+					accountInfo: session.accountInfo
 				},
 				subscription
 			}))
@@ -320,7 +327,7 @@ export class AzureLoginHelper {
 	}
 
 	private async clearSessions(): Promise<void> {
-		await this.authProvider.clearTokenCache();
+		await this.authProvider.clearLibraryTokenCache();
 		const sessions: AzureSession[] = this.api.sessions;
 		sessions.length = 0;
 		this.onSessionsChanged.fire();

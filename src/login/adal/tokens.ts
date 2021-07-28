@@ -57,16 +57,6 @@ export async function storeRefreshToken(environment: Environment, token: string)
 	}
 }
 
-export async function deleteRefreshToken(environmentName: string): Promise<void> {
-	if (keytar) {
-		try {
-			await keytar.deletePassword(credentialsSection, environmentName);
-		} catch {
-			// ignore
-		}
-	}
-}
-
 export async function tokenFromRefreshToken(environment: Environment, refreshToken: string, tenantId: string, resource?: string): Promise<TokenResponse> {
 	return new Promise<TokenResponse>((resolve, reject) => {
 		const tokenCache: MemoryCache = new MemoryCache();

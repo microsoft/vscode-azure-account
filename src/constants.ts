@@ -5,7 +5,10 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 
+export type AuthLibrary = 'ADAL' | 'MSAL';
+	
 export const extensionPrefix: string = 'azure';
+export const authLibrarySetting: string = 'authenticationLibrary';
 export const cloudSetting: string = 'cloud';
 export const customCloudArmUrlSetting: string = 'customCloud.resourceManagerEndpointUrl';
 export const ppeSetting: string = 'ppe';
@@ -23,6 +26,8 @@ export const displayName: string = 'Azure Account';
 export const redirectUrlAAD: string = 'https://vscode-redirect.azurewebsites.net/';
 export const portADFS: number = 19472;
 export const redirectUrlADFS: string = `http://127.0.0.1:${portADFS}/callback`;
+
+export const msalScopes: string[] = ['user.read'];
 
 export const staticEnvironments: Environment[] = [
 	Environment.AzureCloud,

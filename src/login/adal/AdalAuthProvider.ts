@@ -15,9 +15,8 @@ import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
 import { AbstractCredentials, AbstractCredentials2, AbstractLoginResult, AuthProviderBase } from "../AuthProviderBase";
-import { getCallbackEnvironment, parseQuery, UriEventHandler } from "../login";
-import { getUserCode, showDeviceCodeMessage } from "../loginWithDeviceCode";
-import { addTokenToCache, clearTokenCache, deleteRefreshToken, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "../tokens";
+import { getCallbackEnvironment, getUserCode, parseQuery, showDeviceCodeMessage, UriEventHandler } from "./login";
+import { addTokenToCache, clearTokenCache, deleteRefreshToken, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
 const staticEnvironmentNames: string[] = [
 	...staticEnvironments.map(environment => environment.name),

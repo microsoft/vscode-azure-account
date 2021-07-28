@@ -7,12 +7,12 @@ import { SubscriptionClient, SubscriptionModels } from "@azure/arm-subscriptions
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AuthenticationContext, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
-import { clientId, commonTenantId, credentialsSection } from "../constants";
-import { AzureLoginError } from "../errors";
-import { listAll } from "../utils/arrayUtils";
-import { tryGetKeyTar } from "../utils/keytar";
-import { localize } from "../utils/localize";
-import { isADFS } from "./environments";
+import { clientId, commonTenantId, credentialsSection } from "../../constants";
+import { AzureLoginError } from "../../errors";
+import { listAll } from "../../utils/arrayUtils";
+import { tryGetKeyTar } from "../../utils/keytar";
+import { localize } from "../../utils/localize";
+import { isADFS } from "../environments";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
 const CacheDriver = require('adal-node/lib/cache-driver');

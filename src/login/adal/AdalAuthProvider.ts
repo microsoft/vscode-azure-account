@@ -14,11 +14,11 @@ import { clientId, redirectUrlAAD } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
-import { AbstractCredentials, AbstractCredentials2, AbstractLoginResult, AuthProviderBase, isAdalLoginResult, loginResultTypeError } from "../AuthProviderBase";
+import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { getCallbackEnvironment, getUserCode, parseQuery, showDeviceCodeMessage, UriEventHandler } from "./login";
 import { addTokenToCache, clearTokenCache, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
-export class AdalAuthProvider extends AuthProviderBase {
+export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 	private tokenCache: MemoryCache = new MemoryCache();
 	private delayedTokenCache: ProxyTokenCache = new ProxyTokenCache(this.tokenCache);
 
@@ -28,8 +28,8 @@ export class AdalAuthProvider extends AuthProviderBase {
 		super(context);
 		window.registerUriHandler(this.handler);
 		Logging.setLoggingOptions({
-			level: enableVerboseLogs ? 
-				3 /* Logging.LOGGING_LEVEL.VERBOSE */ : 
+			level: enableVerboseLogs ?
+				3 /* Logging.LOGGING_LEVEL.VERBOSE */ :
 				0 /* Logging.LOGGING_LEVEL.ERROR */,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			log: (_level: any, message: any, error: any) => {
@@ -43,7 +43,7 @@ export class AdalAuthProvider extends AuthProviderBase {
 		});
 	}
 
-	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<AbstractLoginResult> {
+	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TokenResponse[]> {
 		const callbackUri: Uri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://ms-vscode.azure-account`));
 		const nonce: string = randomBytes(16).toString('base64');
 		const port: string | number = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
@@ -70,7 +70,7 @@ export class AdalAuthProvider extends AuthProviderBase {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<AbstractLoginResult> {
+	public async loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TokenResponse[]> {
 		const tokenResponse: TokenResponse = await getTokenWithAuthorizationCode(clientId, environment, redirectUrl, tenantId, code);
 
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -78,7 +78,7 @@ export class AdalAuthProvider extends AuthProviderBase {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AbstractLoginResult> {
+	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TokenResponse[]> {
 		const userCode: UserCodeInfo = await getUserCode(environment, tenantId);
 		const messageTask: Promise<void> = showDeviceCodeMessage(userCode);
 		const tokenResponseTask: Promise<TokenResponse> = getTokenResponse(environment, tenantId, userCode);
@@ -89,7 +89,7 @@ export class AdalAuthProvider extends AuthProviderBase {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<AbstractLoginResult> {
+	public async loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<TokenResponse[]> {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let parsedCreds: any;
 		let tokenResponse: TokenResponse | null = null;
@@ -127,14 +127,8 @@ export class AdalAuthProvider extends AuthProviderBase {
 		return new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, environment, this.delayedTokenCache);
 	}
 
-	public async updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void> {
+	public async updateSessions(environment: Environment, loginResult: TokenResponse[], sessions: AzureSession[]): Promise<void> {
 		await clearTokenCache(this.tokenCache);
-
-		if (!isAdalLoginResult(loginResult)) {
-			throw loginResultTypeError;
-		}
-
-		loginResult = <TokenResponse[]>loginResult;
 
 		for (const tokenResponse of loginResult) {
 			await addTokenToCache(environment, this.tokenCache, tokenResponse);
@@ -162,19 +156,19 @@ export class AdalAuthProvider extends AuthProviderBase {
 
 	private async exchangeCodeForToken(clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TokenResponse> {
 		let uriEventListener: Disposable;
-		return new Promise((resolve: (value: TokenResponse) => void , reject) => {
+		return new Promise((resolve: (value: TokenResponse) => void, reject) => {
 			uriEventListener = this.handler.event(async (uri: Uri) => {
 				try {
 					/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 					const query = parseQuery(uri);
 					const code = query.code;
-		
+
 					// Workaround double encoding issues of state
 					if (query.state !== state && decodeURIComponent(query.state) !== state) {
 						throw new Error('State does not match.');
 					}
 					/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
-		
+
 					resolve(await getTokenWithAuthorizationCode(clientId, environment, callbackUri, tenantId, code));
 				} catch (err) {
 					reject(err);

@@ -19,7 +19,7 @@ import { openUri } from '../utils/openUri';
 import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
-import { AbstractLoginResult, AuthProviderBase } from './AuthProviderBase';
+import { AuthProviderBase } from './AuthProviderBase';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { addFilter, getNewFilters, removeFilter } from './filters';
 import { getKey } from './getKey';
@@ -75,7 +75,7 @@ export class AzureLoginHelper {
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
 
-	private authProvider: AuthProviderBase;
+	private authProvider: AdalAuthProvider | MsalAuthProvider;
 
 	public api: AzureAccount = {
 		status: 'Initializing',
@@ -150,10 +150,10 @@ export class AzureLoginHelper {
 			const isAdfs: boolean = isADFS(environment);
 			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			const loginResult: AbstractLoginResult = useCodeFlow ? 
+			const loginResult = useCodeFlow ?
 				await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
 				await this.authProvider.loginWithDeviceCode(environment, tenantId);
-			await this.updateSessions(environment, loginResult);
+			await this.updateSessions(this.authProvider, environment, loginResult);
 			void this.sendLoginTelemetry(trigger, path, environmentName, 'success', undefined, true);
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
@@ -229,7 +229,8 @@ export class AzureLoginHelper {
 				const tenantId: string | undefined = await window.showInputBox({
 					prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
 					placeHolder: localize('azure-account.tenantIdPlaceholder', "Enter your tenant id, or '{0}' for the default tenant", commonTenantId),
-					ignoreFocusOut: true});
+					ignoreFocusOut: true
+				});
 				if (tenantId) {
 					if (armUrl) {
 						await config.update(customCloudArmUrlSetting, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlSetting)));
@@ -259,8 +260,8 @@ export class AzureLoginHelper {
 			}
 			await waitUntilOnline(environment, 5000);
 			this.beginLoggingIn();
-			const loginResult: AbstractLoginResult = await this.authProvider.loginSilent(environment, storedCreds, tenantId);
-			await this.updateSessions(environment, loginResult);
+			const loginResult = await this.authProvider.loginSilent(environment, storedCreds, tenantId);
+			await this.updateSessions(this.authProvider, environment, loginResult);
 			void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success', undefined, true);
 		} catch (err) {
 			await this.clearSessions(); // clear out cached data
@@ -321,8 +322,8 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private async updateSessions(environment: Environment, loginResult: AbstractLoginResult): Promise<void> {
-		await this.authProvider.updateSessions(environment, loginResult, this.api.sessions);
+	private async updateSessions<T>(authProvider: AuthProviderBase<T>, environment: Environment, loginResult: T): Promise<void> {
+		await authProvider.updateSessions(environment, loginResult, this.api.sessions);
 		this.onSessionsChanged.fire();
 	}
 
@@ -344,7 +345,7 @@ export class AzureLoginHelper {
 	private initializeSubscriptions(cache: ISubscriptionCache, sessions: Record<string, AzureSession>): AzureSubscription[] {
 		const subscriptions: AzureSubscription[] = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
 			const { environment, userId, tenantId } = session;
-			const key: string = getKey(environment, userId, tenantId);			
+			const key: string = getKey(environment, userId, tenantId);
 			return {
 				session: sessions[key],
 				subscription

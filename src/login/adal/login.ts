@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
+// eslint-disable-next-line import/no-internal-modules
 import { AuthenticationContext, MemoryCache } from "@azure/ms-rest-nodeauth/node_modules/adal-node";
 import { UserCodeInfo } from "adal-node";
 import { env, EventEmitter, MessageItem, Uri, UriHandler, window } from "vscode";

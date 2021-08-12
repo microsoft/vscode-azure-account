@@ -14,9 +14,9 @@ import { tryGetKeyTar } from "../../utils/keytar";
 import { localize } from "../../utils/localize";
 import { isADFS } from "../environments";
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, import/no-internal-modules
 const CacheDriver = require('adal-node/lib/cache-driver');
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, import/no-internal-modules
 const createLogContext = require('adal-node/lib/log').createLogContext;
 
 const keytar = tryGetKeyTar();

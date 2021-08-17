@@ -209,10 +209,10 @@
           ],
           "enumDescriptions": [
             "Azure Active Directory Authentication Library",
-            "Microsoft Authentication Library (Newest)"
+            "Microsoft Authentication Library (Preview)"
           ],
           "default": "ADAL",
-          "description": "The authentication library to use."
+          "description": "The authentication library to use. Note: You must reload the window after modifying this setting for it to take effect."
         }
       }
     }

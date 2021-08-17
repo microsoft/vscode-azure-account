@@ -22,7 +22,7 @@ const beforeCacheAccess = async (cacheContext: TokenCacheContext): Promise<void>
 };
 
 const afterCacheAccess = async (cacheContext: TokenCacheContext): Promise<void> => {
-    if(keytar && cacheContext.cacheHasChanged) {
+    if (keytar && cacheContext.cacheHasChanged) {
 		try {
 			await keytar.setPassword(credentialsSection, (await getSelectedEnvironment()).name, cacheContext.tokenCache.serialize());
 		} catch (error) {

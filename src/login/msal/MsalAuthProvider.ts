@@ -5,18 +5,22 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
+import { DeviceCodeResponse } from '@azure/msal-common';
 import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from "@azure/msal-node";
 import { MemoryCache } from "adal-node";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { ExtensionContext } from "vscode";
+import { env, ExtensionContext, MessageItem, window } from "vscode";
 import { AzureSession } from "../../azure-account.api";
 import { clientId, msalScopes } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
+import { openUri } from "../../utils/openUri";
 import { ProxyTokenCache } from "../adal/tokens";
 import { AbstractCredentials2, AbstractLoginResult, AuthProviderBase, isAdalLoginResult, loginResultTypeError } from "../AuthProviderBase";
 import { cachePlugin } from "./cachePlugin";
 import { PublicClientCredential } from "./PublicClientCredential";
+
+const msalAuthFailedError: Error = new Error(localize('azure-account.msalAuthFailed', 'MSAL authentication failed.'));
 
 export class MsalAuthProvider extends AuthProviderBase {
 	private publicClientApp: PublicClientApplication;
@@ -54,14 +58,33 @@ export class MsalAuthProvider extends AuthProviderBase {
 		});
 
 		if (!authResult) {
-			throw new Error(localize('azure-account.msalAuthFailed', 'MSAL authentication failed.'));
+			throw msalAuthFailedError;
 		}
 
 		return authResult;
 	}
 
 	public async loginWithDeviceCode(): Promise<AbstractLoginResult> {
-		throw new Error('"Login With Device Code" not implemented for MSAL.');
+		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByDeviceCode({
+			scopes: msalScopes,
+			deviceCodeCallback: async (response: DeviceCodeResponse) => {
+				const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
+				const result: MessageItem | undefined = await window.showInformationMessage(response.message, copyAndOpen);
+				if (result === copyAndOpen) {
+					void env.clipboard.writeText(response.userCode);
+					await openUri(response.verificationUri);
+				} else {
+					return Promise.reject('user canceled');
+				}
+				console.log(response);
+			}
+		});
+
+		if (!authResult) {
+			throw msalAuthFailedError;
+		}
+
+		return authResult;
 	}
 
 	public async loginSilent(): Promise<AbstractLoginResult> {

@@ -6,8 +6,7 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
-import { AccountInfo, AuthenticationResult } from "@azure/msal-node";
-import { TokenResponse } from "adal-node";
+import { AccountInfo } from "@azure/msal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
@@ -26,22 +25,17 @@ const staticEnvironmentNames: string[] = [
 	azureCustomCloud,
 	azurePPE,
 	// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
-	'Azure', 
+	'Azure',
 	'AzureChina',
 ];
 const keytar: KeyTar | undefined = tryGetKeyTar();
 
-export type AbstractLoginResult = TokenResponse[] | AuthenticationResult;
 export type AbstractCredentials = DeviceTokenCredentials;
 export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCredentialAdapter;
 
 export const loginResultTypeError: Error = new Error(localize('azure-account.unexpectedType', 'Unexpected login result type.'));
 
-export function isAdalLoginResult(loginResult: AbstractLoginResult): boolean {
-	return Array.isArray(loginResult);
-}
-
-export abstract class AuthProviderBase {
+export abstract class AuthProviderBase<TLoginResult> {
 	private terminateServer: (() => Promise<void>) | undefined;
 
 	protected outputChannel: OutputChannel;
@@ -51,31 +45,31 @@ export abstract class AuthProviderBase {
 		context.subscriptions.push(this.outputChannel);
 	}
 
-	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<AbstractLoginResult>;
-	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<AbstractLoginResult>;
-	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AbstractLoginResult>;
-	public abstract loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<AbstractLoginResult>;
+	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult>;
+	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
+	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
+	public abstract loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<TLoginResult>;
 	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
 	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
-	public abstract updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void>;
+	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;
 	public abstract clearLibraryTokenCache(): Promise<void>;
 
-	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<AbstractLoginResult> {
+	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TLoginResult> {
 		if (env.uiKind === UIKind.Web) {
 			return await this.loginWithoutLocalServer(clientId, environment, isAdfs, tenantId);
 		}
-	
+
 		if (isAdfs && this.terminateServer) {
 			await this.terminateServer();
 		}
-	
+
 		const nonce: string = randomBytes(16).toString('base64');
 		const { server, redirectPromise, codePromise } = createServer(nonce);
-	
+
 		if (isAdfs) {
 			this.terminateServer = createTerminateServer(server);
 		}
-	
+
 		try {
 			const port: number = await startServer(server, isAdfs);
 			await openUri(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`);
@@ -91,7 +85,7 @@ export abstract class AuthProviderBase {
 				res.end();
 				throw err;
 			}
-	
+
 			clearTimeout(redirectTimer);
 
 			const host: string = redirectResult.req.headers.host || '';
@@ -103,14 +97,14 @@ export abstract class AuthProviderBase {
 
 			redirectResult.res.writeHead(302, { Location: signInUrl })
 			redirectResult.res.end();
-	
+
 			const codeResult: CodeResult = await codePromise;
 			const serverResponse: ServerResponse = codeResult.res;
 			try {
 				if ('err' in codeResult) {
 					throw codeResult.err;
 				}
-	
+
 				try {
 					return await this.loginWithAuthCode(codeResult.code, redirectUrl, clientId, environment, tenantId);
 				} finally {

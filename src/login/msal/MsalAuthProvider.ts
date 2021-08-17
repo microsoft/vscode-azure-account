@@ -14,11 +14,11 @@ import { clientId, msalScopes } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
 import { ProxyTokenCache } from "../adal/tokens";
-import { AbstractCredentials2, AbstractLoginResult, AuthProviderBase, isAdalLoginResult, loginResultTypeError } from "../AuthProviderBase";
+import { AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { cachePlugin } from "./cachePlugin";
 import { PublicClientCredential } from "./PublicClientCredential";
 
-export class MsalAuthProvider extends AuthProviderBase {
+export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	private publicClientApp: PublicClientApplication;
 
 	// For compatibility with `DeviceTokenCredentials`
@@ -32,7 +32,7 @@ export class MsalAuthProvider extends AuthProviderBase {
 			system: {
 				loggerOptions: {
 					loggerCallback: (_level: LogLevel, message: string, _containsPii: boolean) => {
-						this.outputChannel.appendLine(message);	
+						this.outputChannel.appendLine(message);
 					},
 					piiLoggingEnabled: false,
 					logLevel: enableVerboseLogs ? LogLevel.Verbose : LogLevel.Error
@@ -42,11 +42,11 @@ export class MsalAuthProvider extends AuthProviderBase {
 		this.publicClientApp = new PublicClientApplication(msalConfiguration);
 	}
 
-	public async loginWithoutLocalServer(_clientId: string, _environment: Environment, _isAdfs: boolean, _tenantId: string): Promise<AbstractLoginResult> {
+	public async loginWithoutLocalServer(_clientId: string, _environment: Environment, _isAdfs: boolean, _tenantId: string): Promise<AuthenticationResult> {
 		throw new Error('"Login Without Local Server" not implemented for MSAL.');
 	}
 
-	public async loginWithAuthCode(code: string, redirectUrl: string): Promise<AbstractLoginResult> {
+	public async loginWithAuthCode(code: string, redirectUrl: string): Promise<AuthenticationResult> {
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByCode({
 			scopes: msalScopes,
 			code,
@@ -60,11 +60,11 @@ export class MsalAuthProvider extends AuthProviderBase {
 		return authResult;
 	}
 
-	public async loginWithDeviceCode(): Promise<AbstractLoginResult> {
+	public async loginWithDeviceCode(): Promise<AuthenticationResult> {
 		throw new Error('"Login With Device Code" not implemented for MSAL.');
 	}
 
-	public async loginSilent(): Promise<AbstractLoginResult> {
+	public async loginSilent(): Promise<AuthenticationResult> {
 		const msalTokenCache: TokenCache = this.publicClientApp.getTokenCache();
 		const accountInfo: AccountInfo[] = await msalTokenCache.getAllAccounts();
 		let authResult: AuthenticationResult | null;
@@ -95,13 +95,7 @@ export class MsalAuthProvider extends AuthProviderBase {
 		return new AzureIdentityCredentialAdapter(new PublicClientCredential(this.publicClientApp, accountInfo!));
 	}
 
-	public async updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void> {
-		if (isAdalLoginResult(loginResult)) {
-			throw loginResultTypeError;
-		}
-
-		loginResult = <AuthenticationResult>loginResult;
-
+	public async updateSessions(environment: Environment, loginResult: AuthenticationResult, sessions: AzureSession[]): Promise<void> {
 		/* eslint-disable @typescript-eslint/no-non-null-assertion */
 		sessions.splice(0, sessions.length, <AzureSession>{
 			environment,

@@ -15,6 +15,7 @@ import { AzureAccount, AzureSession } from "../azure-account.api";
 import { displayName, redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { localize } from "../utils/localize";
 import { ISubscriptionCache } from "./AzureLoginHelper";
+import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
@@ -115,7 +116,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 	}
 
 	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount): Promise<Record<string, AzureSession>> {
-		const sessions: Record<string, AzureSession> = {};
+		const sessions: Record<string, AzureSessionInternal> = {};
 		const environments: Environment[] = await getEnvironments();
 
 		for (const { session } of cache.subscriptions) {

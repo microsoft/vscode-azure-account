@@ -19,6 +19,7 @@ import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
 import { AuthProviderBase } from './AuthProviderBase';
+import { AzureSessionInternal } from './AzureSessionInternal';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { addFilter, getNewFilters, removeFilter } from './filters';
 import { getKey } from './getKey';
@@ -301,7 +302,7 @@ export class AzureLoginHelper {
 					environment: session.environment.name,
 					userId: session.userId,
 					tenantId: session.tenantId,
-					accountInfo: session.accountInfo
+					accountInfo: (<AzureSessionInternal>session).accountInfo
 				},
 				subscription
 			}))

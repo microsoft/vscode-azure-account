@@ -7,7 +7,6 @@ import { SubscriptionModels } from '@azure/arm-subscriptions';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
-import { AccountInfo } from '@azure/msal-node';
 import { ReadStream } from 'fs';
 import { ServiceClientCredentials } from 'ms-rest';
 import { CancellationToken, Event, Progress, Terminal } from 'vscode';
@@ -33,7 +32,6 @@ export interface AzureSession {
 	readonly environment: Environment;
 	readonly userId: string;
 	readonly tenantId: string;
-	readonly accountInfo?: AccountInfo;
 
 	/**
 	 * The credentials object for azure-sdk-for-node modules https://github.com/azure/azure-sdk-for-node

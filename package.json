@@ -205,7 +205,7 @@
           "type": "string",
           "enum": [
             "ADAL",
-            "MSAL"
+            "MSAL (Preview)"
           ],
           "enumDescriptions": [
             "Azure Active Directory Authentication Library",

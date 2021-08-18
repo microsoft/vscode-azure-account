@@ -9,11 +9,10 @@ import { AccountInfo } from '@azure/msal-node';
 import { CancellationTokenSource, commands, ConfigurationTarget, Disposable, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { createCloudConsole } from '../cloudConsole/cloudConsole';
-import { AuthLibrary, authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, credentialsSection, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
+import { AuthLibrary, authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { TelemetryReporter } from '../telemetry';
 import { listAll } from '../utils/arrayUtils';
-import { KeyTar, tryGetKeyTar } from '../utils/keytar';
 import { localize } from '../utils/localize';
 import { openUri } from '../utils/openUri';
 import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
@@ -37,7 +36,6 @@ const environmentLabels: Record<string, string> = {
 };
 
 const enableVerboseLogs: boolean = false;
-const keytar: KeyTar | undefined = tryGetKeyTar();
 
 interface IAzureAccountWriteable extends AzureAccount {
 	status: AzureLoginStatus;
@@ -106,7 +104,7 @@ export class AzureLoginHelper {
 		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		context.subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		context.subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
-		context.subscriptions.push(workspace.onDidChangeConfiguration(e => {
+		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
 				const doLogin: boolean = this.doLogin;
 				this.doLogin = false;
@@ -114,6 +112,16 @@ export class AzureLoginHelper {
 					.catch(console.error);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				this.updateFilters(true);
+			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting))) {
+				await this.logout();
+
+				const mustReloadWindow: string = localize('azure-account.mustReloadWindow', 'You must reload the window to authenticate with "{0}"', getSettingValue<AuthLibrary>(authLibrarySetting));
+				const reloadWindow: string = localize('azure-account.reloadWindow', 'Reload Window');
+				void window.showInformationMessage(mustReloadWindow, reloadWindow).then(async value => {
+					if (value === reloadWindow) {
+						await commands.executeCommand('workbench.action.reloadWindow');
+					}
+				});
 			}
 		}));
 		this.initialize('activation', false, true)
@@ -252,14 +260,9 @@ export class AzureLoginHelper {
 			const environment: Environment = await getSelectedEnvironment();
 			environmentName = environment.name;
 			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
-			const storedCreds: string | undefined = await getStoredCredentials(environment, migrateToken);
-
-			if (!storedCreds) {
-				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
-			}
 			await waitUntilOnline(environment, 5000);
 			this.beginLoggingIn();
-			const loginResult = await this.authProvider.loginSilent(environment, storedCreds, tenantId);
+			const loginResult = await this.authProvider.loginSilent(environment, tenantId, migrateToken);
 			await this.updateSessions(this.authProvider, environment, loginResult);
 			void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success', undefined, true);
 		} catch (err) {
@@ -532,28 +535,4 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 		}
 	}
 	return ConfigurationTarget.Global;
-}
-
-async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
-	if (!keytar) {
-		return undefined;
-	}
-	try {
-		if (migrateToken) {
-			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
-			if (token) {
-				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
-					await keytar.setPassword(credentialsSection, 'Azure', token);
-				}
-				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
-			}
-		}
-	} catch {
-		// ignore
-	}
-	try {
-		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
-	} catch {
-		// ignore
-	}
 }

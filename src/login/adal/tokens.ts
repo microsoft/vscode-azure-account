@@ -47,10 +47,44 @@ export class ProxyTokenCache {
 	/* eslint-enable */
 }
 
+export async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
+	if (!keytar) {
+		return undefined;
+	}
+	try {
+		if (migrateToken) {
+			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
+			if (token) {
+				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
+					await keytar.setPassword(credentialsSection, 'Azure', token);
+				}
+				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
+			}
+		}
+	} catch {
+		// ignore
+	}
+	try {
+		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
+	} catch {
+		// ignore
+	}
+}
+
 export async function storeRefreshToken(environment: Environment, token: string): Promise<void> {
 	if (keytar) {
 		try {
 			await keytar.setPassword(credentialsSection, environment.name, token);
+		} catch {
+			// ignore
+		}
+	}
+}
+
+export async function deleteRefreshToken(environmentName: string): Promise<void> {
+	if (keytar) {
+		try {
+			await keytar.deletePassword(credentialsSection, environmentName);
 		} catch {
 			// ignore
 		}

@@ -10,13 +10,22 @@ import { randomBytes } from "crypto";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { Disposable, env, ExtensionContext, Uri, window } from "vscode";
 import { AzureSession } from "../../azure-account.api";
-import { clientId, redirectUrlAAD } from "../../constants";
+import { azureCustomCloud, azurePPE, clientId, redirectUrlAAD, staticEnvironments } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { getCallbackEnvironment, getUserCode, parseQuery, showDeviceCodeMessage, UriEventHandler } from "./login";
-import { addTokenToCache, clearTokenCache, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
+import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
+
+const staticEnvironmentNames: string[] = [
+	...staticEnvironments.map(environment => environment.name),
+	azureCustomCloud,
+	azurePPE,
+	// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
+	'Azure',
+	'AzureChina',
+];
 
 export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 	private tokenCache: MemoryCache = new MemoryCache();
@@ -89,7 +98,12 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<TokenResponse[]> {
+	public async loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TokenResponse[]> {
+		const storedCreds: string | undefined = await getStoredCredentials(environment, migrateToken);
+		if (!storedCreds) {
+			throw new AzureLoginError(localize('azure-account.refreshTokenMissing', 'Not signed in'));
+		}
+
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let parsedCreds: any;
 		let tokenResponse: TokenResponse | null = null;
@@ -152,6 +166,12 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		await clearTokenCache(this.tokenCache);
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		this.delayedTokenCache.initEnd!();
+	}
+
+	public async clearLocalTokenCache(): Promise<void> {
+		for (const name of staticEnvironmentNames) {
+			await deleteRefreshToken(name);
+		}
 	}
 
 	private async exchangeCodeForToken(clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TokenResponse> {

@@ -12,23 +12,12 @@ import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { env, ExtensionContext, OutputChannel, UIKind, window } from "vscode";
 import { AzureAccount, AzureSession } from "../azure-account.api";
-import { azureCustomCloud, azurePPE, credentialsSection, displayName, redirectUrlAAD, redirectUrlADFS, staticEnvironments } from "../constants";
-import { KeyTar, tryGetKeyTar } from "../utils/keytar";
+import { displayName, redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { localize } from "../utils/localize";
 import { ISubscriptionCache } from "./AzureLoginHelper";
 import { getEnvironments } from "./environments";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
-
-const staticEnvironmentNames: string[] = [
-	...staticEnvironments.map(environment => environment.name),
-	azureCustomCloud,
-	azurePPE,
-	// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
-	'Azure',
-	'AzureChina',
-];
-const keytar: KeyTar | undefined = tryGetKeyTar();
 
 export type AbstractCredentials = DeviceTokenCredentials;
 export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCredentialAdapter;
@@ -48,11 +37,12 @@ export abstract class AuthProviderBase<TLoginResult> {
 	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
-	public abstract loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<TLoginResult>;
+	public abstract loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TLoginResult>;
 	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
 	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
 	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;
 	public abstract clearLibraryTokenCache(): Promise<void>;
+	public abstract clearLocalTokenCache(): Promise<void>;
 
 	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TLoginResult> {
 		if (env.uiKind === UIKind.Web) {
@@ -147,17 +137,5 @@ export abstract class AuthProviderBase<TLoginResult> {
 		}
 
 		return sessions;
-	}
-
-	public async clearLocalTokenCache(): Promise<void> {
-		if (keytar) {
-			for (const name of staticEnvironmentNames) {
-				try {
-					await keytar.deletePassword(credentialsSection, name);
-				} catch {
-					// ignore
-				}
-			}
-		}
 	}
 }

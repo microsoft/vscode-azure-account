@@ -74,15 +74,17 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 				scopes: msalScopes,
 				account: accountInfo[0]
 			});
-		} else {
+
+			if (!authResult) {
+				throw new AzureLoginError(localize('azure-account.loginSilentFailed', 'Silent login failed.'));
+			}
+
+			return authResult;
+		} else if (accountInfo.length) {
 			throw new Error(localize('azure-account.expectedSingleAccount', 'Expected a single account when reading cache but multiple were found.'));
+		} else {
+			throw new Error(localize('azure-account.noAccountFound', 'No account was found when reading cache.'));
 		}
-
-		if (!authResult) {
-			throw new AzureLoginError(localize('azure-account.loginSilentFailed', 'Silent login failed.'));
-		}
-
-		return authResult;
 	}
 
 	public getCredentials(environment: string, userId: string, tenantId: string): DeviceTokenCredentials {
@@ -110,7 +112,15 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	}
 
 	public async clearLibraryTokenCache(): Promise<void> {
-		// MSAL handles token caching under the hood
+		const tokenCache: TokenCache = this.publicClientApp.getTokenCache();
+
+		for (const account of await tokenCache.getAllAccounts()) {
+			await tokenCache.removeAccount(account);
+		}
+	}
+
+	public async clearLocalTokenCache(): Promise<void> {
+		// Not required for MSAL
 		return;
 	}
 }

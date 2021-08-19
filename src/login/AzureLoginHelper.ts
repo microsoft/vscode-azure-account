@@ -537,5 +537,5 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 }
 
 function getAuthLibrary(): AuthLibrary {
-	return getSettingValue<AuthLibrary>(authLibrarySetting) || 'MSAL';
+	return getSettingValue<AuthLibrary>(authLibrarySetting) || 'ADAL';
 }

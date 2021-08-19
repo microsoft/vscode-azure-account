@@ -12,26 +12,18 @@ const keytar: KeyTar | undefined = tryGetKeyTar();
 
 const beforeCacheAccess = async (cacheContext: TokenCacheContext): Promise<void> => {
 	if (keytar) {
-		try {
-            const cachedValue: string | null = await keytar.getPassword(credentialsSection, (await getSelectedEnvironment()).name);
-			cachedValue && cacheContext.tokenCache.deserialize(cachedValue);
-		} catch (error) {
-			console.log(JSON.stringify(error));
-		}
+		const cachedValue: string | null = await keytar.getPassword(credentialsSection, (await getSelectedEnvironment()).name);
+		cachedValue && cacheContext.tokenCache.deserialize(cachedValue);
 	}
 };
 
 const afterCacheAccess = async (cacheContext: TokenCacheContext): Promise<void> => {
     if(keytar && cacheContext.cacheHasChanged) {
-		try {
-			await keytar.setPassword(credentialsSection, (await getSelectedEnvironment()).name, cacheContext.tokenCache.serialize());
-		} catch (error) {
-			console.log(JSON.stringify(error));
-		}
+		await keytar.setPassword(credentialsSection, (await getSelectedEnvironment()).name, cacheContext.tokenCache.serialize());
     }
 };
 
-export const cachePlugin: ICachePlugin = { 
+export const cachePlugin: ICachePlugin = {
 	beforeCacheAccess,
 	afterCacheAccess
 };

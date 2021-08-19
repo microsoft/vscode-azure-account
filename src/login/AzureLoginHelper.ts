@@ -75,6 +75,7 @@ export class AzureLoginHelper {
 	private authProvider: AdalAuthProvider;
 
 	public api: AzureAccount = {
+		apiVersion: '0.1.0',
 		status: 'Initializing',
 		onStatusChanged: this.onStatusChanged.event,
 		waitForLogin: () => this.waitForLogin(),
@@ -144,7 +145,7 @@ export class AzureLoginHelper {
 			const isAdfs: boolean = isADFS(environment);
 			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			const loginResult: AbstractLoginResult = useCodeFlow ? 
+			const loginResult: AbstractLoginResult = useCodeFlow ?
 				await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
 				await this.authProvider.loginWithDeviceCode(environment, tenantId);
 			await this.updateSessions(environment, loginResult);
@@ -337,7 +338,7 @@ export class AzureLoginHelper {
 	private initializeSubscriptions(cache: ISubscriptionCache, sessions: Record<string, AzureSession>): AzureSubscription[] {
 		const subscriptions: AzureSubscription[] = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
 			const { environment, userId, tenantId } = session;
-			const key: string = getKey(environment, userId, tenantId);			
+			const key: string = getKey(environment, userId, tenantId);
 			return {
 				session: sessions[key],
 				subscription

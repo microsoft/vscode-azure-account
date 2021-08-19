@@ -6,6 +6,8 @@
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { createApiProvider } from 'vscode-azureextensionui';
+import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccount } from './azure-account.api';
 import { OSes, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, extensionPrefix, showSignedInEmailSetting } from './constants';
@@ -17,7 +19,7 @@ import { getSettingValue } from './utils/settingUtils';
 
 const enableLogging: boolean = false;
 
-export async function activate(context: ExtensionContext): Promise<AzureAccount> {
+export async function activate(context: ExtensionContext): Promise<AzureExtensionApiProvider> {
 	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
 	const azureLoginHelper: AzureLoginHelper = new AzureLoginHelper(context, reporter);
@@ -30,7 +32,8 @@ export async function activate(context: ExtensionContext): Promise<AzureAccount>
 	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLoginHelper.api, 'Windows')));
 	context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
 	survey(context, reporter);
-	return Promise.resolve(azureLoginHelper.api); // Return promise to work around weird error in WinJS.
+
+	return createApiProvider([azureLoginHelper.api]);
 }
 
 async function migrateEnvironmentSetting() {

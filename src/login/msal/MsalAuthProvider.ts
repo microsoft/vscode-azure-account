@@ -111,16 +111,11 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		/* eslint-enable @typescript-eslint/no-non-null-assertion */
 	}
 
-	public async clearLibraryTokenCache(): Promise<void> {
+	public async clearTokenCache(): Promise<void> {
 		const tokenCache: TokenCache = this.publicClientApp.getTokenCache();
 
 		for (const account of await tokenCache.getAllAccounts()) {
 			await tokenCache.removeAccount(account);
 		}
-	}
-
-	public async clearLocalTokenCache(): Promise<void> {
-		// Not required for MSAL
-		return;
 	}
 }

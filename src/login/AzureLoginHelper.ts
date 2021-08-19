@@ -93,7 +93,7 @@ export class AzureLoginHelper {
 
 	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
 		// Allow switching between libraries via a setting for testing purposes
-		this.authProvider = getSettingValue<AuthLibrary>(authLibrarySetting) === 'ADAL' ?
+		this.authProvider = getAuthLibrary() === 'ADAL' ?
 			new AdalAuthProvider(context, enableVerboseLogs) :
 			new MsalAuthProvider(context, enableVerboseLogs);
 
@@ -114,12 +114,11 @@ export class AzureLoginHelper {
 			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				this.updateFilters(true);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting))) {
-				await this.logout();
-
-				const mustReloadWindow: string = localize('azure-account.mustReloadWindow', 'You must reload the window to authenticate with "{0}"', getSettingValue<AuthLibrary>(authLibrarySetting));
-				const reloadWindow: string = localize('azure-account.reloadWindow', 'Reload Window');
-				void window.showInformationMessage(mustReloadWindow, reloadWindow).then(async value => {
-					if (value === reloadWindow) {
+				const mustSignOutAndReload: string = localize('azure-account.mustSignOutAndReload', 'You must sign out and reload the window to authenticate with "{0}"', getAuthLibrary());
+				const signOutAndReload: string = localize('azure-account.signOutAndReload', 'Sign Out and Reload Window');
+				void window.showInformationMessage(mustSignOutAndReload, signOutAndReload).then(async value => {
+					if (value === signOutAndReload) {
+						await this.logout();
 						await commands.executeCommand('workbench.action.reloadWindow');
 					}
 				});
@@ -204,7 +203,6 @@ export class AzureLoginHelper {
 
 	public async logout(): Promise<void> {
 		await this.api.waitForLogin();
-		await this.authProvider.clearLocalTokenCache();
 		await this.clearSessions();
 		this.updateLoginStatus();
 	}
@@ -331,7 +329,7 @@ export class AzureLoginHelper {
 	}
 
 	private async clearSessions(): Promise<void> {
-		await this.authProvider.clearLibraryTokenCache();
+		await this.authProvider.clearTokenCache();
 		const sessions: AzureSession[] = this.api.sessions;
 		sessions.length = 0;
 		this.onSessionsChanged.fire();
@@ -536,4 +534,8 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 		}
 	}
 	return ConfigurationTarget.Global;
+}
+
+function getAuthLibrary(): AuthLibrary {
+	return getSettingValue<AuthLibrary>(authLibrarySetting) || 'MSAL';
 }

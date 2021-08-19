@@ -13,7 +13,6 @@ import { DeviceTokenCredentials } from "ms-rest-azure";
 import { env, ExtensionContext, OutputChannel, UIKind, window } from "vscode";
 import { AzureAccount, AzureSession } from "../azure-account.api";
 import { displayName, redirectUrlAAD, redirectUrlADFS } from "../constants";
-import { localize } from "../utils/localize";
 import { ISubscriptionCache } from "./AzureLoginHelper";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
@@ -22,8 +21,6 @@ import { CodeResult, createServer, createTerminateServer, RedirectResult, startS
 
 export type AbstractCredentials = DeviceTokenCredentials;
 export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCredentialAdapter;
-
-export const loginResultTypeError: Error = new Error(localize('azure-account.unexpectedType', 'Unexpected login result type.'));
 
 export abstract class AuthProviderBase<TLoginResult> {
 	private terminateServer: (() => Promise<void>) | undefined;
@@ -42,8 +39,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
 	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
 	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;
-	public abstract clearLibraryTokenCache(): Promise<void>;
-	public abstract clearLocalTokenCache(): Promise<void>;
+	public abstract clearTokenCache(): Promise<void>;
 
 	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TLoginResult> {
 		if (env.uiKind === UIKind.Web) {

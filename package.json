@@ -205,13 +205,12 @@
           "type": "string",
           "enum": [
             "ADAL",
-            "MSAL (Preview)"
+            "MSAL"
           ],
           "enumDescriptions": [
             "Azure Active Directory Authentication Library",
             "Microsoft Authentication Library (Preview)"
           ],
-          "default": "ADAL",
           "description": "The authentication library to use. Note: You must reload the window after modifying this setting for it to take effect."
         }
       }

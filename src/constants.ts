@@ -5,7 +5,7 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 
-export type AuthLibrary = 'ADAL' | 'MSAL (Preview)';
+export type AuthLibrary = 'ADAL' | 'MSAL';
 
 export const extensionPrefix: string = 'azure';
 export const authLibrarySetting: string = 'authenticationLibrary';

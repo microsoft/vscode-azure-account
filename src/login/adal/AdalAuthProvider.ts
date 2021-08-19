@@ -21,10 +21,7 @@ import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredenti
 const staticEnvironmentNames: string[] = [
 	...staticEnvironments.map(environment => environment.name),
 	azureCustomCloud,
-	azurePPE,
-	// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
-	'Azure',
-	'AzureChina',
+	azurePPE
 ];
 
 export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
@@ -162,16 +159,16 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		/* eslint-enable @typescript-eslint/no-non-null-assertion */
 	}
 
-	public async clearLibraryTokenCache(): Promise<void> {
+	public async clearTokenCache(): Promise<void> {
+		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
+		const allEnvironmentNames: string[] = staticEnvironmentNames.concat(['Azure', 'AzureChina'])
+		for (const name of allEnvironmentNames) {
+			await deleteRefreshToken(name);
+		}
+
 		await clearTokenCache(this.tokenCache);
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		this.delayedTokenCache.initEnd!();
-	}
-
-	public async clearLocalTokenCache(): Promise<void> {
-		for (const name of staticEnvironmentNames) {
-			await deleteRefreshToken(name);
-		}
 	}
 
 	private async exchangeCodeForToken(clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TokenResponse> {

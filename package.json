@@ -200,6 +200,18 @@
           },
           "default": null,
           "description": "Development setting: The PPE environment for testing."
+        },
+        "azure.authenticationLibrary": {
+          "type": "string",
+          "enum": [
+            "ADAL",
+            "MSAL"
+          ],
+          "enumDescriptions": [
+            "Azure Active Directory Authentication Library",
+            "Microsoft Authentication Library (Preview)"
+          ],
+          "description": "The authentication library to use. Note: You must reload the window after modifying this setting for it to take effect."
         }
       }
     }
@@ -247,8 +259,10 @@
     "@azure/arm-appservice": "^6.0.0",
     "@azure/arm-resources": "^3.0.0",
     "@azure/arm-subscriptions": "^2.0.0",
+    "@azure/core-auth": "^1.3.2",
     "@azure/ms-rest-azure-env": "^2.0.0",
     "@azure/ms-rest-nodeauth": "^3.0.10",
+    "@azure/msal-node": "^1.3.0",
     "adal-node": "0.1.28",
     "form-data": "2.3.3",
     "http-proxy-agent": "2.1.0",

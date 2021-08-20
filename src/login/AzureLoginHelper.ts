@@ -5,23 +5,25 @@
 
 import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
 import { Environment } from '@azure/ms-rest-azure-env';
+import { AccountInfo } from '@azure/msal-node';
 import { CancellationTokenSource, commands, ConfigurationTarget, Disposable, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { createCloudConsole } from '../cloudConsole/cloudConsole';
-import { azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, credentialsSection, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
+import { AuthLibrary, authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { TelemetryReporter } from '../telemetry';
 import { listAll } from '../utils/arrayUtils';
-import { KeyTar, tryGetKeyTar } from '../utils/keytar';
 import { localize } from '../utils/localize';
 import { openUri } from '../utils/openUri';
 import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
-import { AbstractLoginResult } from './AuthProviderBase';
+import { AuthProviderBase } from './AuthProviderBase';
+import { AzureSessionInternal } from './AzureSessionInternal';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { addFilter, getNewFilters, removeFilter } from './filters';
 import { getKey } from './getKey';
+import { MsalAuthProvider } from './msal/MsalAuthProvider';
 import { checkRedirectServer } from './server';
 import { waitUntilOnline } from './waitUntilOnline';
 
@@ -35,7 +37,6 @@ const environmentLabels: Record<string, string> = {
 };
 
 const enableVerboseLogs: boolean = false;
-const keytar: KeyTar | undefined = tryGetKeyTar();
 
 interface IAzureAccountWriteable extends AzureAccount {
 	status: AzureLoginStatus;
@@ -51,6 +52,7 @@ export interface ISubscriptionCache {
 			environment: string;
 			userId: string;
 			tenantId: string;
+			accountInfo?: AccountInfo;
 		};
 		subscription: SubscriptionModels.Subscription;
 	}[];
@@ -72,7 +74,7 @@ export class AzureLoginHelper {
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
 
-	private authProvider: AdalAuthProvider;
+	private authProvider: AdalAuthProvider | MsalAuthProvider;
 
 	public api: AzureAccount = {
 		status: 'Initializing',
@@ -90,7 +92,10 @@ export class AzureLoginHelper {
 	};
 
 	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
-		this.authProvider = new AdalAuthProvider(context, enableVerboseLogs);
+		// Allow switching between libraries via a setting for testing purposes
+		this.authProvider = getAuthLibrary() === 'ADAL' ?
+			new AdalAuthProvider(context, enableVerboseLogs) :
+			new MsalAuthProvider(context, enableVerboseLogs);
 
 		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
@@ -100,7 +105,7 @@ export class AzureLoginHelper {
 		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		context.subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		context.subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
-		context.subscriptions.push(workspace.onDidChangeConfiguration(e => {
+		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
 				const doLogin: boolean = this.doLogin;
 				this.doLogin = false;
@@ -108,6 +113,15 @@ export class AzureLoginHelper {
 					.catch(console.error);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				this.updateFilters(true);
+			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting))) {
+				const mustSignOutAndReload: string = localize('azure-account.mustSignOutAndReload', 'You must sign out and reload the window to authenticate with "{0}"', getAuthLibrary());
+				const signOutAndReload: string = localize('azure-account.signOutAndReload', 'Sign Out and Reload Window');
+				void window.showInformationMessage(mustSignOutAndReload, signOutAndReload).then(async value => {
+					if (value === signOutAndReload) {
+						await this.logout();
+						await commands.executeCommand('workbench.action.reloadWindow');
+					}
+				});
 			}
 		}));
 		this.initialize('activation', false, true)
@@ -144,10 +158,10 @@ export class AzureLoginHelper {
 			const isAdfs: boolean = isADFS(environment);
 			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
 			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			const loginResult: AbstractLoginResult = useCodeFlow ? 
+			const loginResult = useCodeFlow ?
 				await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
 				await this.authProvider.loginWithDeviceCode(environment, tenantId);
-			await this.updateSessions(environment, loginResult);
+			await this.updateSessions(this.authProvider, environment, loginResult);
 			void this.sendLoginTelemetry(trigger, path, environmentName, 'success', undefined, true);
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
@@ -189,7 +203,6 @@ export class AzureLoginHelper {
 
 	public async logout(): Promise<void> {
 		await this.api.waitForLogin();
-		await this.authProvider.deleteRefreshTokens();
 		await this.clearSessions();
 		this.updateLoginStatus();
 	}
@@ -246,15 +259,10 @@ export class AzureLoginHelper {
 			const environment: Environment = await getSelectedEnvironment();
 			environmentName = environment.name;
 			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
-			const storedCreds: string | undefined = await getStoredCredentials(environment, migrateToken);
-
-			if (!storedCreds) {
-				throw new AzureLoginError(localize('azure-account.refreshTokenMissing', "Not signed in"));
-			}
 			await waitUntilOnline(environment, 5000);
 			this.beginLoggingIn();
-			const loginResult: AbstractLoginResult = await this.authProvider.loginSilent(environment, storedCreds, tenantId);
-			await this.updateSessions(environment, loginResult);
+			const loginResult = await this.authProvider.loginSilent(environment, tenantId, migrateToken);
+			await this.updateSessions(this.authProvider, environment, loginResult);
 			void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success', undefined, true);
 		} catch (err) {
 			await this.clearSessions(); // clear out cached data
@@ -291,7 +299,8 @@ export class AzureLoginHelper {
 				session: {
 					environment: session.environment.name,
 					userId: session.userId,
-					tenantId: session.tenantId
+					tenantId: session.tenantId,
+					accountInfo: (<AzureSessionInternal>session).accountInfo
 				},
 				subscription
 			}))
@@ -314,8 +323,8 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private async updateSessions(environment: Environment, loginResult: AbstractLoginResult): Promise<void> {
-		await this.authProvider.updateSessions(environment, loginResult, this.api.sessions);
+	private async updateSessions<TLoginResult>(authProvider: AuthProviderBase<TLoginResult>, environment: Environment, loginResult: TLoginResult): Promise<void> {
+		await authProvider.updateSessions(environment, loginResult, this.api.sessions);
 		this.onSessionsChanged.fire();
 	}
 
@@ -337,7 +346,7 @@ export class AzureLoginHelper {
 	private initializeSubscriptions(cache: ISubscriptionCache, sessions: Record<string, AzureSession>): AzureSubscription[] {
 		const subscriptions: AzureSubscription[] = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
 			const { environment, userId, tenantId } = session;
-			const key: string = getKey(environment, userId, tenantId);			
+			const key: string = getKey(environment, userId, tenantId);
 			return {
 				session: sessions[key],
 				subscription
@@ -527,26 +536,6 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 	return ConfigurationTarget.Global;
 }
 
-async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
-	if (!keytar) {
-		return undefined;
-	}
-	try {
-		if (migrateToken) {
-			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
-			if (token) {
-				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
-					await keytar.setPassword(credentialsSection, 'Azure', token);
-				}
-				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
-			}
-		}
-	} catch {
-		// ignore
-	}
-	try {
-		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
-	} catch {
-		// ignore
-	}
+function getAuthLibrary(): AuthLibrary {
+	return getSettingValue<AuthLibrary>(authLibrarySetting) || 'ADAL';
 }

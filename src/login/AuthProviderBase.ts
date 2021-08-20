@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
+import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
-import { TokenResponse } from "adal-node";
+import { AccountInfo } from "@azure/msal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
@@ -13,15 +14,15 @@ import { env, ExtensionContext, OutputChannel, UIKind, window } from "vscode";
 import { AzureAccount, AzureSession } from "../azure-account.api";
 import { displayName, redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { ISubscriptionCache } from "./AzureLoginHelper";
+import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 
-export type AbstractLoginResult = TokenResponse[];
 export type AbstractCredentials = DeviceTokenCredentials;
-export type AbstractCredentials2 = DeviceTokenCredentials2;
+export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCredentialAdapter;
 
-export abstract class AuthProviderBase {
+export abstract class AuthProviderBase<TLoginResult> {
 	private terminateServer: (() => Promise<void>) | undefined;
 
 	protected outputChannel: OutputChannel;
@@ -31,32 +32,31 @@ export abstract class AuthProviderBase {
 		context.subscriptions.push(this.outputChannel);
 	}
 
-	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<AbstractLoginResult>;
-	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<AbstractLoginResult>;
-	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AbstractLoginResult>;
-	public abstract loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<AbstractLoginResult>;
+	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult>;
+	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
+	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
+	public abstract loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TLoginResult>;
 	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
-	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string): AbstractCredentials2;
-	public abstract updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void>;
+	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
+	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;
 	public abstract clearTokenCache(): Promise<void>;
-	public abstract deleteRefreshTokens(): Promise<void>;
 
-	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<AbstractLoginResult> {
+	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TLoginResult> {
 		if (env.uiKind === UIKind.Web) {
 			return await this.loginWithoutLocalServer(clientId, environment, isAdfs, tenantId);
 		}
-	
+
 		if (isAdfs && this.terminateServer) {
 			await this.terminateServer();
 		}
-	
+
 		const nonce: string = randomBytes(16).toString('base64');
 		const { server, redirectPromise, codePromise } = createServer(nonce);
-	
+
 		if (isAdfs) {
 			this.terminateServer = createTerminateServer(server);
 		}
-	
+
 		try {
 			const port: number = await startServer(server, isAdfs);
 			await openUri(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`);
@@ -72,7 +72,7 @@ export abstract class AuthProviderBase {
 				res.end();
 				throw err;
 			}
-	
+
 			clearTimeout(redirectTimer);
 
 			const host: string = redirectResult.req.headers.host || '';
@@ -84,14 +84,14 @@ export abstract class AuthProviderBase {
 
 			redirectResult.res.writeHead(302, { Location: signInUrl })
 			redirectResult.res.end();
-	
+
 			const codeResult: CodeResult = await codePromise;
 			const serverResponse: ServerResponse = codeResult.res;
 			try {
 				if ('err' in codeResult) {
 					throw codeResult.err;
 				}
-	
+
 				try {
 					return await this.loginWithAuthCode(codeResult.code, redirectUrl, clientId, environment, tenantId);
 				} finally {
@@ -112,11 +112,11 @@ export abstract class AuthProviderBase {
 	}
 
 	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount): Promise<Record<string, AzureSession>> {
-		const sessions: Record<string, AzureSession> = {};
+		const sessions: Record<string, AzureSessionInternal> = {};
 		const environments: Environment[] = await getEnvironments();
 
 		for (const { session } of cache.subscriptions) {
-			const { environment, userId, tenantId } = session;
+			const { environment, userId, tenantId, accountInfo } = session;
 			const key: string = getKey(environment, userId, tenantId);
 			const env: Environment | undefined = environments.find(e => e.name === environment);
 
@@ -125,8 +125,9 @@ export abstract class AuthProviderBase {
 					environment: env,
 					userId,
 					tenantId,
+					accountInfo,
 					credentials: this.getCredentials(environment, userId, tenantId),
-					credentials2: this.getCredentials2(env, userId, tenantId)
+					credentials2: this.getCredentials2(env, userId, tenantId, accountInfo)
 				};
 				api.sessions.push(sessions[key]);
 			}

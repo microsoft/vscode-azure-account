@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Terminal, Progress, CancellationToken } from 'vscode';
-import { ServiceClientCredentials } from 'ms-rest';
-import { ReadStream } from 'fs';
-import { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
-import { Environment } from '@azure/ms-rest-azure-env';
 import { SubscriptionModels } from '@azure/arm-subscriptions';
+import { Environment } from '@azure/ms-rest-azure-env';
+import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
+import { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
+import { ReadStream } from 'fs';
+import { ServiceClientCredentials } from 'ms-rest';
+import { CancellationToken, Event, Progress, Terminal } from 'vscode';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
@@ -40,7 +41,7 @@ export interface AzureSession {
 	/**
 	 * The credentials object for azure-sdk-for-js modules https://github.com/azure/azure-sdk-for-js
 	 */
-	readonly credentials2: TokenCredentialsBase;
+	readonly credentials2: TokenCredentialsBase | AzureIdentityCredentialAdapter;
 }
 
 export interface AzureSubscription {

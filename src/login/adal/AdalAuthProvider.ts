@@ -14,9 +14,9 @@ import { azureCustomCloud, azurePPE, clientId, redirectUrlAAD, staticEnvironment
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
-import { AbstractCredentials, AbstractCredentials2, AbstractLoginResult, AuthProviderBase } from "../AuthProviderBase";
+import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { getCallbackEnvironment, getUserCode, parseQuery, showDeviceCodeMessage, UriEventHandler } from "./login";
-import { addTokenToCache, clearTokenCache, deleteRefreshToken, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
+import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
 const staticEnvironmentNames: string[] = [
 	...staticEnvironments.map(environment => environment.name),
@@ -24,7 +24,7 @@ const staticEnvironmentNames: string[] = [
 	azurePPE
 ];
 
-export class AdalAuthProvider extends AuthProviderBase {
+export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 	private tokenCache: MemoryCache = new MemoryCache();
 	private delayedTokenCache: ProxyTokenCache = new ProxyTokenCache(this.tokenCache);
 
@@ -34,22 +34,22 @@ export class AdalAuthProvider extends AuthProviderBase {
 		super(context);
 		window.registerUriHandler(this.handler);
 		Logging.setLoggingOptions({
-			level: enableVerboseLogs ? 
-				3 /* Logging.LOGGING_LEVEL.VERBOSE */ : 
+			level: enableVerboseLogs ?
+				3 /* Logging.LOGGING_LEVEL.VERBOSE */ :
 				0 /* Logging.LOGGING_LEVEL.ERROR */,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			log: (_level: any, message: any, error: any) => {
 				if (message) {
-					super.outputChannel.appendLine(message);
+					this.outputChannel.appendLine(message);
 				}
 				if (error) {
-					super.outputChannel.appendLine(error);
+					this.outputChannel.appendLine(error);
 				}
 			}
 		});
 	}
 
-	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<AbstractLoginResult> {
+	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TokenResponse[]> {
 		const callbackUri: Uri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://ms-vscode.azure-account`));
 		const nonce: string = randomBytes(16).toString('base64');
 		const port: string | number = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
@@ -76,7 +76,7 @@ export class AdalAuthProvider extends AuthProviderBase {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<AbstractLoginResult> {
+	public async loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TokenResponse[]> {
 		const tokenResponse: TokenResponse = await getTokenWithAuthorizationCode(clientId, environment, redirectUrl, tenantId, code);
 
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -84,7 +84,7 @@ export class AdalAuthProvider extends AuthProviderBase {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AbstractLoginResult> {
+	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TokenResponse[]> {
 		const userCode: UserCodeInfo = await getUserCode(environment, tenantId);
 		const messageTask: Promise<void> = showDeviceCodeMessage(userCode);
 		const tokenResponseTask: Promise<TokenResponse> = getTokenResponse(environment, tenantId, userCode);
@@ -95,7 +95,12 @@ export class AdalAuthProvider extends AuthProviderBase {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginSilent(environment: Environment, storedCreds: string, tenantId: string): Promise<AbstractLoginResult> {
+	public async loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TokenResponse[]> {
+		const storedCreds: string | undefined = await getStoredCredentials(environment, migrateToken);
+		if (!storedCreds) {
+			throw new AzureLoginError(localize('azure-account.refreshTokenMissing', 'Not signed in'));
+		}
+
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let parsedCreds: any;
 		let tokenResponse: TokenResponse | null = null;
@@ -133,7 +138,7 @@ export class AdalAuthProvider extends AuthProviderBase {
 		return new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, environment, this.delayedTokenCache);
 	}
 
-	public async updateSessions(environment: Environment, loginResult: AbstractLoginResult, sessions: AzureSession[]): Promise<void> {
+	public async updateSessions(environment: Environment, loginResult: TokenResponse[], sessions: AzureSession[]): Promise<void> {
 		await clearTokenCache(this.tokenCache);
 
 		for (const tokenResponse of loginResult) {
@@ -155,17 +160,15 @@ export class AdalAuthProvider extends AuthProviderBase {
 	}
 
 	public async clearTokenCache(): Promise<void> {
-		await clearTokenCache(this.tokenCache);
-		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		this.delayedTokenCache.initEnd!();
-	}
-
-	public async deleteRefreshTokens(): Promise<void> {
 		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
-		const allEnvironmentNames: string[] = staticEnvironmentNames.concat(['Azure', 'AzureChina', 'AzurePPE'])
+		const allEnvironmentNames: string[] = staticEnvironmentNames.concat(['Azure', 'AzureChina'])
 		for (const name of allEnvironmentNames) {
 			await deleteRefreshToken(name);
 		}
+
+		await clearTokenCache(this.tokenCache);
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		this.delayedTokenCache.initEnd!();
 	}
 
 	private async exchangeCodeForToken(clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TokenResponse> {
@@ -176,13 +179,13 @@ export class AdalAuthProvider extends AuthProviderBase {
 					/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 					const query = parseQuery(uri);
 					const code = query.code;
-		
+
 					// Workaround double encoding issues of state
 					if (query.state !== state && decodeURIComponent(query.state) !== state) {
 						throw new Error('State does not match.');
 					}
 					/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
-		
+
 					resolve(await getTokenWithAuthorizationCode(clientId, environment, callbackUri, tenantId, code));
 				} catch (err) {
 					reject(err);

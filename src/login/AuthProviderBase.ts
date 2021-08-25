@@ -10,13 +10,13 @@ import { AccountInfo } from "@azure/msal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { env, ExtensionContext, OutputChannel, UIKind, window } from "vscode";
+import { env, UIKind } from "vscode";
 import { AzureAccount, AzureSession } from "../azure-account.api";
-import { displayName, redirectUrlAAD, redirectUrlADFS } from "../constants";
+import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { ISubscriptionCache } from "./AzureLoginHelper";
-import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { getKey } from "./getKey";
+import { AzureSessionInternal } from "./internalApiTypes";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 
 export type AbstractCredentials = DeviceTokenCredentials;
@@ -25,18 +25,11 @@ export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCreden
 export abstract class AuthProviderBase<TLoginResult> {
 	private terminateServer: (() => Promise<void>) | undefined;
 
-	protected outputChannel: OutputChannel;
-
-	constructor(context: ExtensionContext) {
-		this.outputChannel = window.createOutputChannel(displayName);
-		context.subscriptions.push(this.outputChannel);
-	}
-
 	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TLoginResult>;
-	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
+	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials | undefined;
 	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
 	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;
 	public abstract clearTokenCache(): Promise<void>;
@@ -111,7 +104,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		}
 	}
 
-	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount): Promise<Record<string, AzureSession>> {
+	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount, legacyApi: AzureAccount): Promise<Record<string, AzureSession>> {
 		const sessions: Record<string, AzureSessionInternal> = {};
 		const environments: Environment[] = await getEnvironments();
 
@@ -130,6 +123,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 					credentials2: this.getCredentials2(env, userId, tenantId, accountInfo)
 				};
 				api.sessions.push(sessions[key]);
+				legacyApi.sessions.push(sessions[key]);
 			}
 		}
 

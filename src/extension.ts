@@ -6,11 +6,12 @@
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { createApiProvider } from 'vscode-azureextensionui';
+import { createApiProvider, createAzExtOutputChannel, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccount } from './azure-account.api';
 import { OSes, shells } from './cloudConsole/cloudConsole';
-import { cloudSetting, extensionPrefix, showSignedInEmailSetting } from './constants';
+import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
+import { ext } from './extensionVariables';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
 import { survey } from './nps';
 import { createReporter } from './telemetry';
@@ -19,7 +20,12 @@ import { getSettingValue } from './utils/settingUtils';
 
 const enableLogging: boolean = false;
 
-export async function activate(context: ExtensionContext): Promise<AzureExtensionApiProvider> {
+export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
+	ext.context = context;
+	ext.outputChannel = createAzExtOutputChannel(displayName, extensionPrefix);
+	context.subscriptions.push(ext.outputChannel);
+	registerUIExtensionVariables(ext);
+
 	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
 	const azureLoginHelper: AzureLoginHelper = new AzureLoginHelper(context, reporter);
@@ -33,7 +39,9 @@ export async function activate(context: ExtensionContext): Promise<AzureExtensio
 	context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
 	survey(context, reporter);
 
-	return createApiProvider([azureLoginHelper.api]);
+	reporter.sendSanitizedEvent('activate', { 'activationTime': String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000) });
+
+	return Object.assign(createApiProvider([azureLoginHelper.api]), azureLoginHelper.legacyApi);
 }
 
 async function migrateEnvironmentSetting() {
@@ -58,8 +66,10 @@ async function migrateEnvironmentSetting() {
 
 function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
 	const shell = api.createCloudShell(os);
-	void shell.terminal.then(terminal => terminal.show());
-	return shell;
+	if (shell) {
+		void shell.terminal.then(terminal => terminal.show());
+		return shell;
+	}
 }
 
 function uploadFile(api: AzureAccount, uri?: Uri) {
@@ -70,7 +80,8 @@ function uploadFile(api: AzureAccount, uri?: Uri) {
 			if (!shellName) {
 				return;
 			}
-			shell = cloudConsole(api, shellName === OSes.Linux.shellName ? 'Linux' : 'Windows');
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			shell = cloudConsole(api, shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
 		}
 		if (!uri) {
 			uri = (await window.showOpenDialog({}) || [])[0];
@@ -150,6 +161,6 @@ function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {
 	return statusBarItem;
 }
 
-export function deactivate(): void {
+export function deactivateInternal(): void {
 	return;
 }

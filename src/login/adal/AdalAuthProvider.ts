@@ -8,10 +8,11 @@ import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-res
 import { Logging, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
 import { randomBytes } from "crypto";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { Disposable, env, ExtensionContext, Uri, window } from "vscode";
+import { Disposable, env, Uri, window } from "vscode";
 import { AzureSession } from "../../azure-account.api";
 import { azureCustomCloud, azurePPE, clientId, redirectUrlAAD, staticEnvironments } from "../../constants";
 import { AzureLoginError } from "../../errors";
+import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
@@ -30,8 +31,8 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 
 	private handler: UriEventHandler = new UriEventHandler();
 
-	constructor(context: ExtensionContext, enableVerboseLogs: boolean) {
-		super(context);
+	constructor(enableVerboseLogs: boolean) {
+		super();
 		window.registerUriHandler(this.handler);
 		Logging.setLoggingOptions({
 			level: enableVerboseLogs ?
@@ -40,10 +41,10 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			log: (_level: any, message: any, error: any) => {
 				if (message) {
-					this.outputChannel.appendLine(message);
+					ext.outputChannel.appendLine(message);
 				}
 				if (error) {
-					this.outputChannel.appendLine(error);
+					ext.outputChannel.appendLine(error);
 				}
 			}
 		});

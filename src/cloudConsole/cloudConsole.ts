@@ -17,7 +17,10 @@ import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri,
 import * as nls from 'vscode-nls';
 import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
+import { AzureAccountInternal, AzureSessionInternal } from '../login/internalApiTypes';
 import { TelemetryReporter } from '../telemetry';
+import { getAbsolutePath } from '../utils/pathUtils';
+import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
 import { createServer, Queue, readJSON } from './ipc';
 // const adal = require('adal-node');
@@ -175,7 +178,15 @@ function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
 
 export const shells: CloudShell[] = [];
 
-export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporter, osName: keyof typeof OSes): CloudShell {
+export function createCloudConsole(api: AzureAccountInternal, reporter: TelemetryReporter, osName: keyof typeof OSes): CloudShell | undefined {
+	if (!api.isLegacyApi) {
+		void window.showWarningMessage('Cloud console requires using the legacy API.');
+		return;
+	} else if (getAuthLibrary() !== 'ADAL') {
+		void window.showWarningMessage('Cloud console requires authenticating with ADAL.');
+		return;
+	}
+
 	const os = OSes[osName];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let liveQueue: Queue<any> | undefined;
@@ -267,8 +278,8 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		});
 
 		// open terminal
-		let shellPath = path.join(__dirname, `../bin/node.${isWindows ? 'bat' : 'sh'}`);
-		let modulePath = path.join(__dirname, 'cloudConsoleLauncher');
+		let shellPath = path.join(getAbsolutePath('bin'), `node.${isWindows ? 'bat' : 'sh'}`);
+		let modulePath = path.join(getAbsolutePath('dist'), 'cloudConsoleLauncher');
 		if (isWindows) {
 			modulePath = modulePath.replace(/\\/g, '\\\\');
 		}
@@ -509,7 +520,7 @@ interface Token {
 async function acquireToken(session: AzureSession) {
 	return new Promise<Token>((resolve, reject) => {
 		/* eslint-disable @typescript-eslint/no-explicit-any */
-		const credentials: any = session.credentials;
+		const credentials: any = (<AzureSessionInternal>session).credentials;
 		const environment: any = session.environment;
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
 		credentials.context.acquireToken(environment.activeDirectoryResourceId, credentials.username, credentials.clientId, function (err: any, result: any) {
@@ -537,7 +548,7 @@ interface TenantDetails {
 
 async function fetchTenantDetails(session: AzureSession): Promise<{ session: AzureSession, tenantDetails: TenantDetails }> {
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-	const { username, clientId, tokenCache, domain } = <any>session.credentials;
+	const { username, clientId, tokenCache, domain } = <any>(<AzureSessionInternal>session).credentials;
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	const graphCredentials = new DeviceTokenCredentials({ username, clientId, tokenCache, domain, tokenAudience: 'graph' });
 
@@ -562,7 +573,7 @@ async function fetchTenantDetails(session: AzureSession): Promise<{ session: Azu
 							"Content-Type": 'application/json; charset=utf-8'
 						}
 					});
-	
+
 					if (response.ok) {
 						// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 						const json = await response.json();

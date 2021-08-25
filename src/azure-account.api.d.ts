@@ -8,7 +8,6 @@ import { Environment } from '@azure/ms-rest-azure-env';
 import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
 import { ReadStream } from 'fs';
-import { ServiceClientCredentials } from 'ms-rest';
 import { CancellationToken, Event, Progress, Terminal } from 'vscode';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
@@ -33,11 +32,6 @@ export interface AzureSession {
 	readonly environment: Environment;
 	readonly userId: string;
 	readonly tenantId: string;
-
-	/**
-	 * The credentials object for azure-sdk-for-node modules https://github.com/azure/azure-sdk-for-node
-	 */
-	readonly credentials: ServiceClientCredentials;
 
 	/**
 	 * The credentials object for azure-sdk-for-js modules https://github.com/azure/azure-sdk-for-js

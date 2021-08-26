@@ -16,10 +16,10 @@ import { v4 as uuid } from 'uuid';
 import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
 import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
+import { ext } from '../extensionVariables';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
 import { AzureAccountInternal, AzureSessionInternal } from '../login/internalApiTypes';
 import { TelemetryReporter } from '../telemetry';
-import { getAbsolutePath } from '../utils/pathUtils';
 import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
 import { createServer, Queue, readJSON } from './ipc';
@@ -278,8 +278,8 @@ export function createCloudConsole(api: AzureAccountInternal, reporter: Telemetr
 		});
 
 		// open terminal
-		let shellPath = path.join(getAbsolutePath('bin'), `node.${isWindows ? 'bat' : 'sh'}`);
-		let modulePath = path.join(getAbsolutePath('dist'), 'cloudConsoleLauncher');
+		let shellPath = path.join(ext.context.asAbsolutePath('bin'), `node.${isWindows ? 'bat' : 'sh'}`);
+		let modulePath = path.join(ext.context.asAbsolutePath('dist'), 'cloudConsoleLauncher');
 		if (isWindows) {
 			modulePath = modulePath.replace(/\\/g, '\\\\');
 		}

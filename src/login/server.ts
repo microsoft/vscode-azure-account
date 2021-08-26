@@ -11,7 +11,7 @@ import * as path from 'path';
 import { parse, ParsedUrlQuery } from 'querystring';
 import * as url from 'url';
 import { portADFS, redirectUrlAAD } from '../constants';
-import { getAbsolutePath } from '../utils/pathUtils';
+import { ext } from '../extensionVariables';
 
 interface Deferred<T> {
 	resolve: (result: T | Promise<T>) => void;
@@ -93,10 +93,10 @@ export function createServer(nonce: string): {
 				}
 				break;
 			case '/':
-				sendFile(res, path.join(getAbsolutePath('codeFlowResult'), 'index.html'), 'text/html; charset=utf-8');
+				sendFile(res, path.join(ext.context.asAbsolutePath('codeFlowResult'), 'index.html'), 'text/html; charset=utf-8');
 				break;
 			case '/main.css':
-				sendFile(res, path.join(getAbsolutePath('codeFlowResult'), 'main.css'), 'text/css; charset=utf-8');
+				sendFile(res, path.join(ext.context.asAbsolutePath('codeFlowResult'), 'main.css'), 'text/css; charset=utf-8');
 				break;
 			case '/callback':
 				deferredCode.resolve(callback(nonce, reqUrl)

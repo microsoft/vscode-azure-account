@@ -315,13 +315,13 @@ export class AzureLoginHelper {
 		}
 	}
 
-	private updateSubscriptionCache(api: AzureAccount): void {
-		if (api.status !== 'LoggedIn') {
+	private updateSubscriptionCache(): void {
+		if (this.api.status !== 'LoggedIn') {
 			void this.context.globalState.update(cacheKey, undefined);
 			return;
 		}
 		const cache: ISubscriptionCache = {
-			subscriptions: api.subscriptions.map(({ session, subscription }) => ({
+			subscriptions: this.api.subscriptions.map(({ session, subscription }) => ({
 				session: {
 					environment: session.environment.name,
 					userId: session.userId,
@@ -377,9 +377,9 @@ export class AzureLoginHelper {
 
 	private async updateSubscriptions(): Promise<void> {
 		await this.api.waitForLogin();
-		this.tasks.subscriptions = this.loadSubscriptions(this.api);
+		this.tasks.subscriptions = this.loadSubscriptions();
 		this.api.subscriptions.splice(0, this.api.subscriptions.length, ...await this.tasks.subscriptions);
-		this.updateSubscriptionCache(this.api);
+		this.updateSubscriptionCache();
 		this.onSubscriptionsChanged.fire();
 	}
 
@@ -392,8 +392,8 @@ export class AzureLoginHelper {
 		return result === login && commands.executeCommand('azure-account.login');
 	}
 
-	private async loadSubscriptions(api: AzureAccount): Promise<AzureSubscription[]> {
-		const lists: AzureSubscription[][] = await Promise.all(api.sessions.map(session => {
+	private async loadSubscriptions(): Promise<AzureSubscription[]> {
+		const lists: AzureSubscription[][] = await Promise.all(this.api.sessions.map(session => {
 			const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl });
 			return listAll(client.subscriptions, client.subscriptions.list())
 				.then(list => list.map(subscription => ({

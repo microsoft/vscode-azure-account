@@ -14,9 +14,9 @@ import { env, UIKind } from "vscode";
 import { AzureAccount, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { ISubscriptionCache } from "./AzureLoginHelper";
+import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { getKey } from "./getKey";
-import { AzureSessionInternal } from "./internalApiTypes";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 
 export type AbstractCredentials = DeviceTokenCredentials;
@@ -104,7 +104,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		}
 	}
 
-	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount, legacyApi: AzureAccount): Promise<Record<string, AzureSession>> {
+	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount): Promise<Record<string, AzureSession>> {
 		const sessions: Record<string, AzureSessionInternal> = {};
 		const environments: Environment[] = await getEnvironments();
 
@@ -114,7 +114,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const env: Environment | undefined = environments.find(e => e.name === environment);
 
 			if (!sessions[key] && env) {
-				sessions[key] = {
+				sessions[key] = <AzureSessionInternal>{
 					environment: env,
 					userId,
 					tenantId,
@@ -123,7 +123,6 @@ export abstract class AuthProviderBase<TLoginResult> {
 					credentials2: this.getCredentials2(env, userId, tenantId, accountInfo)
 				};
 				api.sessions.push(sessions[key]);
-				legacyApi.sessions.push(sessions[key]);
 			}
 		}
 

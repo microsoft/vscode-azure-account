@@ -41,7 +41,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 
 	reporter.sendSanitizedEvent('activate', { 'activationTime': String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000) });
 
-	return Object.assign(createApiProvider([azureLoginHelper.api]), azureLoginHelper.legacyApi);
+	return Object.assign(azureLoginHelper.legacyApi, createApiProvider([azureLoginHelper.api]));
 }
 
 async function migrateEnvironmentSetting() {

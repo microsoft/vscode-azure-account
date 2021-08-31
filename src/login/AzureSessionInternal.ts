@@ -4,14 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AccountInfo } from "@azure/msal-common";
-import { ServiceClientCredentials } from 'ms-rest';
-import { AzureAccount, AzureSession } from "../azure-account.api";
+import { AzureSession } from "../azure-account.api";
 
-export type AzureAccountInternal = AzureAccount & {
-	readonly isLegacyApi: boolean;
-}
-
-export type AzureSessionInternal = AzureSession & {
-	readonly accountInfo?: AccountInfo;
-	readonly credentials?: ServiceClientCredentials;
-};
+export type AzureSessionInternal = AzureSession & { readonly accountInfo?: AccountInfo; };

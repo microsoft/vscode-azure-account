@@ -15,10 +15,11 @@ import { parse } from 'url';
 import { v4 as uuid } from 'uuid';
 import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
-import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
+import { AzureAccount, AzureLoginStatus, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
+import { AzureSession } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
-import { AzureAccountInternal, AzureSessionInternal } from '../login/internalApiTypes';
+import { AzureAccountInternal } from '../login/AzureAccountInternal';
 import { TelemetryReporter } from '../telemetry';
 import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
@@ -337,7 +338,7 @@ export function createCloudConsole(api: AzureAccountInternal, reporter: Telemetr
 		const sessions = [...new Set(api.subscriptions.map(subscription => subscription.session))]; // Only consider those with at least one subscription.
 		if (sessions.length > 1) {
 			queue.push({ type: 'log', args: [localize('azure-account.selectDirectory', "Select directory...")] });
-			const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(session)
+			const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(<AzureSession>session)
 				.catch(err => {
 					console.error(err);
 					return undefined;
@@ -366,7 +367,7 @@ export function createCloudConsole(api: AzureAccountInternal, reporter: Telemetr
 			}
 			token = await acquireToken(pick.session);
 		} else if (sessions.length === 1) {
-			token = await acquireToken(sessions[0]);
+			token = await acquireToken(<AzureSession>sessions[0]);
 		}
 
 		const result = token && await findUserSettings(token);
@@ -520,7 +521,7 @@ interface Token {
 async function acquireToken(session: AzureSession) {
 	return new Promise<Token>((resolve, reject) => {
 		/* eslint-disable @typescript-eslint/no-explicit-any */
-		const credentials: any = (<AzureSessionInternal>session).credentials;
+		const credentials: any = session.credentials;
 		const environment: any = session.environment;
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
 		credentials.context.acquireToken(environment.activeDirectoryResourceId, credentials.username, credentials.clientId, function (err: any, result: any) {
@@ -548,7 +549,7 @@ interface TenantDetails {
 
 async function fetchTenantDetails(session: AzureSession): Promise<{ session: AzureSession, tenantDetails: TenantDetails }> {
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-	const { username, clientId, tokenCache, domain } = <any>(<AzureSessionInternal>session).credentials;
+	const { username, clientId, tokenCache, domain } = <any>session.credentials;
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	const graphCredentials = new DeviceTokenCredentials({ username, clientId, tokenCache, domain, tokenAudience: 'graph' });
 

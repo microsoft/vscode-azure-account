@@ -29,7 +29,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TLoginResult>;
-	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials | undefined;
+	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
 	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
 	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;
 	public abstract clearTokenCache(): Promise<void>;

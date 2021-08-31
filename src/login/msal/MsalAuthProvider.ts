@@ -11,7 +11,7 @@ import { clientId, msalScopes } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
-import { AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
+import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { cachePlugin } from "./cachePlugin";
 import { PublicClientCredential } from "./PublicClientCredential";
 
@@ -81,8 +81,8 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		}
 	}
 
-	public getCredentials(): undefined {
-		return undefined;
+	public getCredentials(): AbstractCredentials {
+		throw new Error(localize('azure-account.deprecatedCredentials', 'MSAL does not support this credentials type. As a workaround, revert the "azure.authenticationLibrary" setting to "ADAL" and consider filing an issue on the extension author.'));
 	}
 
 	public getCredentials2(_env: Environment, _userId: string, _tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2 {

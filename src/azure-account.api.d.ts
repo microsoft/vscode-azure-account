@@ -12,19 +12,19 @@ import { CancellationToken, Event, Progress, Terminal } from 'vscode';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
-export interface AzureAccount {
+export interface AzureAccountExtensionApi {
 	readonly apiVersion: string;
 	readonly status: AzureLoginStatus;
-	readonly onStatusChanged: Event<AzureLoginStatus>;
-	readonly waitForLogin: () => Promise<boolean>;
-	readonly sessions: AzureSession[];
-	readonly onSessionsChanged: Event<void>;
-	readonly subscriptions: AzureSubscription[];
-	readonly onSubscriptionsChanged: Event<void>;
-	readonly waitForSubscriptions: () => Promise<boolean>;
 	readonly filters: AzureResourceFilter[];
+	readonly sessions: AzureSession[];
+	readonly subscriptions: AzureSubscription[];
+	readonly onStatusChanged: Event<AzureLoginStatus>;
 	readonly onFiltersChanged: Event<void>;
+	readonly onSessionsChanged: Event<void>;
+	readonly onSubscriptionsChanged: Event<void>;
 	readonly waitForFilters: () => Promise<boolean>;
+	readonly waitForLogin: () => Promise<boolean>;
+	readonly waitForSubscriptions: () => Promise<boolean>;
 	createCloudShell(os: 'Linux' | 'Windows'): CloudShell;
 }
 

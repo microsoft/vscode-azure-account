@@ -15,11 +15,10 @@ import { parse } from 'url';
 import { v4 as uuid } from 'uuid';
 import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
-import { AzureAccount, AzureLoginStatus, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
+import { AzureAccountExtensionApi, AzureLoginStatus, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
-import { AzureAccountInternal } from '../login/AzureAccountInternal';
 import { TelemetryReporter } from '../telemetry';
 import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
@@ -179,8 +178,8 @@ function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
 
 export const shells: CloudShell[] = [];
 
-export function createCloudConsole(api: AzureAccountInternal, reporter: TelemetryReporter, osName: keyof typeof OSes): CloudShell | undefined {
-	if (!api.isLegacyApi) {
+export function createCloudConsole(api: AzureAccountExtensionApi, reporter: TelemetryReporter, osName: keyof typeof OSes, isLegacyApi?: boolean): CloudShell | undefined {
+	if (!isLegacyApi) {
 		void window.showWarningMessage('Cloud console requires using the legacy API.');
 		return;
 	} else if (getAuthLibrary() !== 'ADAL') {
@@ -457,7 +456,7 @@ export function createCloudConsole(api: AzureAccountInternal, reporter: Telemetr
 	return state;
 }
 
-async function waitForLoginStatus(api: AzureAccount) {
+async function waitForLoginStatus(api: AzureAccountExtensionApi) {
 	if (api.status !== 'Initializing') {
 		return api.status;
 	}

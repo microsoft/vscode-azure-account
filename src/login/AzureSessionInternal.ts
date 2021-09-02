@@ -6,4 +6,4 @@
 import { AccountInfo } from "@azure/msal-common";
 import { AzureSession } from "../azure-account.api";
 
-export type AzureSessionInternal = AzureSession & { readonly accountInfo?: AccountInfo; };
+export type AzureSessionInternal = AzureSession & { readonly accountInfo?: AccountInfo };

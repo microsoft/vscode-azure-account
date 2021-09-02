@@ -6,9 +6,8 @@
 import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { AccountInfo } from '@azure/msal-node';
-import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
-import { createCloudConsole } from '../cloudConsole/cloudConsole';
+import { CancellationTokenSource, commands, ConfigurationTarget, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { TelemetryReporter } from '../telemetry';
@@ -19,11 +18,11 @@ import { getAuthLibrary, getSettingValue, getSettingWithPrefix } from '../utils/
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
 import { AuthProviderBase } from './AuthProviderBase';
-import { AzureAccountInternal } from './AzureAccountInternal';
+import { AzureAccountExtensionApi } from './AzureAccountExtensionApi';
+import { AzureAccountExtensionLegacyApi } from './AzureAccountExtensionLegacyApi';
 import { AzureSessionInternal } from './AzureSessionInternal';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
-import { getNewFilters } from './filters';
-import { getCurrentTarget } from './getCurrentTarget';
+import { addFilter, getNewFilters, removeFilter } from './filters';
 import { getKey } from './getKey';
 import { MsalAuthProvider } from './msal/MsalAuthProvider';
 import { checkRedirectServer } from './server';
@@ -40,7 +39,7 @@ const environmentLabels: Record<string, string> = {
 
 const enableVerboseLogs: boolean = false;
 
-interface IAzureAccountWriteable extends AzureAccount {
+interface IAzureAccountWriteable extends AzureAccountExtensionApi {
 	status: AzureLoginStatus;
 }
 
@@ -62,73 +61,37 @@ export interface ISubscriptionCache {
 
 type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange' | 'customCloudARMUrlChange';
 type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
-export type AzureLoginHelperTasks = { subscriptions: Promise<AzureSubscription[]>, filters: Promise<AzureResourceFilter[]> };
-export type AzureLoginStatusObj = { status: AzureLoginStatus };
 
 export class AzureLoginHelper {
-	private onStatusChanged: EventEmitter<AzureLoginStatus> = new EventEmitter<AzureLoginStatus>();
-	private onSessionsChanged: EventEmitter<void> = new EventEmitter<void>();
-
-	private tasks: AzureLoginHelperTasks = { subscriptions: Promise.resolve(<AzureSubscription[]>[]), filters: Promise.resolve(<AzureResourceFilter[]>[]) }
-	private onSubscriptionsChanged: EventEmitter<void> = new EventEmitter<void>();
-	private onFiltersChanged: EventEmitter<void> = new EventEmitter<void>();
-
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
-
 	private authProvider: AdalAuthProvider | MsalAuthProvider;
 
-	public api: AzureAccountInternal;
-	public legacyApi: AzureAccountInternal;
+	public onStatusChanged: EventEmitter<AzureLoginStatus> = new EventEmitter<AzureLoginStatus>();
+	public onFiltersChanged: EventEmitter<void> = new EventEmitter<void>();
+	public onSessionsChanged: EventEmitter<void> = new EventEmitter<void>();
+	public onSubscriptionsChanged: EventEmitter<void> = new EventEmitter<void>();
 
-	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
-		// Allow switching between libraries via a setting for testing purposes
+	public filtersTask: Promise<AzureResourceFilter[]> = Promise.resolve(<AzureResourceFilter[]>[]);
+	public subscriptionsTask: Promise<AzureSubscription[]> = Promise.resolve(<AzureSubscription[]>[]);
+
+	public api: AzureAccountExtensionApi;
+	public legacyApi: AzureAccountExtensionLegacyApi;
+
+	constructor(private context: ExtensionContext, public reporter: TelemetryReporter) {
 		this.authProvider = getAuthLibrary() === 'ADAL' ?
 			new AdalAuthProvider(enableVerboseLogs) :
 			new MsalAuthProvider(enableVerboseLogs);
 
-		const sessions: AzureSession[] = [];
-		const subscriptions: AzureSubscription[] = [];
-		const filters: AzureResourceFilter[] = [];
-		const statusObj: AzureLoginStatusObj = { status: 'Initializing' };
-
-		this.api = new AzureAccountInternal(
-			this.onStatusChanged.event,
-			this.onSessionsChanged.event,
-			this.onSubscriptionsChanged.event,
-			this.onFiltersChanged.event,
-			sessions,
-			subscriptions,
-			filters,
-			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			os => createCloudConsole(this.api, this.reporter, os)!,
-			false,
-			this.tasks,
-			statusObj,
-			this.reporter
-		);
-		this.legacyApi = new AzureAccountInternal(
-			this.onStatusChanged.event,
-			this.onSessionsChanged.event,
-			this.onSubscriptionsChanged.event,
-			this.onFiltersChanged.event,
-			sessions,
-			subscriptions,
-			filters,
-			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			os => createCloudConsole(this.legacyApi, this.reporter, os)!,
-			true,
-			this.tasks,
-			statusObj,
-			this.reporter
-		);
+		this.api = new AzureAccountExtensionApi(this);
+		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
 
 		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
-		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.api.selectSubscriptions().catch(console.error)));
+		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
 		context.subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
 		context.subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
 		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
@@ -222,7 +185,7 @@ export class AzureLoginHelper {
 		if (includeSubscriptions) {
 			await this.api.waitForSubscriptions();
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			event.subscriptions = JSON.stringify((await this.tasks.subscriptions).map(s => s.subscription.subscriptionId!));
+			event.subscriptions = JSON.stringify((await this.subscriptionsTask).map(s => s.subscription.subscriptionId!));
 		}
 		this.reporter.sendSanitizedEvent('login', event);
 	}
@@ -370,15 +333,15 @@ export class AzureLoginHelper {
 				subscription
 			};
 		});
-		this.tasks.subscriptions = Promise.resolve(subscriptions);
+		this.subscriptionsTask = Promise.resolve(subscriptions);
 		this.api.subscriptions.push(...subscriptions);
 		return subscriptions;
 	}
 
 	private async updateSubscriptions(): Promise<void> {
 		await this.api.waitForLogin();
-		this.tasks.subscriptions = this.loadSubscriptions();
-		this.api.subscriptions.splice(0, this.api.subscriptions.length, ...await this.tasks.subscriptions);
+		this.subscriptionsTask = this.loadSubscriptions();
+		this.api.subscriptions.splice(0, this.api.subscriptions.length, ...await this.subscriptionsTask);
 		this.updateSubscriptionCache();
 		this.onSubscriptionsChanged.fire();
 	}
@@ -390,6 +353,59 @@ export class AzureLoginHelper {
 		const login: MessageItem = { title: localize('azure-account.login', "Sign In") };
 		const result: MessageItem | undefined = await window.showInformationMessage(localize('azure-account.loginFirst', "You are not signed in. Sign in to continue."), login);
 		return result === login && commands.executeCommand('azure-account.login');
+	}
+
+	private async selectSubscriptions(): Promise<unknown> {
+		if (!(await this.api.waitForSubscriptions())) {
+			return commands.executeCommand('azure-account.askForLogin');
+		}
+
+		const azureConfig: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
+		const resourceFilter: string[] = (azureConfig.get<string[]>(resourceFilterSetting) || ['all']).slice();
+		let filtersChanged: boolean = false;
+
+		const subscriptions = this.subscriptionsTask
+			.then(list => this.getSubscriptionItems(list, resourceFilter));
+		const source: CancellationTokenSource = new CancellationTokenSource();
+		const cancellable: Promise<ISubscriptionItem[]> = subscriptions.then(s => {
+			if (!s.length) {
+				source.cancel();
+				this.noSubscriptionsFound()
+					.catch(console.error);
+			}
+			return s;
+		});
+		const picks: QuickPickItem[] | undefined = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
+		if (picks) {
+			if (resourceFilter[0] === 'all') {
+				resourceFilter.splice(0, 1);
+				for (const subscription of await subscriptions) {
+					addFilter(resourceFilter, subscription);
+				}
+			}
+			for (const subscription of await subscriptions) {
+				if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
+					filtersChanged = true;
+					if (subscription.picked) {
+						removeFilter(resourceFilter, subscription);
+					} else {
+						addFilter(resourceFilter, subscription);
+					}
+				}
+			}
+		}
+
+		if (filtersChanged) {
+			await this.updateConfiguration(azureConfig, resourceFilter);
+		}
+	}
+
+	private async noSubscriptionsFound(): Promise<void> {
+		const open: MessageItem = { title: localize('azure-account.open', "Open") };
+		const response: MessageItem | undefined = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
+		if (response === open) {
+			void openUri('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account');
+		}
 	}
 
 	private async loadSubscriptions(): Promise<AzureSubscription[]> {
@@ -407,11 +423,30 @@ export class AzureLoginHelper {
 		return subscriptions;
 	}
 
+	private getSubscriptionItems(subscriptions: AzureSubscription[], resourceFilter: string[]): ISubscriptionItem[] {
+		return subscriptions.map(subscription => {
+			const picked: boolean = resourceFilter.indexOf(`${subscription.session.tenantId}/${subscription.subscription.subscriptionId}`) !== -1 || resourceFilter[0] === 'all';
+			return <ISubscriptionItem>{
+				label: subscription.subscription.displayName,
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+				description: subscription.subscription.subscriptionId!,
+				subscription,
+				picked,
+			};
+		});
+	}
+
+	private async updateConfiguration(azureConfig: WorkspaceConfiguration, resourceFilter: string[]): Promise<void> {
+		const resourceFilterConfig = azureConfig.inspect<string[]>(resourceFilterSetting);
+		const target: ConfigurationTarget = getCurrentTarget(resourceFilterConfig);
+		await azureConfig.update(resourceFilterSetting, resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
+	}
+
 	private initializeFilters(subscriptions: AzureSubscription[]): void {
 		const resourceFilter: string[] | undefined = getSettingValue(resourceFilterSetting);
 		this.oldResourceFilter = JSON.stringify(resourceFilter);
 		const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
-		this.tasks.filters = Promise.resolve(newFilters);
+		this.filtersTask = Promise.resolve(newFilters);
 		this.api.filters.push(...newFilters);
 	}
 
@@ -420,9 +455,9 @@ export class AzureLoginHelper {
 		if (configChange && JSON.stringify(resourceFilter) === this.oldResourceFilter) {
 			return;
 		}
-		this.tasks.filters = (async () => {
+		this.filtersTask = (async () => {
 			await this.api.waitForSubscriptions();
-			const subscriptions: AzureSubscription[] = await this.tasks.subscriptions;
+			const subscriptions: AzureSubscription[] = await this.subscriptionsTask;
 			this.oldResourceFilter = JSON.stringify(resourceFilter);
 			const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
 			this.api.filters.splice(0, this.api.filters.length, ...newFilters);
@@ -439,4 +474,17 @@ async function redirectTimeout(): Promise<void> {
 	if (response) {
 		await commands.executeCommand('azure-account.loginWithDeviceCode');
 	}
+}
+
+function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalValue?: unknown; workspaceValue?: unknown, workspaceFolderValue?: unknown } | undefined): ConfigurationTarget {
+	if (config) {
+		if (config.workspaceFolderValue) {
+			return ConfigurationTarget.WorkspaceFolder;
+		} else if (config.workspaceValue) {
+			return ConfigurationTarget.Workspace;
+		} else if (config.globalValue) {
+			return ConfigurationTarget.Global;
+		}
+	}
+	return ConfigurationTarget.Global;
 }

@@ -11,7 +11,7 @@ import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { env, UIKind } from "vscode";
-import { AzureAccount, AzureSession } from "../azure-account.api";
+import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { ISubscriptionCache } from "./AzureLoginHelper";
 import { AzureSessionInternal } from "./AzureSessionInternal";
@@ -29,7 +29,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TLoginResult>;
-	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
+	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials | undefined;
 	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
 	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;
 	public abstract clearTokenCache(): Promise<void>;
@@ -104,7 +104,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		}
 	}
 
-	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount): Promise<Record<string, AzureSession>> {
+	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccountExtensionApi): Promise<Record<string, AzureSession>> {
 		const sessions: Record<string, AzureSessionInternal> = {};
 		const environments: Environment[] = await getEnvironments();
 

@@ -13,6 +13,9 @@ import { CancellationToken, Event, Progress, Terminal } from 'vscode';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
+/**
+ * @deprecated Use `AzureAccountExtensionApi`, exported from azure-account.api.d.ts
+ */
 export interface AzureAccount {
 	readonly status: AzureLoginStatus;
 	readonly onStatusChanged: Event<AzureLoginStatus>;

@@ -8,7 +8,7 @@ import { basename } from 'path';
 import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { createApiProvider, createAzExtOutputChannel, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
-import { AzureAccount } from './azure-account.api';
+import { AzureAccountExtensionApi } from './azure-account.api';
 import { OSes, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
@@ -64,7 +64,7 @@ async function migrateEnvironmentSetting() {
 	await migrateSetting('AzureChina', 'AzureChinaCloud');
 }
 
-function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
+function cloudConsole(api: AzureAccountExtensionApi, os: 'Linux' | 'Windows') {
 	const shell = api.createCloudShell(os);
 	if (shell) {
 		void shell.terminal.then(terminal => terminal.show());
@@ -72,7 +72,7 @@ function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
 	}
 }
 
-function uploadFile(api: AzureAccount, uri?: Uri) {
+function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
 	(async () => {
 		let shell = shells[0];
 		if (!shell) {
@@ -101,7 +101,7 @@ function uploadFile(api: AzureAccount, uri?: Uri) {
 		.catch(console.error);
 }
 
-function logDiagnostics(context: ExtensionContext, api: AzureAccount) {
+function logDiagnostics(context: ExtensionContext, api: AzureAccountExtensionApi) {
 	const subscriptions = context.subscriptions;
 	subscriptions.push(api.onStatusChanged(status => {
 		console.log(`onStatusChanged: ${status}`);
@@ -130,7 +130,7 @@ function createAccount() {
 	return env.openExternal(Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
 }
 
-function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {
+function createStatusBarItem(context: ExtensionContext, api: AzureAccountExtensionApi) {
 	const statusBarItem = window.createStatusBarItem();
 	statusBarItem.command = "azure-account.selectSubscriptions";
 	function updateStatusBar() {

@@ -12,6 +12,7 @@ import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
+import { AzureSessionInternal } from "../AzureSessionInternal";
 import { cachePlugin } from "./cachePlugin";
 import { PublicClientCredential } from "./PublicClientCredential";
 
@@ -92,13 +93,14 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 
 	public async updateSessions(environment: Environment, loginResult: AuthenticationResult, sessions: AzureSession[]): Promise<void> {
 		/* eslint-disable @typescript-eslint/no-non-null-assertion */
-		sessions.splice(0, sessions.length, <AzureSession>{
+		sessions.splice(0, sessions.length, new AzureSessionInternal(
 			environment,
-			userId: loginResult.account!.username,
-			tenantId: loginResult.account!.tenantId,
-			accountInfo: loginResult.account!,
-			credentials2: this.getCredentials2(environment, loginResult.account!.username, loginResult.tenantId, loginResult.account!)
-		});
+			loginResult.account!.username,
+			loginResult.account!.tenantId,
+			loginResult.account!,
+			undefined,
+			this.getCredentials2(environment, loginResult.account!.username, loginResult.tenantId, loginResult.account!)
+		));
 		/* eslint-enable @typescript-eslint/no-non-null-assertion */
 	}
 

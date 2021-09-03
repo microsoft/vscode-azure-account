@@ -114,14 +114,14 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const env: Environment | undefined = environments.find(e => e.name === environment);
 
 			if (!sessions[key] && env) {
-				sessions[key] = <AzureSessionInternal>{
-					environment: env,
+				sessions[key] = new AzureSessionInternal(
+					env,
 					userId,
 					tenantId,
 					accountInfo,
-					credentials: this.getCredentials(environment, userId, tenantId),
-					credentials2: this.getCredentials2(env, userId, tenantId, accountInfo)
-				};
+					this.getCredentials(environment, userId, tenantId),
+					this.getCredentials2(env, userId, tenantId, accountInfo)
+				);
 				api.sessions.push(sessions[key]);
 			}
 		}

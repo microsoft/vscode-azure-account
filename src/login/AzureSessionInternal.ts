@@ -6,8 +6,7 @@
 import { Environment } from '@azure/ms-rest-azure-env';
 import { AccountInfo } from '@azure/msal-common';
 import { AzureSession } from "../azure-account.api";
-import { localize } from '../utils/localize';
-import { AbstractCredentials, AbstractCredentials2 } from './AuthProviderBase';
+import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from './AuthProviderBase';
 
 export class AzureSessionInternal implements AzureSession {
 	constructor(
@@ -15,14 +14,14 @@ export class AzureSessionInternal implements AzureSession {
 		public userId: string,
 		public tenantId: string,
 		public accountInfo: AccountInfo | undefined,
-		private _credentials: AbstractCredentials | undefined,
-		public credentials2: AbstractCredentials2,
+		private _authProvider: AuthProviderBase<unknown>
 	) {}
 
 	public get credentials(): AbstractCredentials {
-		if (this._credentials) {
-			return this.credentials;
-		}
-		throw new Error(localize('azure-account.deprecatedCredentials', 'MSAL does not support this credentials type. As a workaround, revert the "azure.authenticationLibrary" setting to "ADAL" and consider filing an issue on the extension author.'));
+		return this._authProvider.getCredentials(this.environment.name, this.userId, this.tenantId);
+	}
+
+	public get credentials2(): AbstractCredentials2 {
+		return this._authProvider.getCredentials2(this.environment, this.userId, this.tenantId, this.accountInfo);
 	}
 }

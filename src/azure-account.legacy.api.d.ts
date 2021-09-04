@@ -8,23 +8,26 @@ import { Environment } from '@azure/ms-rest-azure-env';
 import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
 import { ReadStream } from 'fs';
+import { ServiceClientCredentials } from 'ms-rest';
 import { CancellationToken, Event, Progress, Terminal } from 'vscode';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
-export interface AzureAccountExtensionApi {
-	readonly apiVersion: string;
+/**
+ * @deprecated Use `AzureAccountExtensionApi`, exported from azure-account.api.d.ts
+ */
+export interface AzureAccount {
 	readonly status: AzureLoginStatus;
-	readonly filters: AzureResourceFilter[];
-	readonly sessions: AzureSession[];
-	readonly subscriptions: AzureSubscription[];
 	readonly onStatusChanged: Event<AzureLoginStatus>;
-	readonly onFiltersChanged: Event<void>;
-	readonly onSessionsChanged: Event<void>;
-	readonly onSubscriptionsChanged: Event<void>;
-	readonly waitForFilters: () => Promise<boolean>;
 	readonly waitForLogin: () => Promise<boolean>;
+	readonly sessions: AzureSession[];
+	readonly onSessionsChanged: Event<void>;
+	readonly subscriptions: AzureSubscription[];
+	readonly onSubscriptionsChanged: Event<void>;
 	readonly waitForSubscriptions: () => Promise<boolean>;
+	readonly filters: AzureResourceFilter[];
+	readonly onFiltersChanged: Event<void>;
+	readonly waitForFilters: () => Promise<boolean>;
 	createCloudShell(os: 'Linux' | 'Windows'): CloudShell;
 }
 
@@ -32,6 +35,11 @@ export interface AzureSession {
 	readonly environment: Environment;
 	readonly userId: string;
 	readonly tenantId: string;
+
+	/**
+	 * The credentials object for azure-sdk-for-node modules https://github.com/azure/azure-sdk-for-node
+	 */
+	readonly credentials: ServiceClientCredentials;
 
 	/**
 	 * The credentials object for azure-sdk-for-js modules https://github.com/azure/azure-sdk-for-js

@@ -10,9 +10,9 @@ import { AccountInfo } from "@azure/msal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { env, ExtensionContext, OutputChannel, UIKind, window } from "vscode";
-import { AzureAccount, AzureSession } from "../azure-account.api";
-import { displayName, redirectUrlAAD, redirectUrlADFS } from "../constants";
+import { env, UIKind } from "vscode";
+import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
+import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { ISubscriptionCache } from "./AzureLoginHelper";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
@@ -24,13 +24,6 @@ export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCreden
 
 export abstract class AuthProviderBase<TLoginResult> {
 	private terminateServer: (() => Promise<void>) | undefined;
-
-	protected outputChannel: OutputChannel;
-
-	constructor(context: ExtensionContext) {
-		this.outputChannel = window.createOutputChannel(displayName);
-		context.subscriptions.push(this.outputChannel);
-	}
 
 	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
@@ -111,7 +104,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		}
 	}
 
-	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccount): Promise<Record<string, AzureSession>> {
+	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccountExtensionApi): Promise<Record<string, AzureSession>> {
 		const sessions: Record<string, AzureSessionInternal> = {};
 		const environments: Environment[] = await getEnvironments();
 
@@ -121,14 +114,13 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const env: Environment | undefined = environments.find(e => e.name === environment);
 
 			if (!sessions[key] && env) {
-				sessions[key] = {
-					environment: env,
+				sessions[key] = new AzureSessionInternal(
+					env,
 					userId,
 					tenantId,
 					accountInfo,
-					credentials: this.getCredentials(environment, userId, tenantId),
-					credentials2: this.getCredentials2(env, userId, tenantId, accountInfo)
-				};
+					this
+				);
 				api.sessions.push(sessions[key]);
 			}
 		}

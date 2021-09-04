@@ -15,9 +15,12 @@ import { parse } from 'url';
 import { v4 as uuid } from 'uuid';
 import { commands, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
-import { AzureAccount, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
+import { AzureAccountExtensionApi, AzureLoginStatus, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
+import { AzureSession } from '../azure-account.legacy.api';
+import { ext } from '../extensionVariables';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
 import { TelemetryReporter } from '../telemetry';
+import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size } from './cloudConsoleLauncher';
 import { createServer, Queue, readJSON } from './ipc';
 // const adal = require('adal-node');
@@ -175,7 +178,15 @@ function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
 
 export const shells: CloudShell[] = [];
 
-export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporter, osName: keyof typeof OSes): CloudShell {
+export function createCloudConsole(api: AzureAccountExtensionApi, reporter: TelemetryReporter, osName: keyof typeof OSes, isLegacyApi?: boolean): CloudShell | undefined {
+	if (!isLegacyApi) {
+		void window.showWarningMessage('Cloud console requires using the legacy API.');
+		return;
+	} else if (getAuthLibrary() !== 'ADAL') {
+		void window.showWarningMessage('Cloud console requires authenticating with ADAL.');
+		return;
+	}
+
 	const os = OSes[osName];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let liveQueue: Queue<any> | undefined;
@@ -267,8 +278,8 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		});
 
 		// open terminal
-		let shellPath = path.join(__dirname, `../bin/node.${isWindows ? 'bat' : 'sh'}`);
-		let modulePath = path.join(__dirname, 'cloudConsoleLauncher');
+		let shellPath = path.join(ext.context.asAbsolutePath('bin'), `node.${isWindows ? 'bat' : 'sh'}`);
+		let modulePath = path.join(ext.context.asAbsolutePath('dist'), 'cloudConsoleLauncher');
 		if (isWindows) {
 			modulePath = modulePath.replace(/\\/g, '\\\\');
 		}
@@ -326,7 +337,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 		const sessions = [...new Set(api.subscriptions.map(subscription => subscription.session))]; // Only consider those with at least one subscription.
 		if (sessions.length > 1) {
 			queue.push({ type: 'log', args: [localize('azure-account.selectDirectory', "Select directory...")] });
-			const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(session)
+			const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(<AzureSession>session)
 				.catch(err => {
 					console.error(err);
 					return undefined;
@@ -355,7 +366,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 			}
 			token = await acquireToken(pick.session);
 		} else if (sessions.length === 1) {
-			token = await acquireToken(sessions[0]);
+			token = await acquireToken(<AzureSession>sessions[0]);
 		}
 
 		const result = token && await findUserSettings(token);
@@ -445,7 +456,7 @@ export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporte
 	return state;
 }
 
-async function waitForLoginStatus(api: AzureAccount) {
+async function waitForLoginStatus(api: AzureAccountExtensionApi) {
 	if (api.status !== 'Initializing') {
 		return api.status;
 	}
@@ -562,7 +573,7 @@ async function fetchTenantDetails(session: AzureSession): Promise<{ session: Azu
 							"Content-Type": 'application/json; charset=utf-8'
 						}
 					});
-	
+
 					if (response.ok) {
 						// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 						const json = await response.json();

@@ -6,19 +6,20 @@
 import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { AccountInfo } from '@azure/msal-node';
-import { CancellationTokenSource, commands, ConfigurationTarget, Disposable, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { AzureAccount, AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
-import { createCloudConsole } from '../cloudConsole/cloudConsole';
-import { AuthLibrary, authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
+import { CancellationTokenSource, commands, ConfigurationTarget, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
+import { authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { TelemetryReporter } from '../telemetry';
 import { listAll } from '../utils/arrayUtils';
 import { localize } from '../utils/localize';
 import { openUri } from '../utils/openUri';
-import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
+import { getAuthLibrary, getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
 import { AuthProviderBase } from './AuthProviderBase';
+import { AzureAccountExtensionApi } from './AzureAccountExtensionApi';
+import { AzureAccountExtensionLegacyApi } from './AzureAccountExtensionLegacyApi';
 import { AzureSessionInternal } from './AzureSessionInternal';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { addFilter, getNewFilters, removeFilter } from './filters';
@@ -38,7 +39,7 @@ const environmentLabels: Record<string, string> = {
 
 const enableVerboseLogs: boolean = false;
 
-interface IAzureAccountWriteable extends AzureAccount {
+interface IAzureAccountWriteable extends AzureAccountExtensionApi {
 	status: AzureLoginStatus;
 }
 
@@ -62,40 +63,28 @@ type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToClo
 type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
 
 export class AzureLoginHelper {
-	private onStatusChanged: EventEmitter<AzureLoginStatus> = new EventEmitter<AzureLoginStatus>();
-	private onSessionsChanged: EventEmitter<void> = new EventEmitter<void>();
-
-	private subscriptionsTask: Promise<AzureSubscription[]> = Promise.resolve(<AzureSubscription[]>[]);
-	private onSubscriptionsChanged: EventEmitter<void> = new EventEmitter<void>();
-
-	private filtersTask: Promise<AzureResourceFilter[]> = Promise.resolve(<AzureResourceFilter[]>[]);
-	private onFiltersChanged: EventEmitter<void> = new EventEmitter<void>();
-
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
-
 	private authProvider: AdalAuthProvider | MsalAuthProvider;
 
-	public api: AzureAccount = {
-		status: 'Initializing',
-		onStatusChanged: this.onStatusChanged.event,
-		waitForLogin: () => this.waitForLogin(),
-		sessions: [],
-		onSessionsChanged: this.onSessionsChanged.event,
-		subscriptions: [],
-		onSubscriptionsChanged: this.onSubscriptionsChanged.event,
-		waitForSubscriptions: () => this.waitForSubscriptions(),
-		filters: [],
-		onFiltersChanged: this.onFiltersChanged.event,
-		waitForFilters: () => this.waitForFilters(),
-		createCloudShell: os => createCloudConsole(this.api, this.reporter, os)
-	};
+	public onStatusChanged: EventEmitter<AzureLoginStatus> = new EventEmitter<AzureLoginStatus>();
+	public onFiltersChanged: EventEmitter<void> = new EventEmitter<void>();
+	public onSessionsChanged: EventEmitter<void> = new EventEmitter<void>();
+	public onSubscriptionsChanged: EventEmitter<void> = new EventEmitter<void>();
 
-	constructor(private context: ExtensionContext, private reporter: TelemetryReporter) {
-		// Allow switching between libraries via a setting for testing purposes
+	public filtersTask: Promise<AzureResourceFilter[]> = Promise.resolve(<AzureResourceFilter[]>[]);
+	public subscriptionsTask: Promise<AzureSubscription[]> = Promise.resolve(<AzureSubscription[]>[]);
+
+	public api: AzureAccountExtensionApi;
+	public legacyApi: AzureAccountExtensionLegacyApi;
+
+	constructor(private context: ExtensionContext, public reporter: TelemetryReporter) {
 		this.authProvider = getAuthLibrary() === 'ADAL' ?
-			new AdalAuthProvider(context, enableVerboseLogs) :
-			new MsalAuthProvider(context, enableVerboseLogs);
+			new AdalAuthProvider(enableVerboseLogs) :
+			new MsalAuthProvider(enableVerboseLogs);
+
+		this.api = new AzureAccountExtensionApi(this);
+		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
 
 		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
 		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
@@ -194,7 +183,7 @@ export class AzureLoginHelper {
 			event.message = message;
 		}
 		if (includeSubscriptions) {
-			await this.waitForSubscriptions();
+			await this.api.waitForSubscriptions();
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 			event.subscriptions = JSON.stringify((await this.subscriptionsTask).map(s => s.subscription.subscriptionId!));
 		}
@@ -335,14 +324,6 @@ export class AzureLoginHelper {
 		this.onSessionsChanged.fire();
 	}
 
-	private async waitForSubscriptions(): Promise<boolean> {
-		if (!(await this.api.waitForLogin())) {
-			return false;
-		}
-		await this.subscriptionsTask;
-		return true;
-	}
-
 	private initializeSubscriptions(cache: ISubscriptionCache, sessions: Record<string, AzureSession>): AzureSubscription[] {
 		const subscriptions: AzureSubscription[] = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
 			const { environment, userId, tenantId } = session;
@@ -375,7 +356,7 @@ export class AzureLoginHelper {
 	}
 
 	private async selectSubscriptions(): Promise<unknown> {
-		if (!(await this.waitForSubscriptions())) {
+		if (!(await this.api.waitForSubscriptions())) {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
@@ -475,7 +456,7 @@ export class AzureLoginHelper {
 			return;
 		}
 		this.filtersTask = (async () => {
-			await this.waitForSubscriptions();
+			await this.api.waitForSubscriptions();
 			const subscriptions: AzureSubscription[] = await this.subscriptionsTask;
 			this.oldResourceFilter = JSON.stringify(resourceFilter);
 			const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
@@ -483,34 +464,6 @@ export class AzureLoginHelper {
 			this.onFiltersChanged.fire();
 			return this.api.filters;
 		})();
-	}
-
-	private async waitForLogin(): Promise<boolean> {
-		switch (this.api.status) {
-			case 'LoggedIn':
-				return true;
-			case 'LoggedOut':
-				return false;
-			case 'Initializing':
-			case 'LoggingIn':
-				return new Promise<boolean>(resolve => {
-					const subscription: Disposable = this.api.onStatusChanged(() => {
-						subscription.dispose();
-						resolve(this.waitForLogin());
-					});
-				});
-			default:
-				const status: never = this.api.status;
-				throw new Error(`Unexpected status '${status}'`);
-		}
-	}
-
-	private async waitForFilters(): Promise<boolean> {
-		if (!(await this.waitForSubscriptions())) {
-			return false;
-		}
-		await this.filtersTask;
-		return true;
 	}
 }
 
@@ -534,8 +487,4 @@ function getCurrentTarget(config: { key: string; defaultValue?: unknown; globalV
 		}
 	}
 	return ConfigurationTarget.Global;
-}
-
-function getAuthLibrary(): AuthLibrary {
-	return getSettingValue<AuthLibrary>(authLibrarySetting) || 'ADAL';
 }

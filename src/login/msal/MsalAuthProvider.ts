@@ -6,33 +6,28 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from "@azure/msal-node";
-import { MemoryCache } from "adal-node";
-import { DeviceTokenCredentials } from "ms-rest-azure";
-import { ExtensionContext } from "vscode";
 import { AzureSession } from "../../azure-account.api";
 import { clientId, msalScopes } from "../../constants";
 import { AzureLoginError } from "../../errors";
+import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
-import { ProxyTokenCache } from "../adal/tokens";
-import { AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
+import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
+import { AzureSessionInternal } from "../AzureSessionInternal";
 import { cachePlugin } from "./cachePlugin";
 import { PublicClientCredential } from "./PublicClientCredential";
 
 export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	private publicClientApp: PublicClientApplication;
 
-	// For compatibility with `DeviceTokenCredentials`
-	private dummyTokenCache: ProxyTokenCache = new ProxyTokenCache(new MemoryCache());
-
-	constructor(context: ExtensionContext, enableVerboseLogs: boolean) {
-		super(context);
+	constructor(enableVerboseLogs: boolean) {
+		super();
 		const msalConfiguration: Configuration = {
 			auth: { clientId },
 			cache: { cachePlugin },
 			system: {
 				loggerOptions: {
 					loggerCallback: (_level: LogLevel, message: string, _containsPii: boolean) => {
-						this.outputChannel.appendLine(message);
+						ext.outputChannel.appendLine(message);
 					},
 					piiLoggingEnabled: false,
 					logLevel: enableVerboseLogs ? LogLevel.Verbose : LogLevel.Error
@@ -87,9 +82,8 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		}
 	}
 
-	public getCredentials(environment: string, userId: string, tenantId: string): DeviceTokenCredentials {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-		return new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.dummyTokenCache, domain: tenantId });
+	public getCredentials(): AbstractCredentials {
+		throw new Error(localize('azure-account.deprecatedCredentials', 'MSAL does not support this credentials type. As a workaround, revert the "azure.authenticationLibrary" setting to "ADAL" and consider filing an issue on the extension author.'));
 	}
 
 	public getCredentials2(_env: Environment, _userId: string, _tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2 {
@@ -99,15 +93,13 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 
 	public async updateSessions(environment: Environment, loginResult: AuthenticationResult, sessions: AzureSession[]): Promise<void> {
 		/* eslint-disable @typescript-eslint/no-non-null-assertion */
-		sessions.splice(0, sessions.length, <AzureSession>{
+		sessions.splice(0, sessions.length, new AzureSessionInternal(
 			environment,
-			userId: loginResult.account!.username,
-			tenantId: loginResult.account!.tenantId,
-			accountInfo: loginResult.account!,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			credentials: this.getCredentials(<any>environment, loginResult.account!.username, loginResult.tenantId),
-			credentials2: this.getCredentials2(environment, loginResult.account!.username, loginResult.tenantId, loginResult.account!)
-		});
+			loginResult.account!.username,
+			loginResult.account!.tenantId,
+			loginResult.account!,
+			this
+		));
 		/* eslint-enable @typescript-eslint/no-non-null-assertion */
 	}
 

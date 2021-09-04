@@ -6,9 +6,12 @@
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { AzureAccount } from './azure-account.api';
+import { createApiProvider, createAzExtOutputChannel, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
+import { AzureAccountExtensionApi } from './azure-account.api';
 import { OSes, shells } from './cloudConsole/cloudConsole';
-import { cloudSetting, extensionPrefix, showSignedInEmailSetting } from './constants';
+import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
+import { ext } from './extensionVariables';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
 import { survey } from './nps';
 import { createReporter } from './telemetry';
@@ -17,7 +20,12 @@ import { getSettingValue } from './utils/settingUtils';
 
 const enableLogging: boolean = false;
 
-export async function activate(context: ExtensionContext): Promise<AzureAccount> {
+export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
+	ext.context = context;
+	ext.outputChannel = createAzExtOutputChannel(displayName, extensionPrefix);
+	context.subscriptions.push(ext.outputChannel);
+	registerUIExtensionVariables(ext);
+
 	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
 	const azureLoginHelper: AzureLoginHelper = new AzureLoginHelper(context, reporter);
@@ -30,7 +38,10 @@ export async function activate(context: ExtensionContext): Promise<AzureAccount>
 	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLoginHelper.api, 'Windows')));
 	context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
 	survey(context, reporter);
-	return Promise.resolve(azureLoginHelper.api); // Return promise to work around weird error in WinJS.
+
+	reporter.sendSanitizedEvent('activate', { 'activationTime': String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000) });
+
+	return Object.assign(azureLoginHelper.legacyApi, createApiProvider([azureLoginHelper.api]));
 }
 
 async function migrateEnvironmentSetting() {
@@ -53,13 +64,15 @@ async function migrateEnvironmentSetting() {
 	await migrateSetting('AzureChina', 'AzureChinaCloud');
 }
 
-function cloudConsole(api: AzureAccount, os: 'Linux' | 'Windows') {
+function cloudConsole(api: AzureAccountExtensionApi, os: 'Linux' | 'Windows') {
 	const shell = api.createCloudShell(os);
-	void shell.terminal.then(terminal => terminal.show());
-	return shell;
+	if (shell) {
+		void shell.terminal.then(terminal => terminal.show());
+		return shell;
+	}
 }
 
-function uploadFile(api: AzureAccount, uri?: Uri) {
+function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
 	(async () => {
 		let shell = shells[0];
 		if (!shell) {
@@ -67,7 +80,8 @@ function uploadFile(api: AzureAccount, uri?: Uri) {
 			if (!shellName) {
 				return;
 			}
-			shell = cloudConsole(api, shellName === OSes.Linux.shellName ? 'Linux' : 'Windows');
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			shell = cloudConsole(api, shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
 		}
 		if (!uri) {
 			uri = (await window.showOpenDialog({}) || [])[0];
@@ -87,7 +101,7 @@ function uploadFile(api: AzureAccount, uri?: Uri) {
 		.catch(console.error);
 }
 
-function logDiagnostics(context: ExtensionContext, api: AzureAccount) {
+function logDiagnostics(context: ExtensionContext, api: AzureAccountExtensionApi) {
 	const subscriptions = context.subscriptions;
 	subscriptions.push(api.onStatusChanged(status => {
 		console.log(`onStatusChanged: ${status}`);
@@ -116,7 +130,7 @@ function createAccount() {
 	return env.openExternal(Uri.parse('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account'));
 }
 
-function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {
+function createStatusBarItem(context: ExtensionContext, api: AzureAccountExtensionApi) {
 	const statusBarItem = window.createStatusBarItem();
 	statusBarItem.command = "azure-account.selectSubscriptions";
 	function updateStatusBar() {
@@ -147,6 +161,6 @@ function createStatusBarItem(context: ExtensionContext, api: AzureAccount) {
 	return statusBarItem;
 }
 
-export function deactivate(): void {
+export function deactivateInternal(): void {
 	return;
 }

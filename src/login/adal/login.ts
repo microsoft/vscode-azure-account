@@ -7,11 +7,10 @@ import { Environment } from "@azure/ms-rest-azure-env";
 // eslint-disable-next-line import/no-internal-modules
 import { AuthenticationContext, MemoryCache } from "@azure/ms-rest-nodeauth/node_modules/adal-node";
 import { UserCodeInfo } from "adal-node";
-import { env, EventEmitter, MessageItem, Uri, UriHandler, window } from "vscode";
+import { EventEmitter, Uri, UriHandler } from "vscode";
 import { clientId } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
-import { openUri } from "../../utils/openUri";
 
 export class UriEventHandler extends EventEmitter<Uri> implements UriHandler {
 	public handleUri(uri: Uri): void {
@@ -45,17 +44,6 @@ export function getCallbackEnvironment(callbackUri: Uri): string {
 			return 'vsocanary,';
 		default:
 			return '';
-	}
-}
-
-export async function showDeviceCodeMessage(userCode: UserCodeInfo): Promise<void> {
-	const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
-	const response: MessageItem | undefined = await window.showInformationMessage(userCode.message, copyAndOpen);
-	if (response === copyAndOpen) {
-		void env.clipboard.writeText(userCode.userCode);
-		await openUri(userCode.verificationUrl);
-	} else {
-		return Promise.reject('user canceled');
 	}
 }
 

@@ -7,16 +7,9 @@ import { Environment } from "@azure/ms-rest-azure-env";
 // eslint-disable-next-line import/no-internal-modules
 import { AuthenticationContext, MemoryCache } from "@azure/ms-rest-nodeauth/node_modules/adal-node";
 import { UserCodeInfo } from "adal-node";
-import { EventEmitter, Uri, UriHandler } from "vscode";
 import { clientId } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { localize } from "../../utils/localize";
-
-export class UriEventHandler extends EventEmitter<Uri> implements UriHandler {
-	public handleUri(uri: Uri): void {
-		this.fire(uri);
-	}
-}
 
 export async function getUserCode(environment: Environment, tenantId: string): Promise<UserCodeInfo> {
 	return new Promise<UserCodeInfo>((resolve, reject) => {

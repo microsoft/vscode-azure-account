@@ -1,0 +1,56 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Environment } from "@azure/ms-rest-azure-env";
+import { Disposable, EventEmitter, Uri, UriHandler, window } from "vscode";
+import { AuthProviderBase } from "./AuthProviderBase";
+
+class UriEventHandler extends EventEmitter<Uri> implements UriHandler {
+	public handleUri(uri: Uri): void {
+		this.fire(uri);
+	}
+}
+
+const handler: UriEventHandler = new UriEventHandler();
+window.registerUriHandler(handler);
+
+export async function exchangeCodeForToken<TLoginResult>(authProvider: AuthProviderBase<TLoginResult>, clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TLoginResult> {
+	let uriEventListener: Disposable;
+	return new Promise((resolve: (value: TLoginResult) => void , reject) => {
+		uriEventListener = handler.event(async (uri: Uri) => {
+			try {
+				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+				const query = parseQuery(uri);
+				const code = query.code;
+
+				// Workaround double encoding issues of state
+				if (query.state !== state && decodeURIComponent(query.state) !== state) {
+					throw new Error('State does not match.');
+				}
+				/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+
+				resolve(await authProvider.loginWithAuthCode(code, callbackUri, clientId, environment, tenantId));
+			} catch (err) {
+				reject(err);
+			}
+		});
+	}).then(result => {
+		uriEventListener.dispose()
+		return result;
+	}).catch(err => {
+		uriEventListener.dispose();
+		throw err;
+	});
+}
+
+/* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+function parseQuery(uri: Uri): any {
+	return uri.query.split('&').reduce((prev: any, current) => {
+		const queryString: string[] = current.split('=');
+		prev[queryString[0]] = queryString[1];
+		return prev;
+	}, {});
+}
+/* eslint-enable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */

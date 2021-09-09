@@ -5,6 +5,7 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
+import { DeviceCodeResponse } from "@azure/msal-common";
 import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from "@azure/msal-node";
 import { AzureSession } from "../../azure-account.api";
 import { clientId, msalScopes } from "../../constants";
@@ -45,14 +46,23 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		});
 
 		if (!authResult) {
-			throw new Error(localize('azure-account.msalAuthFailed', 'MSAL authentication failed.'));
+			throw new Error(localize('azure-account.msalAuthCodeFailed', 'MSAL authentication code login failed.'));
 		}
 
 		return authResult;
 	}
 
 	public async loginWithDeviceCode(): Promise<AuthenticationResult> {
-		throw new Error('"Login With Device Code" not implemented for MSAL.');
+		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByDeviceCode({
+			scopes: msalScopes,
+			deviceCodeCallback: (response: DeviceCodeResponse) => this.showDeviceCodeMessage(response.message, response.userCode, response.verificationUri)
+		});
+
+		if (!authResult) {
+			throw new Error(localize('azure-account.msalDeviceCodeFailed', 'MSAL device code login failed.'));
+		}
+
+		return authResult;
 	}
 
 	public async loginSilent(): Promise<AuthenticationResult> {

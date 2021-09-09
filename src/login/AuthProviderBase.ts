@@ -10,9 +10,11 @@ import { AccountInfo } from "@azure/msal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { Disposable, env, UIKind, Uri, window } from "vscode";
+import { Disposable, env, MessageItem, UIKind, Uri, window } from "vscode";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
+import { localize } from "../utils/localize";
+import { openUri } from "../utils/openUri";
 import { UriEventHandler } from "./adal/login";
 import { ISubscriptionCache } from "./AzureLoginHelper";
 import { AzureSessionInternal } from "./AzureSessionInternal";
@@ -183,6 +185,17 @@ export abstract class AuthProviderBase<TLoginResult> {
 			uriEventListener.dispose();
 			throw err;
 		});
+	}
+
+	protected async showDeviceCodeMessage(message: string, userCode: string, verificationUrl: string): Promise<void> {
+		const copyAndOpen: MessageItem = { title: localize('azure-account.copyAndOpen', "Copy & Open") };
+		const response: MessageItem | undefined = await window.showInformationMessage(message, copyAndOpen);
+		if (response === copyAndOpen) {
+			void env.clipboard.writeText(userCode);
+			await openUri(verificationUrl);
+		} else {
+			return Promise.reject('user canceled');
+		}
 	}
 }
 

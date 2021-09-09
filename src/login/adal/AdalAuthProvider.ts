@@ -14,7 +14,7 @@ import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
-import { getUserCode, showDeviceCodeMessage } from "./login";
+import { getUserCode } from "./login";
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
 const staticEnvironmentNames: string[] = [
@@ -55,7 +55,7 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 
 	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TokenResponse[]> {
 		const userCode: UserCodeInfo = await getUserCode(environment, tenantId);
-		const messageTask: Promise<void> = showDeviceCodeMessage(userCode);
+		const messageTask: Promise<void> = this.showDeviceCodeMessage(userCode.message, userCode.userCode, userCode.verificationUrl);
 		const tokenResponseTask: Promise<TokenResponse> = getTokenResponse(environment, tenantId, userCode);
 		const tokenResponse: TokenResponse = await Promise.race([tokenResponseTask, messageTask.then(() => Promise.race([tokenResponseTask, timeout(3 * 60 * 1000)]))]); // 3 minutes
 

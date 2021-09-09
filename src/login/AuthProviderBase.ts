@@ -10,9 +10,10 @@ import { AccountInfo } from "@azure/msal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { env, UIKind } from "vscode";
+import { Disposable, env, UIKind, Uri, window } from "vscode";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
+import { UriEventHandler } from "./adal/login";
 import { ISubscriptionCache } from "./AzureLoginHelper";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
@@ -24,8 +25,12 @@ export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCreden
 
 export abstract class AuthProviderBase<TLoginResult> {
 	private terminateServer: (() => Promise<void>) | undefined;
+	private handler: UriEventHandler = new UriEventHandler();
 
-	public abstract loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult>;
+	constructor() {
+		window.registerUriHandler(this.handler);
+	}
+
 	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TLoginResult>;
@@ -104,6 +109,29 @@ export abstract class AuthProviderBase<TLoginResult> {
 		}
 	}
 
+	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult> {
+		const callbackUri: Uri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://ms-vscode.azure-account`));
+		const nonce: string = randomBytes(16).toString('base64');
+		const port: string | number = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
+		const callbackEnvironment: string = getCallbackEnvironment(callbackUri);
+		const state: string = `${callbackEnvironment}${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+		const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize`;
+		let uri: Uri = Uri.parse(signInUrl);
+		uri = uri.with({
+			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}&resource=${environment.activeDirectoryResourceId}&prompt=select_account`
+		});
+		void env.openExternal(uri);
+
+		const timeoutPromise = new Promise((_resolve: (value: TLoginResult) => void, reject) => {
+			const wait = setTimeout(() => {
+				clearTimeout(wait);
+				reject('Login timed out.');
+			}, 1000 * 60 * 5)
+		});
+
+		return await Promise.race([this.exchangeCodeForToken(clientId, environment, tenantId, redirectUrlAAD, state), timeoutPromise]);
+	}
+
 	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccountExtensionApi): Promise<Record<string, AzureSession>> {
 		const sessions: Record<string, AzureSessionInternal> = {};
 		const environments: Environment[] = await getEnvironments();
@@ -127,4 +155,62 @@ export abstract class AuthProviderBase<TLoginResult> {
 
 		return sessions;
 	}
+
+	private async exchangeCodeForToken(clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TLoginResult> {
+		let uriEventListener: Disposable;
+		return new Promise((resolve: (value: TLoginResult) => void , reject) => {
+			uriEventListener = this.handler.event(async (uri: Uri) => {
+				try {
+					/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+					const query = parseQuery(uri);
+					const code = query.code;
+
+					// Workaround double encoding issues of state
+					if (query.state !== state && decodeURIComponent(query.state) !== state) {
+						throw new Error('State does not match.');
+					}
+					/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+
+					resolve(await this.loginWithAuthCode(code, callbackUri, clientId, environment, tenantId))
+				} catch (err) {
+					reject(err);
+				}
+			});
+		}).then(result => {
+			uriEventListener.dispose()
+			return result;
+		}).catch(err => {
+			uriEventListener.dispose();
+			throw err;
+		});
+	}
 }
+
+function getCallbackEnvironment(callbackUri: Uri): string {
+	if (callbackUri.authority.endsWith('.workspaces.github.com') || callbackUri.authority.endsWith('.github.dev')) {
+		return `${callbackUri.authority},`;
+	}
+
+	switch (callbackUri.authority) {
+		case 'online.visualstudio.com':
+			return 'vso,';
+		case 'online-ppe.core.vsengsaas.visualstudio.com':
+			return 'vsoppe,';
+		case 'online.dev.core.vsengsaas.visualstudio.com':
+			return 'vsodev,';
+		case 'canary.online.visualstudio.com':
+			return 'vsocanary,';
+		default:
+			return '';
+	}
+}
+
+/* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+function parseQuery(uri: Uri): any {
+	return uri.query.split('&').reduce((prev: any, current) => {
+		const queryString: string[] = current.split('=');
+		prev[queryString[0]] = queryString[1];
+		return prev;
+	}, {});
+}
+/* eslint-enable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */

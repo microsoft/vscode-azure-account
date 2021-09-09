@@ -6,17 +6,15 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { Logging, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
-import { randomBytes } from "crypto";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { Disposable, env, Uri, window } from "vscode";
 import { AzureSession } from "../../azure-account.api";
-import { azureCustomCloud, azurePPE, clientId, redirectUrlAAD, staticEnvironments } from "../../constants";
+import { azureCustomCloud, azurePPE, clientId, staticEnvironments } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
-import { getCallbackEnvironment, getUserCode, parseQuery, showDeviceCodeMessage, UriEventHandler } from "./login";
+import { getUserCode, showDeviceCodeMessage } from "./login";
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
 const staticEnvironmentNames: string[] = [
@@ -29,11 +27,8 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 	private tokenCache: MemoryCache = new MemoryCache();
 	private delayedTokenCache: ProxyTokenCache = new ProxyTokenCache(this.tokenCache);
 
-	private handler: UriEventHandler = new UriEventHandler();
-
 	constructor(enableVerboseLogs: boolean) {
 		super();
-		window.registerUriHandler(this.handler);
 		Logging.setLoggingOptions({
 			level: enableVerboseLogs ?
 				3 /* Logging.LOGGING_LEVEL.VERBOSE */ :
@@ -48,33 +43,6 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 				}
 			}
 		});
-	}
-
-	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TokenResponse[]> {
-		const callbackUri: Uri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://ms-vscode.azure-account`));
-		const nonce: string = randomBytes(16).toString('base64');
-		const port: string | number = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
-		const callbackEnvironment: string = getCallbackEnvironment(callbackUri);
-		const state: string = `${callbackEnvironment}${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
-		const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize`;
-		let uri: Uri = Uri.parse(signInUrl);
-		uri = uri.with({
-			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}&resource=${environment.activeDirectoryResourceId}&prompt=select_account`
-		});
-		void env.openExternal(uri);
-
-		const timeoutPromise = new Promise((_resolve: (value: TokenResponse) => void, reject) => {
-			const wait = setTimeout(() => {
-				clearTimeout(wait);
-				reject('Login timed out.');
-			}, 1000 * 60 * 5)
-		});
-
-		const tokenResponse: TokenResponse = await Promise.race([this.exchangeCodeForToken(clientId, environment, tenantId, redirectUrlAAD, state), timeoutPromise]);
-
-		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		await storeRefreshToken(environment, tokenResponse.refreshToken!);
-		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
 	public async loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TokenResponse[]> {
@@ -170,34 +138,5 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		await clearTokenCache(this.tokenCache);
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		this.delayedTokenCache.initEnd!();
-	}
-
-	private async exchangeCodeForToken(clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TokenResponse> {
-		let uriEventListener: Disposable;
-		return new Promise((resolve: (value: TokenResponse) => void , reject) => {
-			uriEventListener = this.handler.event(async (uri: Uri) => {
-				try {
-					/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
-					const query = parseQuery(uri);
-					const code = query.code;
-
-					// Workaround double encoding issues of state
-					if (query.state !== state && decodeURIComponent(query.state) !== state) {
-						throw new Error('State does not match.');
-					}
-					/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
-
-					resolve(await getTokenWithAuthorizationCode(clientId, environment, callbackUri, tenantId, code));
-				} catch (err) {
-					reject(err);
-				}
-			});
-		}).then(result => {
-			uriEventListener.dispose()
-			return result;
-		}).catch(err => {
-			uriEventListener.dispose();
-			throw err;
-		});
 	}
 }

@@ -37,10 +37,6 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		this.publicClientApp = new PublicClientApplication(msalConfiguration);
 	}
 
-	public async loginWithoutLocalServer(_clientId: string, _environment: Environment, _isAdfs: boolean, _tenantId: string): Promise<AuthenticationResult> {
-		throw new Error('"Login Without Local Server" not implemented for MSAL.');
-	}
-
 	public async loginWithAuthCode(code: string, redirectUrl: string): Promise<AuthenticationResult> {
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByCode({
 			scopes: msalScopes,

@@ -4,22 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
-import { Disposable, EventEmitter, Uri, UriHandler, window } from "vscode";
+import { Disposable, EventEmitter, Uri, UriHandler } from "vscode";
+import { ext } from "../extensionVariables";
 import { AuthProviderBase } from "./AuthProviderBase";
 
-class UriEventHandler extends EventEmitter<Uri> implements UriHandler {
+export class UriEventHandler extends EventEmitter<Uri> implements UriHandler {
 	public handleUri(uri: Uri): void {
 		this.fire(uri);
 	}
 }
 
-const handler: UriEventHandler = new UriEventHandler();
-window.registerUriHandler(handler);
-
 export async function exchangeCodeForToken<TLoginResult>(authProvider: AuthProviderBase<TLoginResult>, clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TLoginResult> {
 	let uriEventListener: Disposable;
 	return new Promise((resolve: (value: TLoginResult) => void , reject) => {
-		uriEventListener = handler.event(async (uri: Uri) => {
+		uriEventListener = ext.uriEventHandler.event(async (uri: Uri) => {
 			try {
 				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 				const query = parseQuery(uri);

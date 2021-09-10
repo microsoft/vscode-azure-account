@@ -13,6 +13,7 @@ import { OSes, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
+import { UriEventHandler } from './login/exchangeCodeForToken';
 import { survey } from './nps';
 import { createReporter } from './telemetry';
 import { localize } from './utils/localize';
@@ -22,8 +23,13 @@ const enableLogging: boolean = false;
 
 export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
 	ext.context = context;
+
+	ext.uriEventHandler = new UriEventHandler();
+	context.subscriptions.push(window.registerUriHandler(ext.uriEventHandler));
+
 	ext.outputChannel = createAzExtOutputChannel(displayName, extensionPrefix);
 	context.subscriptions.push(ext.outputChannel);
+
 	registerUIExtensionVariables(ext);
 
 	await migrateEnvironmentSetting();

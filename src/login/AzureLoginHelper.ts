@@ -86,20 +86,19 @@ export class AzureLoginHelper {
 		this.api = new AzureAccountExtensionApi(this);
 		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
 
-		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
-		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
-		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
-		context.subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud().catch(console.error)));
-		context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin().catch(console.error)));
-		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions().catch(console.error)));
-		context.subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions().catch(console.error)));
+		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login')));
+		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode')));
+		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout()));
+		context.subscriptions.push(commands.registerCommand('azure-account.loginToCloud', () => this.loginToCloud()));
+		context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', () => this.askForLogin()));
+		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', () => this.selectSubscriptions()));
+		context.subscriptions.push(this.api.onSessionsChanged(() => this.updateSubscriptions()));
 		context.subscriptions.push(this.api.onSubscriptionsChanged(() => this.updateFilters()));
 		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
 				const doLogin: boolean = this.doLogin;
 				this.doLogin = false;
-				this.initialize(e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
-					.catch(console.error);
+				await this.initialize(e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				this.updateFilters(true);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting))) {
@@ -113,8 +112,7 @@ export class AzureLoginHelper {
 				});
 			}
 		}));
-		this.initialize('activation', false, true)
-			.catch(console.error);
+		void this.initialize('activation', false, true);
 	}
 
 	public async login(trigger: LoginTrigger): Promise<void> {
@@ -262,6 +260,8 @@ export class AzureLoginHelper {
 			}
 			if (doLogin) {
 				await this.login(trigger);
+			} else {
+				throw err;
 			}
 		} finally {
 			this.updateLoginStatus();
@@ -367,11 +367,10 @@ export class AzureLoginHelper {
 		const subscriptions = this.subscriptionsTask
 			.then(list => this.getSubscriptionItems(list, resourceFilter));
 		const source: CancellationTokenSource = new CancellationTokenSource();
-		const cancellable: Promise<ISubscriptionItem[]> = subscriptions.then(s => {
+		const cancellable: Promise<ISubscriptionItem[]> = subscriptions.then(async s => {
 			if (!s.length) {
 				source.cancel();
-				this.noSubscriptionsFound()
-					.catch(console.error);
+				await this.noSubscriptionsFound();
 			}
 			return s;
 		});

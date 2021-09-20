@@ -141,7 +141,8 @@
         },
         "azure.customCloud.resourceManagerEndpointUrl": {
           "type": "string",
-          "description": "The management endpoint for your Azure Custom Cloud environment."
+          "description": "The management endpoint for your Azure Custom Cloud environment.",
+          "scope": "application"
         },
         "azure.ppe": {
           "type": "object",
@@ -199,7 +200,8 @@
             }
           },
           "default": null,
-          "description": "Development setting: The PPE environment for testing."
+          "description": "Development setting: The PPE environment for testing.",
+          "scope": "application"
         },
         "azure.authenticationLibrary": {
           "type": "string",

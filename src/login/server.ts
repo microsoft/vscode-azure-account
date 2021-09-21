@@ -12,12 +12,7 @@ import { parse, ParsedUrlQuery } from 'querystring';
 import * as url from 'url';
 import { portADFS, redirectUrlAAD } from '../constants';
 import { ext } from '../extensionVariables';
-
-interface Deferred<T> {
-	resolve: (result: T | Promise<T>) => void;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	reject: (reason: any) => void;
-}
+import { Deferred } from '../utils/promiseUtils';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RedirectResult = { req: http.IncomingMessage, res: http.ServerResponse } | { err: any; res: http.ServerResponse; };

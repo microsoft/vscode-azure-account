@@ -5,6 +5,7 @@
 
 import { Event } from 'vscode';
 import * as legacyTypes from '../azure-account.legacy.api';
+import { OSName } from '../cloudConsole/cloudConsole';
 import { AzureAccountExtensionApi } from './AzureAccountExtensionApi';
 
 export class AzureAccountExtensionLegacyApi implements legacyTypes.AzureAccount {
@@ -48,7 +49,7 @@ export class AzureAccountExtensionLegacyApi implements legacyTypes.AzureAccount 
 		return await this.api.waitForSubscriptions(true);
 	}
 
-	public createCloudShell(os: 'Linux' | 'Windows'): legacyTypes.CloudShell {
+	public createCloudShell(os: OSName): legacyTypes.CloudShell {
 		return <legacyTypes.CloudShell>this.api.createCloudShell(os, true);
 	}
 }

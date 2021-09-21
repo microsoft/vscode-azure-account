@@ -9,7 +9,7 @@ import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation,
 import { createApiProvider, createAzExtOutputChannel, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
-import { OSes, shells } from './cloudConsole/cloudConsole';
+import { OSes, OSName, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
@@ -70,7 +70,7 @@ async function migrateEnvironmentSetting() {
 	await migrateSetting('AzureChina', 'AzureChinaCloud');
 }
 
-function cloudConsole(api: AzureAccountExtensionApi, os: 'Linux' | 'Windows') {
+function cloudConsole(api: AzureAccountExtensionApi, os: OSName) {
 	const shell = api.createCloudShell(os);
 	if (shell) {
 		void shell.terminal.then(terminal => terminal.show());

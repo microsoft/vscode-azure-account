@@ -5,7 +5,7 @@
 
 import { Disposable, Event } from 'vscode';
 import * as types from '../azure-account.api';
-import { createCloudConsole } from '../cloudConsole/cloudConsole';
+import { createCloudConsole, OSName } from '../cloudConsole/cloudConsole';
 import { AzureLoginHelper } from './AzureLoginHelper';
 
 export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi {
@@ -70,7 +70,7 @@ export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi 
 		return true;
 	}
 
-	public createCloudShell(os: 'Linux' | 'Windows', isLegacyApi?: boolean): types.CloudShell {
+	public createCloudShell(os: OSName, isLegacyApi?: boolean): types.CloudShell {
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		return createCloudConsole(this, this.azureLoginHelper.reporter, os, isLegacyApi)!;
 	}

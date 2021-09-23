@@ -6,7 +6,7 @@
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { createApiProvider, createAzExtOutputChannel, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { createApiProvider, createAzExtOutputChannel, createExperimentationService, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
 import { OSes, shells } from './cloudConsole/cloudConsole';
@@ -23,6 +23,7 @@ const enableLogging: boolean = false;
 
 export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
 	ext.context = context;
+	ext.experimentationService = await createExperimentationService(context);
 
 	ext.uriEventHandler = new UriEventHandler();
 	context.subscriptions.push(window.registerUriHandler(ext.uriEventHandler));

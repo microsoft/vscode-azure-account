@@ -12,11 +12,15 @@ import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { shells, OSes } from './cloudConsole';
 import { survey } from './nps';
+import { ext } from './extensionVariables';
+import { createExperimentationService } from 'vscode-azureextensionui';
 
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
 
 export async function activate(context: ExtensionContext) {
+	ext.experimentationService = await createExperimentationService(context);
+
 	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
 	const azureLogin = new AzureLoginHelper(context, reporter);

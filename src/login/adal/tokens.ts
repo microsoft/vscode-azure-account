@@ -7,10 +7,10 @@ import { SubscriptionClient, SubscriptionModels } from "@azure/arm-subscriptions
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AuthenticationContext, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
-import { clientId, commonTenantId, credentialsSection } from "../../constants";
+import { clientId, commonTenantId } from "../../constants";
 import { AzureLoginError } from "../../errors";
+import { ext } from "../../extensionVariables";
 import { listAll } from "../../utils/arrayUtils";
-import { tryGetKeyTar } from "../../utils/keytar";
 import { localize } from "../../utils/localize";
 import { isADFS } from "../environments";
 
@@ -18,8 +18,6 @@ import { isADFS } from "../environments";
 const CacheDriver = require('adal-node/lib/cache-driver');
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, import/no-internal-modules
 const createLogContext = require('adal-node/lib/log').createLogContext;
-
-const keytar = tryGetKeyTar();
 
 export class ProxyTokenCache {
 	/* eslint-disable */
@@ -48,46 +46,39 @@ export class ProxyTokenCache {
 }
 
 export async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
-	if (!keytar) {
-		return undefined;
-	}
 	try {
 		if (migrateToken) {
-			const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
+			const token = await ext.context.secrets.get('Refresh Token');
 			if (token) {
-				if (!await keytar.getPassword(credentialsSection, 'Azure')) {
-					await keytar.setPassword(credentialsSection, 'Azure', token);
+				if (!await ext.context.secrets.get('Azure')) {
+					await ext.context.secrets.store('Azure', token);
 				}
-				await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
+				await ext.context.secrets.delete('Refresh Token');
 			}
 		}
 	} catch {
 		// ignore
 	}
 	try {
-		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
+		return await ext.context.secrets.get(environment.name);
 	} catch {
 		// ignore
 	}
 }
 
 export async function storeRefreshToken(environment: Environment, token: string): Promise<void> {
-	if (keytar) {
-		try {
-			await keytar.setPassword(credentialsSection, environment.name, token);
-		} catch {
-			// ignore
-		}
+	try {
+		await ext.context.secrets.store(environment.name, token);
+	} catch {
+		// ignore
 	}
 }
 
 export async function deleteRefreshToken(environmentName: string): Promise<void> {
-	if (keytar) {
-		try {
-			await keytar.deletePassword(credentialsSection, environmentName);
-		} catch {
-			// ignore
-		}
+	try {
+		await ext.context.secrets.delete(environmentName);
+	} catch {
+		// ignore
 	}
 }
 

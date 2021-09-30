@@ -4,22 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICachePlugin, TokenCacheContext } from '@azure/msal-node';
-import { credentialsSection } from '../../constants';
-import { KeyTar, tryGetKeyTar } from '../../utils/keytar';
+import { ext } from '../../extensionVariables';
 import { getSelectedEnvironment } from '../environments';
 
-const keytar: KeyTar | undefined = tryGetKeyTar();
-
 const beforeCacheAccess = async (cacheContext: TokenCacheContext): Promise<void> => {
-	if (keytar) {
-		const cachedValue: string | null = await keytar.getPassword(credentialsSection, (await getSelectedEnvironment()).name);
-		cachedValue && cacheContext.tokenCache.deserialize(cachedValue);
-	}
+	const cachedValue: string | undefined = await ext.context.secrets.get((await getSelectedEnvironment()).name);
+	cachedValue && cacheContext.tokenCache.deserialize(cachedValue);
 };
 
 const afterCacheAccess = async (cacheContext: TokenCacheContext): Promise<void> => {
-    if(keytar && cacheContext.cacheHasChanged) {
-		await keytar.setPassword(credentialsSection, (await getSelectedEnvironment()).name, cacheContext.tokenCache.serialize());
+    if(cacheContext.cacheHasChanged) {
+		await ext.context.secrets.store((await getSelectedEnvironment()).name, cacheContext.tokenCache.serialize());
     }
 };
 

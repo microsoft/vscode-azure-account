@@ -26,22 +26,32 @@
     "azure"
   ],
   "activationEvents": [
+    "onCommand:azure-account.createAccount",
     "onCommand:azure-account.login",
+    "onCommand:azure-account.loginToCloud",
     "onCommand:azure-account.loginWithDeviceCode",
     "onCommand:azure-account.logout",
-    "onCommand:azure-account.loginToCloud",
-    "onCommand:azure-account.selectSubscriptions",
-    "onCommand:azure-account.createAccount",
     "onCommand:azure-account.openCloudConsoleLinux",
     "onCommand:azure-account.openCloudConsoleWindows",
+    "onCommand:azure-account.selectSubscriptions",
     "onCommand:azure-account.uploadFileCloudConsole"
   ],
   "main": "./main",
   "contributes": {
     "commands": [
       {
+        "command": "azure-account.createAccount",
+        "title": "%azure-account.commands.createAccount%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
         "command": "azure-account.login",
         "title": "%azure-account.commands.login%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.loginToCloud",
+        "title": "%azure-account.commands.loginToCloud%",
         "category": "%azure-account.commands.azure%"
       },
       {
@@ -55,21 +65,6 @@
         "category": "%azure-account.commands.azure%"
       },
       {
-        "command": "azure-account.loginToCloud",
-        "title": "%azure-account.commands.loginToCloud%",
-        "category": "%azure-account.commands.azure%"
-      },
-      {
-        "command": "azure-account.selectSubscriptions",
-        "title": "%azure-account.commands.selectSubscriptions%",
-        "category": "%azure-account.commands.azure%"
-      },
-      {
-        "command": "azure-account.createAccount",
-        "title": "%azure-account.commands.createAccount%",
-        "category": "%azure-account.commands.azure%"
-      },
-      {
         "command": "azure-account.openCloudConsoleLinux",
         "title": "%azure-account.commands.openCloudConsoleLinux%",
         "category": "%azure-account.commands.azure%"
@@ -77,6 +72,11 @@
       {
         "command": "azure-account.openCloudConsoleWindows",
         "title": "%azure-account.commands.openCloudConsoleWindows%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.selectSubscriptions",
+        "title": "%azure-account.commands.selectSubscriptions%",
         "category": "%azure-account.commands.azure%"
       },
       {

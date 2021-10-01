@@ -1,6 +1,8 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.9.9]
+- Add experimentation framework
 
 ## [0.9.8]
 - When signing into a different cloud than previously used, shows a prompt to enter tenant id.

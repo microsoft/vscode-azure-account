@@ -65,6 +65,8 @@ type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDevic
 export class AzureLoginHelper {
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
+	private adalAuthProvider: AdalAuthProvider;
+	private msalAuthProvider: MsalAuthProvider;
 	private authProvider: AdalAuthProvider | MsalAuthProvider;
 
 	public onStatusChanged: EventEmitter<AzureLoginStatus> = new EventEmitter<AzureLoginStatus>();
@@ -79,9 +81,9 @@ export class AzureLoginHelper {
 	public legacyApi: AzureAccountExtensionLegacyApi;
 
 	constructor(private context: ExtensionContext, public reporter: TelemetryReporter) {
-		this.authProvider = getAuthLibrary() === 'ADAL' ?
-			new AdalAuthProvider(enableVerboseLogs) :
-			new MsalAuthProvider(enableVerboseLogs);
+		this.adalAuthProvider = new AdalAuthProvider(enableVerboseLogs);
+		this.msalAuthProvider = new MsalAuthProvider(enableVerboseLogs);
+		this.authProvider = getAuthLibrary() === 'ADAL' ?  this.adalAuthProvider : this.msalAuthProvider;
 
 		this.api = new AzureAccountExtensionApi(this);
 		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
@@ -318,7 +320,10 @@ export class AzureLoginHelper {
 	}
 
 	private async clearSessions(): Promise<void> {
-		await this.authProvider.clearTokenCache();
+		// Clear cache from all libraries: https://github.com/microsoft/vscode-azure-account/issues/309
+		await this.adalAuthProvider.clearTokenCache();
+		await this.msalAuthProvider.clearTokenCache();
+
 		const sessions: AzureSession[] = this.api.sessions;
 		sessions.length = 0;
 		this.onSessionsChanged.fire();

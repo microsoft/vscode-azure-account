@@ -127,7 +127,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		});
 
 		const popupTimeout = setTimeout(() => {
-			const checkIfPopupsBlocked = localize('azure-account.checkIfPopupsBlocked', 'If the login window has not opened yet, ensure pop-ups are enabled for your browser.');
+			const checkIfPopupsBlocked = localize('azure-account.checkIfPopupsBlocked', 'If the sign in window has not opened yet, ensure pop-ups are enabled for your browser.');
 			void window.showInformationMessage(checkIfPopupsBlocked);
 		}, 15*1000);
 

@@ -14,11 +14,13 @@ export class UriEventHandler extends EventEmitter<Uri> implements UriHandler {
 	}
 }
 
-export async function exchangeCodeForToken<TLoginResult>(authProvider: AuthProviderBase<TLoginResult>, clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TLoginResult> {
+export async function exchangeCodeForToken<TLoginResult>(authProvider: AuthProviderBase<TLoginResult>, clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string, popupTimeout: NodeJS.Timeout): Promise<TLoginResult> {
 	let uriEventListener: Disposable;
 	return new Promise((resolve: (value: TLoginResult) => void , reject) => {
 		uriEventListener = ext.uriEventHandler.event(async (uri: Uri) => {
 			try {
+				clearTimeout(popupTimeout);
+
 				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 				const query = parseQuery(uri);
 				const code = query.code;

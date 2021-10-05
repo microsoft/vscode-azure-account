@@ -126,7 +126,12 @@ export abstract class AuthProviderBase<TLoginResult> {
 			}, 1000 * 60 * 5)
 		});
 
-		return await Promise.race([exchangeCodeForToken<TLoginResult>(this, clientId, environment, tenantId, redirectUrlAAD, state), timeoutPromise]);
+		const popupTimeout = setTimeout(() => {
+			const checkIfPopupsBlocked = localize('azure-account.checkIfPopupsBlocked', 'If the login window has not opened yet, ensure pop-ups are enabled for your browser.');
+			void window.showInformationMessage(checkIfPopupsBlocked);
+		}, 15*1000);
+
+		return await Promise.race([exchangeCodeForToken<TLoginResult>(this, clientId, environment, tenantId, redirectUrlAAD, state, popupTimeout), timeoutPromise]);
 	}
 
 	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccountExtensionApi): Promise<Record<string, AzureSession>> {

@@ -13,12 +13,18 @@ import { basename } from 'path';
 import { shells, OSes } from './cloudConsole';
 import { survey } from './nps';
 import { ext } from './extensionVariables';
-import { createExperimentationService } from 'vscode-azureextensionui';
+import { createAzExtOutputChannel, createExperimentationService, registerUIExtensionVariables } from 'vscode-azureextensionui';
 
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
 
 export async function activate(context: ExtensionContext) {
+	ext.context = context;
+	ext.outputChannel = createAzExtOutputChannel('Azure Account', 'azure');
+	context.subscriptions.push(ext.outputChannel);
+
+	registerUIExtensionVariables(ext);
+
 	ext.experimentationService = await createExperimentationService(context);
 
 	await migrateEnvironmentSetting();

@@ -355,8 +355,8 @@ export class AzureLoginHelper {
 		this.reporter.sendSanitizedEvent('login', event);
 	}
 
-	sendSelectSubscriptionsTelemetry(outcome: string, message?: string): void {
-		this.reporter.sendSanitizedEvent('selectSubscriptions', message ? { outcome, message } : { outcome });
+	sendSelectSubscriptionsTelemetry(outcome: string): void {
+		this.reporter.sendSanitizedEvent('selectSubscriptions', { outcome });
 	}
 
 	async logout() {
@@ -657,7 +657,7 @@ export class AzureLoginHelper {
 
 			this.sendSelectSubscriptionsTelemetry('success');
 		} catch (error) {
-			this.sendSelectSubscriptionsTelemetry('error', getErrorMessage(error));
+			this.sendSelectSubscriptionsTelemetry('error');
 			throw error;
 		}
 	}

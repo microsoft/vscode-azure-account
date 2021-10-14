@@ -355,6 +355,10 @@ export class AzureLoginHelper {
 		this.reporter.sendSanitizedEvent('login', event);
 	}
 
+	sendSelectSubscriptionsTelemetry(outcome: string): void {
+		this.reporter.sendSanitizedEvent('selectSubscriptions', { outcome });
+	}
+
 	async logout() {
 		await this.api.waitForLogin();
 		// 'Azure' and 'AzureChina' are the old names for the 'AzureCloud' and 'AzureChinaCloud' environments
@@ -606,46 +610,55 @@ export class AzureLoginHelper {
 
 	private async selectSubscriptions() {
 		if (!(await this.waitForSubscriptions())) {
+			this.sendSelectSubscriptionsTelemetry('notLoggedIn');
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
-		const azureConfig = workspace.getConfiguration('azure');
-		const resourceFilter = (azureConfig.get<string[]>('resourceFilter') || ['all']).slice();
-		let changed = false;
+		try {
+			const azureConfig = workspace.getConfiguration('azure');
+			const resourceFilter = (azureConfig.get<string[]>('resourceFilter') || ['all']).slice();
+			let changed = false;
 
-		const subscriptions = this.subscriptions
-			.then(list => this.asSubscriptionItems(list, resourceFilter));
-		const source = new CancellationTokenSource();
-		const cancellable = subscriptions.then(s => {
-			if (!s.length) {
-				source.cancel();
-				this.noSubscriptionsFound()
-					.catch(console.error);
-			}
-			return s;
-		});
-		const picks = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
-		if (picks) {
-			if (resourceFilter[0] === 'all') {
-				resourceFilter.splice(0, 1);
-				for (const subscription of await subscriptions) {
-					this.addFilter(resourceFilter, subscription);
+			const subscriptions = this.subscriptions
+				.then(list => this.asSubscriptionItems(list, resourceFilter));
+			const source = new CancellationTokenSource();
+			const cancellable = subscriptions.then(s => {
+				if (!s.length) {
+					source.cancel();
+					this.sendSelectSubscriptionsTelemetry('noSubscriptionsFound');
+					this.noSubscriptionsFound()
+						.catch(console.error);
 				}
-			}
-			for (const subscription of await subscriptions) {
-				if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
-					changed = true;
-					if (subscription.picked) {
-						this.removeFilter(resourceFilter, subscription);
-					} else {
+				return s;
+			});
+			const picks = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
+			if (picks) {
+				if (resourceFilter[0] === 'all') {
+					resourceFilter.splice(0, 1);
+					for (const subscription of await subscriptions) {
 						this.addFilter(resourceFilter, subscription);
 					}
 				}
+				for (const subscription of await subscriptions) {
+					if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
+						changed = true;
+						if (subscription.picked) {
+							this.removeFilter(resourceFilter, subscription);
+						} else {
+							this.addFilter(resourceFilter, subscription);
+						}
+					}
+				}
 			}
-		}
 
-		if (changed) {
-			await this.updateConfiguration(azureConfig, resourceFilter);
+			if (changed) {
+				await this.updateConfiguration(azureConfig, resourceFilter);
+			}
+
+			this.sendSelectSubscriptionsTelemetry('success');
+		} catch (error) {
+			this.sendSelectSubscriptionsTelemetry('error');
+			throw error;
 		}
 	}
 

@@ -13,7 +13,7 @@ import { basename } from 'path';
 import { shells, OSes } from './cloudConsole';
 import { survey } from './nps';
 import { ext } from './extensionVariables';
-import { createAzExtOutputChannel, createExperimentationService, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandling, createAzExtOutputChannel, createExperimentationService, registerUIExtensionVariables } from 'vscode-azureextensionui';
 
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
@@ -24,8 +24,6 @@ export async function activate(context: ExtensionContext) {
 	context.subscriptions.push(ext.outputChannel);
 
 	registerUIExtensionVariables(ext);
-
-	ext.experimentationService = await createExperimentationService(context);
 
 	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
@@ -40,6 +38,11 @@ export async function activate(context: ExtensionContext) {
 	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
 	subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
 	survey(context, reporter);
+
+	await callWithTelemetryAndErrorHandling('azure-account.createExperimentationService', async () => {
+		ext.experimentationService = await createExperimentationService(context);
+	});
+
 	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
 }
 

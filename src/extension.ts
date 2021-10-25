@@ -6,14 +6,14 @@
 import { window, ExtensionContext, commands, ProgressLocation, Uri, workspace, env, ConfigurationTarget } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
 import { AzureAccount } from './azure-account.api';
-import { createReporter } from './telemetry';
 import * as nls from 'vscode-nls';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { shells, OSes } from './cloudConsole';
 import { survey } from './nps';
 import { ext } from './extensionVariables';
-import { callWithTelemetryAndErrorHandling, createAzExtOutputChannel, createExperimentationService, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandling, createAzExtOutputChannel, createExperimentationService, IActionContext, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { createReporter } from './telemetry';
 
 const localize = nls.loadMessageBundle();
 const enableLogging = false;
@@ -25,25 +25,27 @@ export async function activate(context: ExtensionContext) {
 
 	registerUIExtensionVariables(ext);
 
-	await migrateEnvironmentSetting();
-	const reporter = createReporter(context);
-	const azureLogin = new AzureLoginHelper(context, reporter);
-	if (enableLogging) {
-		logDiagnostics(context, azureLogin.api);
-	}
-	const subscriptions = context.subscriptions;
-	subscriptions.push(createStatusBarItem(context, azureLogin.api));
-	subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
-	subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
-	subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
-	survey(context, reporter);
+	return await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
+		activateContext.telemetry.properties.isActivationEvent = 'true';
 
-	await callWithTelemetryAndErrorHandling('azure-account.createExperimentationService', async () => {
+		await migrateEnvironmentSetting();
+		const reporter = createReporter(context);
+		const azureLogin = new AzureLoginHelper(context, reporter);
+		if (enableLogging) {
+			logDiagnostics(context, azureLogin.api);
+		}
+		const subscriptions = context.subscriptions;
+		subscriptions.push(createStatusBarItem(context, azureLogin.api));
+		subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
+		subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLogin.api, 'Linux')));
+		subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLogin.api, 'Windows')));
+		subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLogin.api, uri)));
+		survey(context, reporter);
+
 		ext.experimentationService = await createExperimentationService(context);
-	});
 
-	return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
+		return Promise.resolve(azureLogin.api); // Return promise to work around weird error in WinJS.
+	});
 }
 
 async function migrateEnvironmentSetting() {

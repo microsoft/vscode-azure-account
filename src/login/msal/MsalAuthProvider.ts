@@ -93,8 +93,9 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	}
 
 	public getCredentials2(_env: Environment, _userId: string, _tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2 {
+		// The Azure Functions & App Service API endpoints don't accept the default scope (audience) provided by `AzureIdentityCredentialAdapter` so provide the legacy scope
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		return new AzureIdentityCredentialAdapter(new PublicClientCredential(this.publicClientApp, accountInfo!));
+		return new AzureIdentityCredentialAdapter(new PublicClientCredential(this.publicClientApp, accountInfo!), 'https://management.core.windows.net/.default');
 	}
 
 	public async updateSessions(environment: Environment, loginResult: AuthenticationResult, sessions: AzureSession[]): Promise<void> {

@@ -50,6 +50,6 @@ export class AzureAccountExtensionLegacyApi implements legacyTypes.AzureAccount 
 	}
 
 	public createCloudShell(os: OSName): legacyTypes.CloudShell {
-		return <legacyTypes.CloudShell>this.api.createCloudShell(os, true);
+		return <legacyTypes.CloudShell>this.api.createCloudShell(os);
 	}
 }

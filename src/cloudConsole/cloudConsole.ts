@@ -22,7 +22,6 @@ import { tokenFromRefreshToken } from '../login/adal/tokens';
 import { TelemetryReporter } from '../telemetry';
 import { localize } from '../utils/localize';
 import { Deferred } from '../utils/promiseUtils';
-import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
 import { createServer, Queue, readJSON, Server } from './ipc';
 
@@ -172,15 +171,7 @@ function getUploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>
 }
 
 export const shells: CloudShell[] = [];
-export function createCloudConsole(api: AzureAccountExtensionApi, reporter: TelemetryReporter, osName: OSName, isLegacyApi?: boolean): CloudShell | undefined {
-	if (!isLegacyApi) {
-		void window.showWarningMessage('Cloud console requires using the legacy API.');
-		return;
-	} else if (getAuthLibrary() !== 'ADAL') {
-		void window.showWarningMessage('Cloud console requires authenticating with ADAL.');
-		return;
-	}
-
+export function createCloudConsole(api: AzureAccountExtensionApi, reporter: TelemetryReporter, osName: OSName): CloudShell {
 	const os: OS = OSes[osName];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let liveServerQueue: Queue<any> | undefined;

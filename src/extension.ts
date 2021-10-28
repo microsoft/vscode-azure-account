@@ -9,7 +9,7 @@ import { CancellationToken, commands, ConfigurationTarget, env, ExtensionContext
 import { createApiProvider, createAzExtOutputChannel, createExperimentationService, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
-import { createCloudConsole, OSes, shells } from './cloudConsole/cloudConsole';
+import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
@@ -81,6 +81,14 @@ async function migrateEnvironmentSetting() {
 	await migrateSetting('AzureChina', 'AzureChinaCloud');
 }
 
+function cloudConsole(api: AzureAccountExtensionApi, os: OSName) {
+	const shell = api.createCloudShell(os);
+	if (shell) {
+		void shell.terminal.then(terminal => terminal.show());
+		return shell;
+	}
+}
+
 function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
 	(async () => {
 		let shell = shells[0];
@@ -90,7 +98,7 @@ function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
 				return;
 			}
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			shell = api.createCloudShell(shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
+			shell = cloudConsole(api, shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
 		}
 		if (!uri) {
 			uri = (await window.showOpenDialog({}) || [])[0];

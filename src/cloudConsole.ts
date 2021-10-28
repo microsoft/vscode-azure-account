@@ -12,7 +12,6 @@ import * as nls from 'vscode-nls';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as semver from 'semver';
-import { TelemetryReporter } from './telemetry';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { ReadStream } from 'fs';
 import * as FormData from 'form-data';
@@ -20,6 +19,7 @@ import { parse } from 'url';
 import { Socket } from 'net';
 import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
+import { callWithTelemetryAndErrorHandlingSync, IActionContext } from 'vscode-azureextensionui';
 // const adal = require('adal-node');
 
 // function turnOnLogging() {
@@ -63,17 +63,6 @@ interface Deferred<T> {
 	reject: (reason: any) => void;
 }
 
-
-function sendTelemetryEvent(reporter: TelemetryReporter, outcome: string, message?: string) {
-	/* __GDPR__
-	   "openCloudConsole" : {
-		  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
-	   }
-	 */
-
-	reporter.sendSanitizedEvent('openCloudConsole', message ? { outcome, message } : { outcome });
-}
 
 async function waitForConnection(this: CloudShell) {
 	const handleStatus = () => {
@@ -169,254 +158,258 @@ function uploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>) {
 
 export const shells: CloudShell[] = [];
 
-export function createCloudConsole(api: AzureAccount, reporter: TelemetryReporter, osName: keyof typeof OSes): CloudShell {
-	const os = OSes[osName];
-	let liveQueue: Queue<any> | undefined;
-	const event = new EventEmitter<CloudShellStatus>();
-	let deferredTerminal: Deferred<Terminal>;
-	let deferredSession: Deferred<AzureSession>;
-	let deferredTokens: Deferred<AccessTokens>;
-	const tokensPromise = new Promise<AccessTokens>((resolve, reject) => deferredTokens = { resolve, reject });
-	let deferredUris: Deferred<ConsoleUris>;
-	const urisPromise = new Promise<ConsoleUris>((resolve, reject) => deferredUris = { resolve, reject });
-	let deferredInitialSize: Deferred<Size>;
-	const initialSizePromise = new Promise<Size>((resolve, reject) => deferredInitialSize = { resolve, reject });
-	const state = {
-		status: <CloudShellStatus>'Connecting',
-		onStatusChanged: event.event,
-		waitForConnection,
-		terminal: new Promise<Terminal>((resolve, reject) => deferredTerminal = { resolve, reject }),
-		session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
-		uploadFile: uploadFile(tokensPromise, urisPromise)
-	};
-	state.terminal.catch(() => { }); // ignore
-	state.session.catch(() => { }); // ignore
-	shells.push(state);
-	function updateStatus(status: CloudShellStatus) {
-		state.status = status;
-		event.fire(state.status);
-		if (status === 'Disconnected') {
-			deferredTerminal.reject(status);
-			deferredSession.reject(status);
-			deferredTokens.reject(status);
-			deferredUris.reject(status);
-			shells.splice(shells.indexOf(state), 1);
+export function createCloudConsole(api: AzureAccount, osName: keyof typeof OSes): CloudShell {
+	return (callWithTelemetryAndErrorHandlingSync('azure-account.createCloudConsole', (context: IActionContext) => {
+		const os = OSes[osName];
+		let liveQueue: Queue<any> | undefined;
+		const event = new EventEmitter<CloudShellStatus>();
+		let deferredTerminal: Deferred<Terminal>;
+		let deferredSession: Deferred<AzureSession>;
+		let deferredTokens: Deferred<AccessTokens>;
+		const tokensPromise = new Promise<AccessTokens>((resolve, reject) => deferredTokens = { resolve, reject });
+		let deferredUris: Deferred<ConsoleUris>;
+		const urisPromise = new Promise<ConsoleUris>((resolve, reject) => deferredUris = { resolve, reject });
+		let deferredInitialSize: Deferred<Size>;
+		const initialSizePromise = new Promise<Size>((resolve, reject) => deferredInitialSize = { resolve, reject });
+		const state = {
+			status: <CloudShellStatus>'Connecting',
+			onStatusChanged: event.event,
+			waitForConnection,
+			terminal: new Promise<Terminal>((resolve, reject) => deferredTerminal = { resolve, reject }),
+			session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
+			uploadFile: uploadFile(tokensPromise, urisPromise)
+		};
+		state.terminal.catch(() => { }); // ignore
+		state.session.catch(() => { }); // ignore
+		shells.push(state);
+		function updateStatus(status: CloudShellStatus) {
+			state.status = status;
+			event.fire(state.status);
+			if (status === 'Disconnected') {
+				deferredTerminal.reject(status);
+				deferredSession.reject(status);
+				deferredTokens.reject(status);
+				deferredUris.reject(status);
+				shells.splice(shells.indexOf(state), 1);
+				commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
+			}
+		}
+		(async function (): Promise<any> {
 			commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
-		}
-	}
-	(async function (): Promise<any> {
-		commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
 
-		const isWindows = process.platform === 'win32';
-		if (isWindows) {
-			// See below
-			try {
-				const { stdout } = await exec('node.exe --version');
-				const version = stdout[0] === 'v' && stdout.substr(1).trim();
-				if (version && semver.valid(version) && !semver.gte(version, '6.0.0')) {
-					updateStatus('Disconnected');
-					return requiresNode(reporter);
-				}
-			} catch (err) {
-				updateStatus('Disconnected');
-				return requiresNode(reporter);
-			}
-		}
-
-		// ipc
-		const queue = new Queue<any>();
-		const ipc = await createServer('vscode-cloud-console', async (req, res) => {
-			let dequeue = false;
-			for (const message of await readJSON<any>(req)) {
-				if (message.type === 'poll') {
-					dequeue = true;
-				} else if (message.type === 'log') {
-					console.log(...message.args);
-				} else if (message.type === 'size') {
-					deferredInitialSize.resolve(message.size);
-				} else if (message.type === 'status') {
-					updateStatus(message.status);
-				}
-			}
-
-			let response = [];
-			if (dequeue) {
+			const isWindows = process.platform === 'win32';
+			if (isWindows) {
+				// See below
 				try {
-					response = await queue.dequeue(60000);
+					const { stdout } = await exec('node.exe --version');
+					const version = stdout[0] === 'v' && stdout.substr(1).trim();
+					if (version && semver.valid(version) && !semver.gte(version, '6.0.0')) {
+						updateStatus('Disconnected');
+						return requiresNode(context);
+					}
 				} catch (err) {
-					// ignore timeout
+					updateStatus('Disconnected');
+					return requiresNode(context);
 				}
 			}
-			res.write(JSON.stringify(response));
-			res.end();
-		});
 
-		// open terminal
-		let shellPath = path.join(__dirname, `../bin/node.${isWindows ? 'bat' : 'sh'}`);
-		let modulePath = path.join(__dirname, 'cloudConsoleLauncher');
-		if (isWindows) {
-			modulePath = modulePath.replace(/\\/g, '\\\\');
-		}
-		const shellArgs = [
-			process.argv0,
-			'-e',
-			`require('${modulePath}').main()`,
-		];
+			// ipc
+			const queue = new Queue<any>();
+			const ipc = await createServer('vscode-cloud-console', async (req, res) => {
+				let dequeue = false;
+				for (const message of await readJSON<any>(req)) {
+					if (message.type === 'poll') {
+						dequeue = true;
+					} else if (message.type === 'log') {
+						console.log(...message.args);
+					} else if (message.type === 'size') {
+						deferredInitialSize.resolve(message.size);
+					} else if (message.type === 'status') {
+						updateStatus(message.status);
+					}
+				}
 
-		if (isWindows) {
-			// Work around https://github.com/electron/electron/issues/4218 https://github.com/nodejs/node/issues/11656
-			shellPath = 'node.exe';
-			shellArgs.shift();
-		}
+				let response = [];
+				if (dequeue) {
+					try {
+						response = await queue.dequeue(60000);
+					} catch (err) {
+						// ignore timeout
+					}
+				}
+				res.write(JSON.stringify(response));
+				res.end();
+			});
 
-		const terminal = window.createTerminal({
-			name: localize('azure-account.cloudConsole', "{0} in Cloud Shell", os.shellName),
-			shellPath,
-			shellArgs,
-			env: {
-				CLOUD_CONSOLE_IPC: ipc.ipcHandlePath,
+			// open terminal
+			let shellPath = path.join(__dirname, `../bin/node.${isWindows ? 'bat' : 'sh'}`);
+			let modulePath = path.join(__dirname, 'cloudConsoleLauncher');
+			if (isWindows) {
+				modulePath = modulePath.replace(/\\/g, '\\\\');
 			}
-		});
-		const subscription = window.onDidCloseTerminal(t => {
-			if (t === terminal) {
-				liveQueue = undefined;
-				subscription.dispose();
-				ipc.dispose();
-				updateStatus('Disconnected');
-			}
-		});
-		liveQueue = queue;
-		deferredTerminal!.resolve(terminal);
+			const shellArgs = [
+				process.argv0,
+				'-e',
+				`require('${modulePath}').main()`,
+			];
 
-		const loginStatus = await waitForLoginStatus(api);
-		if (loginStatus !== 'LoggedIn') {
-			if (loginStatus === 'LoggingIn') {
-				queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
+			if (isWindows) {
+				// Work around https://github.com/electron/electron/issues/4218 https://github.com/nodejs/node/issues/11656
+				shellPath = 'node.exe';
+				shellArgs.shift();
 			}
-			if (!(await api.waitForLogin())) {
-				queue.push({ type: 'log', args: [localize('azure-account.loginNeeded', "Sign in needed.")] });
-				sendTelemetryEvent(reporter, 'requiresLogin');
-				await commands.executeCommand('azure-account.askForLogin');
+
+			const terminal = window.createTerminal({
+				name: localize('azure-account.cloudConsole', "{0} in Cloud Shell", os.shellName),
+				shellPath,
+				shellArgs,
+				env: {
+					CLOUD_CONSOLE_IPC: ipc.ipcHandlePath,
+				}
+			});
+			const subscription = window.onDidCloseTerminal(t => {
+				if (t === terminal) {
+					liveQueue = undefined;
+					subscription.dispose();
+					ipc.dispose();
+					updateStatus('Disconnected');
+				}
+			});
+			liveQueue = queue;
+			deferredTerminal!.resolve(terminal);
+
+			const loginStatus = await waitForLoginStatus(api);
+			if (loginStatus !== 'LoggedIn') {
+				if (loginStatus === 'LoggingIn') {
+					queue.push({ type: 'log', args: [localize('azure-account.loggingIn', "Signing in...")] });
+				}
 				if (!(await api.waitForLogin())) {
+					queue.push({ type: 'log', args: [localize('azure-account.loginNeeded', "Sign in needed.")] });
+					context.telemetry.properties.outcome = 'requiresLogin';
+					await commands.executeCommand('azure-account.askForLogin');
+					if (!(await api.waitForLogin())) {
+						queue.push({ type: 'exit' });
+						updateStatus('Disconnected');
+						return;
+					}
+				}
+			}
+
+			let token: Token | undefined = undefined;
+			await api.waitForSubscriptions();
+			const sessions = [...new Set(api.subscriptions.map(subscription => subscription.session))]; // Only consider those with at least one subscription.
+			if (sessions.length > 1) {
+				queue.push({ type: 'log', args: [localize('azure-account.selectDirectory', "Select directory...")] });
+				const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(session)
+					.catch(err => {
+						console.error(err);
+						return undefined;
+					})))
+					.then(tenantDetails => tenantDetails.filter(details => details));
+				const pick = await window.showQuickPick<QuickPickItem & { session: AzureSession }>(fetchingDetails
+					.then(tenantDetails => tenantDetails.map(details => {
+						const tenantDetails = details!.tenantDetails;
+						const defaultDomain = tenantDetails.verifiedDomains.find(domain => domain.default);
+						return {
+							label: tenantDetails.displayName,
+							description: defaultDomain && defaultDomain.name,
+							session: details!.session
+						};
+					}).sort((a, b) => a.label.localeCompare(b.label))), {
+						placeHolder: localize('azure-account.selectDirectoryPlaceholder', "Select directory"),
+						ignoreFocusOut: true // The terminal opens concurrently and can steal focus (#77).
+					});
+				if (!pick) {
+					context.telemetry.properties.outcome = 'noTenantPicked';
+
 					queue.push({ type: 'exit' });
 					updateStatus('Disconnected');
 					return;
 				}
+				token = await acquireToken(pick.session);
+			} else if (sessions.length === 1) {
+				token = await acquireToken(sessions[0]);
 			}
-		}
 
-		let token: Token | undefined = undefined;
-		await api.waitForSubscriptions();
-		const sessions = [...new Set(api.subscriptions.map(subscription => subscription.session))]; // Only consider those with at least one subscription.
-		if (sessions.length > 1) {
-			queue.push({ type: 'log', args: [localize('azure-account.selectDirectory', "Select directory...")] });
-			const fetchingDetails = Promise.all(sessions.map(session => fetchTenantDetails(session)
-				.catch(err => {
-					console.error(err);
-					return undefined;
-				})))
-				.then(tenantDetails => tenantDetails.filter(details => details));
-			const pick = await window.showQuickPick<QuickPickItem & { session: AzureSession }>(fetchingDetails
-				.then(tenantDetails => tenantDetails.map(details => {
-					const tenantDetails = details!.tenantDetails;
-					const defaultDomain = tenantDetails.verifiedDomains.find(domain => domain.default);
-					return {
-						label: tenantDetails.displayName,
-						description: defaultDomain && defaultDomain.name,
-						session: details!.session
-					};
-				}).sort((a, b) => a.label.localeCompare(b.label))), {
-					placeHolder: localize('azure-account.selectDirectoryPlaceholder', "Select directory"),
-					ignoreFocusOut: true // The terminal opens concurrently and can steal focus (#77).
-				});
-			if (!pick) {
-				sendTelemetryEvent(reporter, 'noTenantPicked');
+			const result = token && await findUserSettings(token);
+			if (!result) {
+				queue.push({ type: 'log', args: [localize('azure-account.setupNeeded', "Setup needed.")] });
+				await requiresSetUp(context);
 				queue.push({ type: 'exit' });
 				updateStatus('Disconnected');
 				return;
 			}
-			token = await acquireToken(pick.session);
-		} else if (sessions.length === 1) {
-			token = await acquireToken(sessions[0]);
-		}
+			deferredSession!.resolve(result.token.session);
 
-		const result = token && await findUserSettings(token);
-		if (!result) {
-			queue.push({ type: 'log', args: [localize('azure-account.setupNeeded', "Setup needed.")] });
-			await requiresSetUp(reporter);
-			queue.push({ type: 'exit' });
-			updateStatus('Disconnected');
-			return;
-		}
-		deferredSession!.resolve(result.token.session);
-
-		// provision
-		let consoleUri: string;
-		const session = result.token.session;
-		const accessToken = result.token.accessToken;
-		const armEndpoint = session.environment.resourceManagerEndpointUrl;
-		const provision = async () => {
-			consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, OSes.Linux.id);
-			sendTelemetryEvent(reporter, 'provisioned');
-		}
-		try {
-			queue.push({ type: 'log', args: [localize('azure-account.requestingCloudConsole', "Requesting a Cloud Shell...")] });
-			await provision();
-		} catch (err) {
-			if (err && err.message === Errors.DeploymentOsTypeConflict) {
-				const reset = await deploymentConflict(reporter, os);
-				if (reset) {
-					await resetConsole(accessToken, armEndpoint);
-					return provision();
-				} else {
-					queue.push({ type: 'exit' });
-					updateStatus('Disconnected');
-					return;
-				}
-			} else {
-				throw err;
+			// provision
+			let consoleUri: string;
+			const session = result.token.session;
+			const accessToken = result.token.accessToken;
+			const armEndpoint = session.environment.resourceManagerEndpointUrl;
+			const provision = async () => {
+				consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, OSes.Linux.id);
+				context.telemetry.properties.outcome = 'provisioned';
 			}
-		}
+			try {
+				queue.push({ type: 'log', args: [localize('azure-account.requestingCloudConsole', "Requesting a Cloud Shell...")] });
+				await provision();
+			} catch (err) {
+				if (err && err.message === Errors.DeploymentOsTypeConflict) {
+					const reset = await deploymentConflict(context, os);
+					if (reset) {
+						await resetConsole(accessToken, armEndpoint);
+						return provision();
+					} else {
+						queue.push({ type: 'exit' });
+						updateStatus('Disconnected');
+						return;
+					}
+				} else {
+					throw err;
+				}
+			}
 
-		// Additional tokens
-		const [graphToken, keyVaultToken] = await Promise.all([
-			tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
-			session.environment.keyVaultDnsSuffix
-				? tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
-				: Promise.resolve(undefined)
-		]);
-		const accessTokens: AccessTokens = {
-			resource: accessToken,
-			graph: graphToken.accessToken,
-			keyVault: keyVaultToken && keyVaultToken.accessToken
-		};
-		deferredTokens!.resolve(accessTokens);
+			// Additional tokens
+			const [graphToken, keyVaultToken] = await Promise.all([
+				tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
+				session.environment.keyVaultDnsSuffix
+					? tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
+					: Promise.resolve(undefined)
+			]);
+			const accessTokens: AccessTokens = {
+				resource: accessToken,
+				graph: graphToken.accessToken,
+				keyVault: keyVaultToken && keyVaultToken.accessToken
+			};
+			deferredTokens!.resolve(accessTokens);
 
-		// Connect to terminal
-		const connecting = localize('azure-account.connectingTerminal', "Connecting terminal...");
-		queue.push({ type: 'log', args: [connecting] });
-		const progress = (i: number) => {
-			queue.push({ type: 'log', args: [`\x1b[A${connecting}${'.'.repeat(i)}`] });
-		};
-		const initialSize = await initialSizePromise;
-		const consoleUris = await connectTerminal(accessTokens, consoleUri!, /* TODO: Separate Shell from OS */ osName === 'Linux' ? 'bash' : 'pwsh', initialSize, progress);
-		deferredUris!.resolve(consoleUris);
+			// Connect to terminal
+			const connecting = localize('azure-account.connectingTerminal', "Connecting terminal...");
+			queue.push({ type: 'log', args: [connecting] });
+			const progress = (i: number) => {
+				queue.push({ type: 'log', args: [`\x1b[A${connecting}${'.'.repeat(i)}`] });
+			};
+			const initialSize = await initialSizePromise;
+			const consoleUris = await connectTerminal(accessTokens, consoleUri!, /* TODO: Separate Shell from OS */ osName === 'Linux' ? 'bash' : 'pwsh', initialSize, progress);
+			deferredUris!.resolve(consoleUris);
 
-		// Connect to WebSocket
-		queue.push({
-			type: 'connect',
-			accessTokens,
-			consoleUris
+			// Connect to WebSocket
+			queue.push({
+				type: 'connect',
+				accessTokens,
+				consoleUris
+			});
+		})().catch(err => {
+			console.error(err && err.stack || err);
+			updateStatus('Disconnected');
+			context.telemetry.properties.outcome = 'error';
+			context.telemetry.properties.message = String(err && err.message || err);
+			if (liveQueue) {
+				liveQueue.push({ type: 'log', args: [localize('azure-account.error', "Error: {0}", String(err && err.message || err))] });
+			}
 		});
-	})().catch(err => {
-		console.error(err && err.stack || err);
-		updateStatus('Disconnected');
-		sendTelemetryEvent(reporter, 'error', String(err && err.message || err));
-		if (liveQueue) {
-			liveQueue.push({ type: 'log', args: [localize('azure-account.error', "Error: {0}", String(err && err.message || err))] });
-		}
-	});
-	return state;
+		return state;
+	}))!;
 }
 
 async function waitForLoginStatus(api: AzureAccount) {
@@ -438,39 +431,39 @@ async function findUserSettings(token: Token) {
 	}
 }
 
-async function requiresSetUp(reporter: TelemetryReporter) {
-	sendTelemetryEvent(reporter, 'requiresSetUp');
+async function requiresSetUp(context: IActionContext) {
+	context.telemetry.properties.outcome = 'requiresSetUp';
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
 	const message = localize('azure-account.setUpInWeb', "First launch of Cloud Shell in a directory requires setup in the web application (https://shell.azure.com).");
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
-		sendTelemetryEvent(reporter, 'requiresSetUpOpen');
+		context.telemetry.properties.outcome = 'requiresSetUpOpen';
 		env.openExternal(Uri.parse('https://shell.azure.com'));
 	} else {
-		sendTelemetryEvent(reporter, 'requiresSetUpCancel');
+		context.telemetry.properties.outcome = 'requiresSetUpCancel';
 	}
 }
 
-async function requiresNode(reporter: TelemetryReporter) {
-	sendTelemetryEvent(reporter, 'requiresNode');
+async function requiresNode(context: IActionContext) {
+	context.telemetry.properties.outcome = 'requiresNode';
 	const open: MessageItem = { title: localize('azure-account.open', "Open") };
 	const message = localize('azure-account.requiresNode', "Opening a Cloud Shell currently requires Node.js 6 or later to be installed (https://nodejs.org).");
 	const response = await window.showInformationMessage(message, open);
 	if (response === open) {
-		sendTelemetryEvent(reporter, 'requiresNodeOpen');
+		context.telemetry.properties.outcome = 'requiresNodeOpen';
 		env.openExternal(Uri.parse('https://nodejs.org'));
 	} else {
-		sendTelemetryEvent(reporter, 'requiresNodeCancel');
+		context.telemetry.properties.outcome = 'requiresNodeCancel';
 	}
 }
 
-async function deploymentConflict(reporter: TelemetryReporter, os: OS) {
-	sendTelemetryEvent(reporter, 'deploymentConflict');
+async function deploymentConflict(context: IActionContext, os: OS) {
+	context.telemetry.properties.outcome = 'deploymentConflict';
 	const ok: MessageItem = { title: localize('azure-account.ok', "OK") };
 	const message = localize('azure-account.deploymentConflict', "Starting a {0} session will terminate all active {1} sessions. Any running processes in active {1} sessions will be terminated.", os.shellName, os.otherOS.shellName);
 	const response = await window.showWarningMessage(message, ok);
 	const reset = response === ok;
-	sendTelemetryEvent(reporter, reset ? 'deploymentConflictReset' : 'deploymentConflictCancel');
+	context.telemetry.properties.outcome = reset ? 'deploymentConflictReset' : 'deploymentConflictCancel';
 	return reset;
 }
 
@@ -527,7 +520,7 @@ async function fetchTenantDetails(session: AzureSession): Promise<{ session: Azu
 							"Content-Type": 'application/json; charset=utf-8'
 						}
 					});
-	
+
 					if (response.ok) {
 						const json = await response.json();
 						resolve({

@@ -5,11 +5,11 @@
 
 import { createReadStream } from 'fs';
 import { basename } from 'path';
-import { commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { CancellationToken, commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { createApiProvider, createAzExtOutputChannel, createExperimentationService, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
-import { OSes, OSName, shells } from './cloudConsole/cloudConsole';
+import { createCloudConsole, OSes, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
@@ -41,9 +41,19 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 	}
 	context.subscriptions.push(createStatusBarItem(context, azureLoginHelper.api));
 	context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleLinux', () => cloudConsole(azureLoginHelper.api, 'Linux')));
-	context.subscriptions.push(commands.registerCommand('azure-account.openCloudConsoleWindows', () => cloudConsole(azureLoginHelper.api, 'Windows')));
 	context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
+
+	window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
+		provideTerminalProfile: (token: CancellationToken) => {
+			return createCloudConsole(azureLoginHelper.api, reporter, 'Linux', token).terminalProfile;
+		}
+	});
+	window.registerTerminalProfileProvider('azure-account.cloudShellPowerShell', {
+		provideTerminalProfile: (token: CancellationToken) => {
+			return createCloudConsole(azureLoginHelper.api, reporter, 'Windows', token).terminalProfile;
+		}
+	});
+
 	survey(context, reporter);
 
 	reporter.sendSanitizedEvent('activate', { 'activationTime': String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000) });
@@ -71,14 +81,6 @@ async function migrateEnvironmentSetting() {
 	await migrateSetting('AzureChina', 'AzureChinaCloud');
 }
 
-function cloudConsole(api: AzureAccountExtensionApi, os: OSName) {
-	const shell = api.createCloudShell(os);
-	if (shell) {
-		void shell.terminal.then(terminal => terminal.show());
-		return shell;
-	}
-}
-
 function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
 	(async () => {
 		let shell = shells[0];
@@ -88,7 +90,7 @@ function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
 				return;
 			}
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			shell = cloudConsole(api, shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
+			shell = api.createCloudShell(shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
 		}
 		if (!uri) {
 			uri = (await window.showOpenDialog({}) || [])[0];

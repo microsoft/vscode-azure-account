@@ -5,8 +5,8 @@
     "azure-account.commands.loginToCloud": "Sign In to Azure Cloud",
     "azure-account.commands.loginWithDeviceCode": "Sign In with Device Code",
     "azure-account.commands.logout": "Sign Out",
-    "azure-account.commands.openCloudConsoleLinux": "Open Bash in Cloud Shell",
-    "azure-account.commands.openCloudConsoleWindows": "Open PowerShell in Cloud Shell",
     "azure-account.commands.selectSubscriptions": "Select Subscriptions",
-    "azure-account.commands.uploadFileCloudConsole": "Upload to Cloud Shell"
+    "azure-account.commands.uploadFileCloudConsole": "Upload to Cloud Shell",
+    "azure-account.cloudShellBash": "Azure Cloud Shell (Bash)",
+    "azure-account.cloudShellPowerShell": "Azure Cloud Shell (PowerShell)"
 }

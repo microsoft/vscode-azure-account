@@ -14,7 +14,7 @@ import * as path from 'path';
 import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
 import { v4 as uuid } from 'uuid';
-import { commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, Uri, window } from 'vscode';
+import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, Uri, window } from 'vscode';
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
@@ -23,9 +23,8 @@ import { TelemetryReporter } from '../telemetry';
 import { localize } from '../utils/localize';
 import { Deferred } from '../utils/promiseUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
+import { CloudShellInternal } from './CloudShellInternal';
 import { createServer, Queue, readJSON, Server } from './ipc';
-
-
 
 interface OS {
 	id: 'linux' | 'windows';
@@ -36,10 +35,6 @@ interface OS {
 export type OSName = 'Linux' | 'Windows';
 
 type OSes = { Linux: OS, Windows: OS };
-
-interface CloudShellWritable extends CloudShell {
-	status: CloudShellStatus
-}
 
 export const OSes: OSes = {
 	Linux: {
@@ -170,13 +165,14 @@ function getUploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>
 	}
 }
 
-export const shells: CloudShell[] = [];
-export function createCloudConsole(api: AzureAccountExtensionApi, reporter: TelemetryReporter, osName: OSName): CloudShell {
+export const shells: CloudShellInternal[] = [];
+export function createCloudConsole(api: AzureAccountExtensionApi, reporter: TelemetryReporter, osName: OSName, terminalProfileToken?: CancellationToken): CloudShellInternal {
 	const os: OS = OSes[osName];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let liveServerQueue: Queue<any> | undefined;
 	const event: EventEmitter<CloudShellStatus> = new EventEmitter<CloudShellStatus>();
 	let deferredTerminal: Deferred<Terminal>;
+	let deferredTerminalProfile: Deferred<TerminalProfile>;
 	let deferredSession: Deferred<AzureSession>;
 	let deferredTokens: Deferred<AccessTokens>;
 	const tokensPromise: Promise<AccessTokens> = new Promise<AccessTokens>((resolve, reject) => deferredTokens = { resolve, reject });
@@ -184,17 +180,18 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 	const urisPromise: Promise<ConsoleUris> = new Promise<ConsoleUris>((resolve, reject) => deferredUris = { resolve, reject });
 	let deferredInitialSize: Deferred<Size>;
 	const initialSizePromise: Promise<Size> = new Promise<Size>((resolve, reject) => deferredInitialSize = { resolve, reject });
-	const state: CloudShellWritable = {
+	const state: CloudShellInternal = {
 		status: 'Connecting',
 		onStatusChanged: event.event,
 		waitForConnection,
 		terminal: new Promise<Terminal>((resolve, reject) => deferredTerminal = { resolve, reject }),
+		terminalProfile: new Promise<TerminalProfile>((resolve, reject) => deferredTerminalProfile = { resolve, reject }),
 		session: new Promise<AzureSession>((resolve, reject) => deferredSession = { resolve, reject }),
 		uploadFile: getUploadFile(tokensPromise, urisPromise)
 	};
 
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
-	state.terminal.catch(() => { }); // ignore
+	state.terminal?.catch(() => { }); // ignore
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	state.session.catch(() => { }); // ignore
 	shells.push(state);
@@ -204,6 +201,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 		event.fire(state.status);
 		if (status === 'Disconnected') {
 			deferredTerminal.reject(status);
+			deferredTerminalProfile.reject(status);
 			deferredSession.reject(status);
 			deferredTokens.reject(status);
 			deferredUris.reject(status);
@@ -266,14 +264,14 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 
 		// open terminal
 		let shellPath: string = path.join(ext.context.asAbsolutePath('bin'), `node.${isWindows ? 'bat' : 'sh'}`);
-		let modulePath: string = path.join(ext.context.asAbsolutePath('dist'), 'cloudConsoleLauncher');
+		let cloudConsoleLauncherPath: string = path.join(ext.context.asAbsolutePath('dist'), 'cloudConsoleLauncher');
 		if (isWindows) {
-			modulePath = modulePath.replace(/\\/g, '\\\\');
+			cloudConsoleLauncherPath = cloudConsoleLauncherPath.replace(/\\/g, '\\\\');
 		}
 		const shellArgs: string[] = [
 			process.argv0,
 			'-e',
-			`require('${modulePath}').main()`,
+			`require('${cloudConsoleLauncherPath}').main()`,
 		];
 
 		if (isWindows) {
@@ -282,25 +280,47 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 			shellArgs.shift();
 		}
 
-		const terminal: Terminal = window.createTerminal({
-			name: localize('azure-account.cloudConsole', "{0} in Cloud Shell", os.shellName),
+		const terminalOptions: TerminalOptions = {
+			name: localize('azureCloudShell', 'Azure Cloud Shell ({0})', os.shellName),
+			iconPath: new ThemeIcon('azure'),
 			shellPath,
 			shellArgs,
 			env: {
 				CLOUD_CONSOLE_IPC: server.ipcHandlePath,
 			}
-		});
-		const subscription: Disposable = window.onDidCloseTerminal(t => {
-			if (t === terminal) {
-				liveServerQueue = undefined;
-				subscription.dispose();
-				server.dispose();
-				updateStatus('Disconnected');
-			}
-		});
+		};
+
+		const cleanupCloudShell = () => {
+			liveServerQueue = undefined;
+			server.dispose();
+			updateStatus('Disconnected');
+		}
+
+		// Open the appropriate type of VS Code terminal depending on the entry point
+		if (terminalProfileToken) {
+			// Entry point: Terminal profile provider
+			const terminalProfileCloseSubscription = terminalProfileToken.onCancellationRequested(() => {
+				terminalProfileCloseSubscription.dispose();
+				cleanupCloudShell();
+			});
+
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			deferredTerminalProfile!.resolve(new TerminalProfile(terminalOptions));
+		} else {
+			// Entry point: Extension API
+			const terminal: Terminal = window.createTerminal(terminalOptions);
+			const terminalCloseSubscription = window.onDidCloseTerminal(t => {
+				if (t === terminal) {
+					terminalCloseSubscription.dispose();
+					cleanupCloudShell();
+				}
+			});
+
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			deferredTerminal!.resolve(terminal);
+		}
+
 		liveServerQueue = serverQueue;
-		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		deferredTerminal!.resolve(terminal);
 
 		const loginStatus: AzureLoginStatus = await waitForLoginStatus(api);
 		if (loginStatus !== 'LoggedIn') {

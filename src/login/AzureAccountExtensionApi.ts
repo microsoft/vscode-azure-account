@@ -71,8 +71,7 @@ export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi 
 	}
 
 	public createCloudShell(os: OSName): types.CloudShell {
-		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		return createCloudConsole(this, this.azureLoginHelper.reporter, os)!;
+		return <types.CloudShell>createCloudConsole(this, this.azureLoginHelper.reporter, os);
 	}
 
 	private sendIsLegacyApiTelemetry(eventName: string, isLegacyApi?: boolean): void {

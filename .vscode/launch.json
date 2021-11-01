@@ -3,7 +3,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Extension",
+            "name": "Launch Extension (webpack)",
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",
@@ -12,7 +12,12 @@
             ],
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
-            ]
+            ],
+            "preLaunchTask": "${defaultBuildTask}",
+            "env": {
+                "DEBUGTELEMETRY": "v",
+                "NODE_DEBUG": ""
+            }
         }
     ]
 }

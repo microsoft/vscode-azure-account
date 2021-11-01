@@ -223,11 +223,11 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "rimraf dist && webpack --mode production",
+        "vscode:prepublish": "rimraf dist && npm run build && webpack --mode production",
         "build": "tsc",
         "cleanReadme": "gulp cleanReadme",
-        "compile": "rimraf dist && webpack --mode none",
-        "watch": "rimraf dist && webpack --mode none --watch",
+        "compile": "tsc -watch",
+        "webpack": "rimraf dist && npm run build && webpack --mode none",
         "lint": "eslint --ext .ts .",
         "lint-fix": "eslint --ext .ts . --fix",
         "package": "vsce package --githubBranch main",

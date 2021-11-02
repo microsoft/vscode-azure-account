@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TokenCredential } from "@azure/core-auth";
 import { Environment } from "@azure/ms-rest-azure-env";
-import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AccountInfo } from "@azure/msal-node";
 import { randomBytes } from "crypto";
@@ -23,7 +23,7 @@ import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 
 export type AbstractCredentials = DeviceTokenCredentials;
-export type AbstractCredentials2 = DeviceTokenCredentials2 | AzureIdentityCredentialAdapter;
+export type AbstractCredentials2 = DeviceTokenCredentials2 | TokenCredential;
 
 export abstract class AuthProviderBase<TLoginResult> {
 	private terminateServer: (() => Promise<void>) | undefined;

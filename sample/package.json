@@ -37,20 +37,19 @@
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",
-    "compile": "tsc -watch -p ./",
-    "postinstall": "node ./node_modules/vscode/bin/install"
+    "compile": "tsc -watch -p ./"
   },
   "extensionDependencies": [
     "ms-vscode.azure-account"
   ],
   "devDependencies": {
-    "@types/node": "^6.0.40",
-    "typescript": "^2.0.3",
-    "vscode": "^1.0.0"
+    "@types/node": "^12.0.0",
+    "@types/vscode": "1.16.0",
+    "typescript": "^4.0.2"
   },
   "dependencies": {
-    "azure-arm-resource": "^2.0.0-preview",
-    "azure-arm-website": "^1.0.0-preview",
-    "ms-rest-azure": "^2.2.3"
+    "@azure/arm-appservice": "^9.0.0",
+    "@azure/arm-resources": "^4.2.2",
+    "@azure/arm-subscriptions": "^3.1.2"
   }
 }

@@ -1,11 +1,11 @@
-import { window, ExtensionContext, commands, QuickPickItem, extensions } from 'vscode';
-import { AzureAccount, AzureSession } from '../../src/azure-account.api'; // Other extensions need to copy this .d.ts to their repository.
-import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
-import { ResourceManagementClient } from '@azure/arm-resources';
 import { WebSiteManagementClient } from '@azure/arm-appservice';
+import { ResourceManagementClient } from '@azure/arm-resources';
+import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
+import { commands, ExtensionContext, extensions, QuickPickItem, window } from 'vscode';
+import { AzureAccountExtensionApi, AzureSession } from '../../src/azure-account.api'; // Other extensions need to copy this .d.ts to their repository.
 
 export function activate(context: ExtensionContext) {
-    const azureAccount = extensions.getExtension<AzureAccount>('ms-vscode.azure-account')!.exports;
+    const azureAccount = extensions.getExtension<AzureAccountExtensionApi>('ms-vscode.azure-account')!.exports;
     const subscriptions = context.subscriptions;
     subscriptions.push(commands.registerCommand('azure-account-sample.showSubscriptions', showSubscriptions(azureAccount)));
     subscriptions.push(commands.registerCommand('azure-account-sample.showAppServices', showAppServices(azureAccount)));
@@ -18,7 +18,7 @@ interface SubscriptionItem {
     subscription: SubscriptionModels.Subscription;
 }
 
-function showSubscriptions(api: AzureAccount) {
+function showSubscriptions(api: AzureAccountExtensionApi) {
     return async () => {
         if (!(await api.waitForLogin())) {
             return commands.executeCommand('azure-account.askForLogin');
@@ -32,7 +32,7 @@ function showSubscriptions(api: AzureAccount) {
     };
 }
 
-async function loadSubscriptionItems(api: AzureAccount) {
+async function loadSubscriptionItems(api: AzureAccountExtensionApi) {
     await api.waitForFilters();
     const subscriptionItems: SubscriptionItem[] = [];
     for (const session of api.sessions) {
@@ -62,7 +62,7 @@ async function loadResourceGroupItems(subscriptionItem: SubscriptionItem) {
     }));
 }
 
-function showAppServices(api: AzureAccount) {
+function showAppServices(api: AzureAccountExtensionApi) {
     return async () => {
         if (!(await api.waitForLogin())) {
             return commands.executeCommand('azure-account.askForLogin');
@@ -72,7 +72,7 @@ function showAppServices(api: AzureAccount) {
     }
 }
 
-async function loadWebAppItems(api: AzureAccount) {
+async function loadWebAppItems(api: AzureAccountExtensionApi) {
     await api.waitForFilters();
     const webAppsPromises: Promise<QuickPickItem[]>[] = [];
     for (const filter of api.filters) {

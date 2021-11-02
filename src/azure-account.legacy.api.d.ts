@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SubscriptionModels } from '@azure/arm-subscriptions';
+import { TokenCredential } from '@azure/core-auth';
 import { Environment } from '@azure/ms-rest-azure-env';
-import { AzureIdentityCredentialAdapter } from '@azure/ms-rest-js';
 import { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
 import { ReadStream } from 'fs';
 import { ServiceClientCredentials } from 'ms-rest';
@@ -44,7 +44,7 @@ export interface AzureSession {
 	/**
 	 * The credentials object for azure-sdk-for-js modules https://github.com/azure/azure-sdk-for-js
 	 */
-	readonly credentials2: TokenCredentialsBase | AzureIdentityCredentialAdapter;
+	readonly credentials2: TokenCredentialsBase | TokenCredential;
 }
 
 export interface AzureSubscription {

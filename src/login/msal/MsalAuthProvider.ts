@@ -94,7 +94,6 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	public getCredentials2(_env: Environment, _userId: string, _tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2 {
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		return new PublicClientCredential(this.publicClientApp, accountInfo!);
-
 	}
 
 	public async updateSessions(environment: Environment, loginResult: AuthenticationResult, sessions: AzureSession[]): Promise<void> {

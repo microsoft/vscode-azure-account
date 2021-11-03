@@ -71,7 +71,7 @@ export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi 
 	}
 
 	public createCloudShell(os: OSName): types.CloudShell {
-		return <types.CloudShell>createCloudConsole(this, this.azureLoginHelper.reporter, os);
+		return <types.CloudShell><unknown>createCloudConsole(this, this.azureLoginHelper.reporter, os);
 	}
 
 	private sendIsLegacyApiTelemetry(eventName: string, isLegacyApi?: boolean): void {

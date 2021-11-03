@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
+import { AuthenticationResult } from '@azure/msal-common';
+import { TokenResponse } from 'adal-node';
 import * as FormData from 'form-data';
 import { ReadStream } from 'fs';
 import { ClientRequest } from 'http';
@@ -20,13 +21,11 @@ import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api'
 import { ext } from '../extensionVariables';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
 import { TelemetryReporter } from '../telemetry';
+import { exec } from '../utils/childProcessUtils';
 import { localize } from '../utils/localize';
 import { Deferred } from '../utils/promiseUtils';
-import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
 import { createServer, Queue, readJSON, Server } from './ipc';
-
-
 
 interface OS {
 	id: 'linux' | 'windows';
@@ -56,17 +55,6 @@ export const OSes: OSes = {
 		get otherOS(): OS { return OSes.Linux; },
 	}
 };
-
-function sendTelemetryEvent(reporter: TelemetryReporter, outcome: string, message?: string) {
-	/* __GDPR__
-	   "openCloudConsole" : {
-		  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
-	   }
-	 */
-
-	reporter.sendSanitizedEvent('openCloudConsole', message ? { outcome, message } : { outcome });
-}
 
 async function waitForConnection(this: CloudShell): Promise<boolean> {
 	const handleStatus = () => {
@@ -172,15 +160,7 @@ function getUploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>
 }
 
 export const shells: CloudShell[] = [];
-export function createCloudConsole(api: AzureAccountExtensionApi, reporter: TelemetryReporter, osName: OSName, isLegacyApi?: boolean): CloudShell | undefined {
-	if (!isLegacyApi) {
-		void window.showWarningMessage('Cloud console requires using the legacy API.');
-		return;
-	} else if (getAuthLibrary() !== 'ADAL') {
-		void window.showWarningMessage('Cloud console requires authenticating with ADAL.');
-		return;
-	}
-
+export function createCloudConsole(api: AzureAccountExtensionApi, reporter: TelemetryReporter, osName: OSName): CloudShell | undefined {
 	const os: OS = OSes[osName];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let liveServerQueue: Queue<any> | undefined;
@@ -227,7 +207,6 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 
 		const isWindows: boolean = process.platform === 'win32';
 		if (isWindows) {
-			// See below
 			try {
 				const { stdout } = await exec('node.exe --version');
 				const version: string | boolean = stdout[0] === 'v' && stdout.substr(1).trim();
@@ -307,6 +286,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 				updateStatus('Disconnected');
 			}
 		});
+
 		liveServerQueue = serverQueue;
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		deferredTerminal!.resolve(terminal);
@@ -328,7 +308,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 			}
 		}
 
-		let token: Token | undefined = undefined;
+		let session: AzureSession | undefined;
 		await api.waitForSubscriptions();
 		const sessions: AzureSession[] = [...new Set(api.subscriptions.map(subscription => subscription.session))]; // Only consider those with at least one subscription.
 		if (sessions.length > 1) {
@@ -365,13 +345,19 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 				updateStatus('Disconnected');
 				return;
 			}
-			token = await acquireToken(pick.session);
+			// TODO: This is where existing MSAL/ADAL logic goes: take in a session, return a token
+			session = pick.session;
 		} else if (sessions.length === 1) {
-			token = await acquireToken(<AzureSession>sessions[0]);
+			session = <AzureSession>sessions[0];
 		}
 
-		const result = token && await findUserSettings(token);
-		if (!result) {
+		let loginResult: AuthenticationResult | TokenResponse[] | undefined;
+		if (session) {
+			loginResult = await ext.authProvider.loginSilent(session.environment, session.tenantId);
+		}
+
+		const userSettings: UserSettings | undefined = loginResult && await findUserSettings();
+		if (!userSettings) {
 			serverQueue.push({ type: 'log', args: [localize('azure-account.setupNeeded', "Setup needed.")] });
 			await requiresSetUp(reporter);
 			serverQueue.push({ type: 'exit' });
@@ -379,11 +365,10 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 			return;
 		}
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-		deferredSession!.resolve(result.token.session);
+		deferredSession!.resolve(session);
 
 		// provision
 		let consoleUri: string;
-		const session: AzureSession = result.token.session;
 		const accessToken: string = result.token.accessToken;
 		const armEndpoint: string = session.environment.resourceManagerEndpointUrl;
 		const provisionTask: () => Promise<void> = async () => {
@@ -411,6 +396,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 		}
 
 		// Additional tokens
+		// TODO: Make an abstract function `getAdditionalTokens` `getTokenWithScope`
 		const [graphToken, keyVaultToken] = await Promise.all([
 			tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
 			session.environment.keyVaultDnsSuffix
@@ -469,10 +455,10 @@ async function waitForLoginStatus(api: AzureAccountExtensionApi): Promise<AzureL
 	});
 }
 
-async function findUserSettings(token: Token): Promise<{ userSettings: UserSettings; token: Token; } | undefined> {
-	const userSettings: UserSettings | undefined = await getUserSettings(token.accessToken, token.session.environment.resourceManagerEndpointUrl);
+async function findUserSettings(accessToken: string, session: AzureSession): Promise<UserSettings | undefined> {
+	const userSettings: UserSettings | undefined = await getUserSettings(accessToken, session.environment.resourceManagerEndpointUrl);
 	if (userSettings && userSettings.storageProfile) {
-		return { userSettings, token };
+		return userSettings;
 	}
 }
 
@@ -516,29 +502,6 @@ interface Token {
 	session: AzureSession;
 	accessToken: string;
 	refreshToken: string;
-}
-
-async function acquireToken(session: AzureSession): Promise<Token> {
-	return new Promise<Token>((resolve, reject) => {
-		/* eslint-disable @typescript-eslint/no-explicit-any */
-		const credentials: any = (<AzureSessionLegacy>session).credentials;
-		const environment: any = session.environment;
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-		credentials.context.acquireToken(environment.activeDirectoryResourceId, credentials.username, credentials.clientId, function (err: any, result: any) {
-		/* eslint-enable @typescript-eslint/no-explicit-any */
-			if (err) {
-				reject(err);
-			} else {
-				resolve({
-					session,
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-					accessToken: result.accessToken,
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-					refreshToken: result.refreshToken
-				});
-			}
-		});
-	});
 }
 
 interface TenantDetails {
@@ -594,17 +557,13 @@ async function fetchTenantDetails(session: AzureSession): Promise<{ session: Azu
 	});
 }
 
-export interface ExecResult {
-	error: Error | null;
-	stdout: string;
-	stderr: string;
-}
+function sendTelemetryEvent(reporter: TelemetryReporter, outcome: string, message?: string) {
+	/* __GDPR__
+	   "openCloudConsole" : {
+		  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+	   }
+	 */
 
-
-async function exec(command: string): Promise<ExecResult> {
-	return new Promise<ExecResult>((resolve, reject) => {
-		cp.exec(command, (error, stdout, stderr) => {
-			(error || stderr ? reject : resolve)({ error, stdout, stderr });
-		});
-	});
+	reporter.sendSanitizedEvent('openCloudConsole', message ? { outcome, message } : { outcome });
 }

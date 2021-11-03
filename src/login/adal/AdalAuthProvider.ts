@@ -27,7 +27,7 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 	private tokenCache: MemoryCache = new MemoryCache();
 	private delayedTokenCache: ProxyTokenCache = new ProxyTokenCache(this.tokenCache);
 
-	constructor(enableVerboseLogs: boolean) {
+	constructor(enableVerboseLogs?: boolean) {
 		super();
 		Logging.setLoggingOptions({
 			level: enableVerboseLogs ?

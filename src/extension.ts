@@ -12,17 +12,23 @@ import { AzureAccountExtensionApi } from './azure-account.api';
 import { OSes, OSName, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
+import { AdalAuthProvider } from './login/adal/AdalAuthProvider';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
 import { UriEventHandler } from './login/exchangeCodeForToken';
+import { MsalAuthProvider } from './login/msal/MsalAuthProvider';
 import { survey } from './nps';
 import { createReporter } from './telemetry';
 import { localize } from './utils/localize';
-import { getSettingValue } from './utils/settingUtils';
+import { getAuthLibrary, getSettingValue } from './utils/settingUtils';
 
-const enableLogging: boolean = false;
+const enableVerboseLogs: boolean = false;
+const enableDiagnosticsLogs: boolean = false;
 
 export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
 	ext.context = context;
+	ext.authProvider = getAuthLibrary() === 'ADAL' ?
+		new AdalAuthProvider(enableVerboseLogs) :
+		new MsalAuthProvider(enableVerboseLogs);
 
 	ext.uriEventHandler = new UriEventHandler();
 	context.subscriptions.push(window.registerUriHandler(ext.uriEventHandler));
@@ -35,7 +41,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 	await migrateEnvironmentSetting();
 	const reporter = createReporter(context);
 	const azureLoginHelper: AzureLoginHelper = new AzureLoginHelper(context, reporter);
-	if (enableLogging) {
+	if (enableDiagnosticsLogs) {
 		logDiagnostics(context, azureLoginHelper.api);
 	}
 	context.subscriptions.push(createStatusBarItem(context, azureLoginHelper.api));

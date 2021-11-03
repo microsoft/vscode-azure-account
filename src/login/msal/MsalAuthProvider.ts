@@ -20,7 +20,7 @@ import { PublicClientCredential } from "./PublicClientCredential";
 export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	private publicClientApp: PublicClientApplication;
 
-	constructor(enableVerboseLogs: boolean) {
+	constructor(enableVerboseLogs?: boolean) {
 		super();
 		const msalConfiguration: Configuration = {
 			auth: { clientId },

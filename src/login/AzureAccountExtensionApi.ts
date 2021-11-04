@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, Event } from 'vscode';
+import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
 import * as types from '../azure-account.api';
 import { createCloudConsole, OSName } from '../cloudConsole/cloudConsole';
 import { AzureLoginHelper } from './AzureLoginHelper';
@@ -29,52 +30,54 @@ export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi 
 	}
 
 	public async waitForFilters(isLegacyApi?: boolean): Promise<boolean> {
-		this.sendIsLegacyApiTelemetry('waitForFilters', isLegacyApi);
+		return await callWithTelemetryAndErrorHandling('waitForFilters', async (context: IActionContext) => {
+			context.telemetry.properties.isLegacyApi = String(!!isLegacyApi);
 
-		if (!(await this.waitForSubscriptions())) {
-			return false;
-		}
-		await this.azureLoginHelper.filtersTask;
-		return true;
+			if (!(await this.waitForSubscriptions())) {
+				return false;
+			}
+			await this.azureLoginHelper.filtersTask;
+			return true;
+		}) || false;
 	}
 
 	public async waitForLogin(isLegacyApi?: boolean): Promise<boolean> {
-		this.sendIsLegacyApiTelemetry('waitForLogin', isLegacyApi);
+		return await callWithTelemetryAndErrorHandling('waitForLogin', (context: IActionContext) => {
+			context.telemetry.properties.isLegacyApi = String(!!isLegacyApi);
 
-		switch (this.status) {
-			case 'LoggedIn':
-				return true;
-			case 'LoggedOut':
-				return false;
-			case 'Initializing':
-			case 'LoggingIn':
-				return new Promise<boolean>(resolve => {
-					const subscription: Disposable = this.onStatusChanged(() => {
-						subscription.dispose();
-						resolve(this.waitForLogin());
+			switch (this.status) {
+				case 'LoggedIn':
+					return true;
+				case 'LoggedOut':
+					return false;
+				case 'Initializing':
+				case 'LoggingIn':
+					return new Promise<boolean>(resolve => {
+						const subscription: Disposable = this.onStatusChanged(() => {
+							subscription.dispose();
+							resolve(this.waitForLogin());
+						});
 					});
-				});
-			default:
-				const status: never = this.status;
-				throw new Error(`Unexpected status '${status}'`);
-		}
+				default:
+					const status: never = this.status;
+					throw new Error(`Unexpected status '${status}'`);
+			}
+		}) || false;
 	}
 
 	public async waitForSubscriptions(isLegacyApi?: boolean): Promise<boolean> {
-		this.sendIsLegacyApiTelemetry('waitForSubscriptions', isLegacyApi);
+		return await callWithTelemetryAndErrorHandling('waitForSubscriptions', async (context: IActionContext) => {
+			context.telemetry.properties.isLegacyApi = String(!!isLegacyApi);
 
-		if (!(await this.waitForLogin())) {
-			return false;
-		}
-		await this.azureLoginHelper.subscriptionsTask;
-		return true;
+			if (!(await this.waitForLogin())) {
+				return false;
+			}
+			await this.azureLoginHelper.subscriptionsTask;
+			return true;
+		}) || false;
 	}
 
 	public createCloudShell(os: OSName): types.CloudShell {
-		return <types.CloudShell>createCloudConsole(this, this.azureLoginHelper.reporter, os);
-	}
-
-	private sendIsLegacyApiTelemetry(eventName: string, isLegacyApi?: boolean): void {
-		this.azureLoginHelper.reporter.sendSanitizedEvent(eventName, { 'isLegacyApi': String(!!isLegacyApi) });
+		return <types.CloudShell>createCloudConsole(this, os);
 	}
 }

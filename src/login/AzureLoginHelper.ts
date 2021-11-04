@@ -7,10 +7,10 @@ import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions
 import { Environment } from '@azure/ms-rest-azure-env';
 import { AccountInfo } from '@azure/msal-node';
 import { CancellationTokenSource, commands, ConfigurationTarget, EventEmitter, ExtensionContext, MessageItem, QuickPickItem, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
-import { TelemetryReporter } from '../telemetry';
 import { listAll } from '../utils/arrayUtils';
 import { localize } from '../utils/localize';
 import { openUri } from '../utils/openUri';
@@ -80,7 +80,7 @@ export class AzureLoginHelper {
 	public api: AzureAccountExtensionApi;
 	public legacyApi: AzureAccountExtensionLegacyApi;
 
-	constructor(private context: ExtensionContext, public reporter: TelemetryReporter) {
+	constructor(private context: ExtensionContext) {
 		this.adalAuthProvider = new AdalAuthProvider(enableVerboseLogs);
 		this.msalAuthProvider = new MsalAuthProvider(enableVerboseLogs);
 		this.authProvider = getAuthLibrary() === 'ADAL' ?  this.adalAuthProvider : this.msalAuthProvider;
@@ -120,76 +120,70 @@ export class AzureLoginHelper {
 	}
 
 	public async login(trigger: LoginTrigger): Promise<void> {
-		let path: CodePath = 'newLogin';
-		let environmentName: string = 'uninitialized';
-		const cancelSource: CancellationTokenSource = new CancellationTokenSource();
-		try {
-			const environment: Environment = await getSelectedEnvironment();
-			environmentName = environment.name;
-			const onlineTask: Promise<void> = waitUntilOnline(environment, 2000, cancelSource.token);
-			const timerTask: Promise<boolean | PromiseLike<boolean> | undefined> = delay(2000, true);
+		await callWithTelemetryAndErrorHandling('azure-account.login', async (context: IActionContext) => {
+			let path: CodePath = 'newLogin';
+			let environmentName: string = 'uninitialized';
+			const cancelSource: CancellationTokenSource = new CancellationTokenSource();
+			try {
+				const environment: Environment = await getSelectedEnvironment();
+				environmentName = environment.name;
+				const onlineTask: Promise<void> = waitUntilOnline(environment, 2000, cancelSource.token);
+				const timerTask: Promise<boolean | PromiseLike<boolean> | undefined> = delay(2000, true);
 
-			if (await Promise.race([onlineTask, timerTask])) {
-				const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel") };
-				await Promise.race([
-					onlineTask,
-					window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
-						.then(result => {
-							if (result === cancel) {
-								throw new AzureLoginError(localize('azure-account.offline', "Offline"));
-							}
-						})
-				]);
-				await onlineTask;
+				if (await Promise.race([onlineTask, timerTask])) {
+					const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel") };
+					await Promise.race([
+						onlineTask,
+						window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
+							.then(result => {
+								if (result === cancel) {
+									throw new AzureLoginError(localize('azure-account.offline', "Offline"));
+								}
+							})
+					]);
+					await onlineTask;
+				}
+
+				this.beginLoggingIn();
+
+				const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
+				const isAdfs: boolean = isADFS(environment);
+				const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
+				path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
+				const loginResult = useCodeFlow ?
+					await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
+					await this.authProvider.loginWithDeviceCode(environment, tenantId);
+				await this.updateSessions(this.authProvider, environment, loginResult);
+				await this.sendLoginTelemetry(context, trigger, path, environmentName, 'success', undefined, true);
+			} catch (err) {
+				if (err instanceof AzureLoginError && err.reason) {
+					console.error(err.reason);
+					await this.sendLoginTelemetry(context, trigger, path, environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
+				} else {
+					await this.sendLoginTelemetry(context, trigger, path, environmentName, 'failure', getErrorMessage(err));
+				}
+				throw err;
+			} finally {
+				cancelSource.cancel();
+				cancelSource.dispose();
+				this.updateLoginStatus();
 			}
-
-			this.beginLoggingIn();
-
-			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
-			const isAdfs: boolean = isADFS(environment);
-			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
-			path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			const loginResult = useCodeFlow ?
-				await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
-				await this.authProvider.loginWithDeviceCode(environment, tenantId);
-			await this.updateSessions(this.authProvider, environment, loginResult);
-			void this.sendLoginTelemetry(trigger, path, environmentName, 'success', undefined, true);
-		} catch (err) {
-			if (err instanceof AzureLoginError && err.reason) {
-				console.error(err.reason);
-				void this.sendLoginTelemetry(trigger, path, environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
-			} else {
-				void this.sendLoginTelemetry(trigger, path, environmentName, 'failure', getErrorMessage(err));
-			}
-			throw err;
-		} finally {
-			cancelSource.cancel();
-			cancelSource.dispose();
-			this.updateLoginStatus();
-		}
+		});
 	}
 
-	private async sendLoginTelemetry(trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string, includeSubscriptions?: boolean): Promise<void> {
-		/* __GDPR__
-		   "login" : {
-			  "trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "cloud" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-			  "subscriptions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "endPoint": "AzureSubscriptionId" }
-		   }
-		 */
-		const event: Record<string, string> = { trigger, path, cloud, outcome };
-		if (message) {
-			event.message = message;
+	private async sendLoginTelemetry(context: IActionContext, trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string, includeSubscriptions?: boolean) {
+		context.telemetry.properties = {
+			...context.telemetry.properties,
+			trigger,
+			path,
+			cloud,
+			outcome,
+			message
 		}
 		if (includeSubscriptions) {
 			await this.api.waitForSubscriptions();
-			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			event.subscriptions = JSON.stringify((await this.subscriptionsTask).map(s => s.subscription.subscriptionId!));
+			context.telemetry.properties.subscriptions = JSON.stringify((this.api.subscriptions).map(s => s.subscription.subscriptionId));
 		}
-		this.reporter.sendSanitizedEvent('login', event);
 	}
 
 	public async logout(): Promise<void> {
@@ -244,30 +238,32 @@ export class AzureLoginHelper {
 	}
 
 	private async initialize(trigger: LoginTrigger, doLogin?: boolean, migrateToken?: boolean): Promise<void> {
-		let environmentName: string = 'uninitialized';
-		try {
-			await this.loadSubscriptionCache();
-			const environment: Environment = await getSelectedEnvironment();
-			environmentName = environment.name;
-			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
-			await waitUntilOnline(environment, 5000);
-			this.beginLoggingIn();
-			const loginResult = await this.authProvider.loginSilent(environment, tenantId, migrateToken);
-			await this.updateSessions(this.authProvider, environment, loginResult);
-			void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'success', undefined, true);
-		} catch (err) {
-			await this.clearSessions(); // clear out cached data
-			if (err instanceof AzureLoginError && err.reason) {
-				void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
-			} else {
-				void this.sendLoginTelemetry(trigger, 'tryExisting', environmentName, 'failure', getErrorMessage(err));
+		await callWithTelemetryAndErrorHandling('azure-account.initialize', async (context: IActionContext) => {
+			let environmentName: string = 'uninitialized';
+			try {
+				await this.loadSubscriptionCache();
+				const environment: Environment = await getSelectedEnvironment();
+				environmentName = environment.name;
+				const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
+				await waitUntilOnline(environment, 5000);
+				this.beginLoggingIn();
+				const loginResult = await this.authProvider.loginSilent(environment, tenantId, migrateToken);
+				await this.updateSessions(this.authProvider, environment, loginResult);
+				void this.sendLoginTelemetry(context, trigger, 'tryExisting', environmentName, 'success', undefined, true);
+			} catch (err) {
+				await this.clearSessions(); // clear out cached data
+				if (err instanceof AzureLoginError && err.reason) {
+					void this.sendLoginTelemetry(context, trigger, 'tryExisting', environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
+				} else {
+					void this.sendLoginTelemetry(context, trigger, 'tryExisting', environmentName, 'failure', getErrorMessage(err));
+				}
+				if (doLogin) {
+					await this.login(trigger);
+				}
+			} finally {
+				this.updateLoginStatus();
 			}
-			if (doLogin) {
-				await this.login(trigger);
-			}
-		} finally {
-			this.updateLoginStatus();
-		}
+		});
 	}
 
 	private async loadSubscriptionCache(): Promise<void> {
@@ -361,48 +357,58 @@ export class AzureLoginHelper {
 	}
 
 	private async selectSubscriptions(): Promise<unknown> {
-		if (!(await this.api.waitForSubscriptions())) {
-			return commands.executeCommand('azure-account.askForLogin');
-		}
-
-		const azureConfig: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
-		const resourceFilter: string[] = (azureConfig.get<string[]>(resourceFilterSetting) || ['all']).slice();
-		let filtersChanged: boolean = false;
-
-		const subscriptions = this.subscriptionsTask
-			.then(list => this.getSubscriptionItems(list, resourceFilter));
-		const source: CancellationTokenSource = new CancellationTokenSource();
-		const cancellable: Promise<ISubscriptionItem[]> = subscriptions.then(s => {
-			if (!s.length) {
-				source.cancel();
-				this.noSubscriptionsFound()
-					.catch(console.error);
+		return await callWithTelemetryAndErrorHandling('azure-account.selectSubscriptions', async (context: IActionContext) => {
+			if (!(await this.api.waitForSubscriptions())) {
+				context.telemetry.properties.outcome = 'notLoggedIn';
+				return commands.executeCommand('azure-account.askForLogin');
 			}
-			return s;
-		});
-		const picks: QuickPickItem[] | undefined = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
-		if (picks) {
-			if (resourceFilter[0] === 'all') {
-				resourceFilter.splice(0, 1);
-				for (const subscription of await subscriptions) {
-					addFilter(resourceFilter, subscription);
-				}
-			}
-			for (const subscription of await subscriptions) {
-				if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
-					filtersChanged = true;
-					if (subscription.picked) {
-						removeFilter(resourceFilter, subscription);
-					} else {
-						addFilter(resourceFilter, subscription);
+
+			try {
+				const azureConfig: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
+				const resourceFilter: string[] = (azureConfig.get<string[]>(resourceFilterSetting) || ['all']).slice();
+				let filtersChanged: boolean = false;
+
+				const subscriptions = this.subscriptionsTask
+					.then(list => this.getSubscriptionItems(list, resourceFilter));
+				const source: CancellationTokenSource = new CancellationTokenSource();
+				const cancellable: Promise<ISubscriptionItem[]> = subscriptions.then(s => {
+					if (!s.length) {
+						context.telemetry.properties.outcome = 'noSubscriptionsFound';
+						source.cancel();
+						this.noSubscriptionsFound()
+							.catch(console.error);
+					}
+					return s;
+				});
+				const picks: QuickPickItem[] | undefined = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
+				if (picks) {
+					if (resourceFilter[0] === 'all') {
+						resourceFilter.splice(0, 1);
+						for (const subscription of await subscriptions) {
+							addFilter(resourceFilter, subscription);
+						}
+					}
+					for (const subscription of await subscriptions) {
+						if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
+							filtersChanged = true;
+							if (subscription.picked) {
+								removeFilter(resourceFilter, subscription);
+							} else {
+								addFilter(resourceFilter, subscription);
+							}
+						}
 					}
 				}
-			}
-		}
 
-		if (filtersChanged) {
-			await this.updateConfiguration(azureConfig, resourceFilter);
-		}
+				if (filtersChanged) {
+					await this.updateConfiguration(azureConfig, resourceFilter);
+				}
+				context.telemetry.properties.outcome = 'success';
+			} catch (error) {
+				context.telemetry.properties.outcome = 'error';
+				throw error;
+			}
+		});
 	}
 
 	private async noSubscriptionsFound(): Promise<void> {

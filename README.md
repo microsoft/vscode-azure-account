@@ -55,11 +55,11 @@ You may also upload to the Cloud Shell using the `Azure: Upload to Cloud Shell` 
 
 | Name | Description | Default |
 | --- | --- | --- |
-| azure.resourceFilter | The resource filter, each element is a tenant id and a subscription id separated by a slash.	 |
-| azure.showSignedInEmail | Whether to show the email address (e.g., in the status bar) of the signed in account.	 | true
-| azure.tenant | A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants. |
-| azure.cloud | The current Azure Cloud to connect to. | Azure
-| azure.ppe | Development setting: The PPE environment for testing. |
+| `azure.resourceFilter` | The resource filter, each element is a tenant id and a subscription id separated by a slash.	 |
+| `azure.showSignedInEmail` | Whether to show the email address (e.g., in the status bar) of the signed in account.	 | true
+| `azure.tenant` | A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants. |
+| `azure.cloud` | The current Azure Cloud to connect to. | Azure
+| `azure.ppe` | Development setting: The PPE environment for testing. |
 
 <!-- region exclude-from-marketplace -->
 

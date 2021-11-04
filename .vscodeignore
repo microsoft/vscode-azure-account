@@ -6,6 +6,7 @@ gulp*
 out
 node_modules
 redirect
+resources/readme/**
 sample
 src
 .gitignore

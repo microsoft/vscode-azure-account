@@ -1,4 +1,4 @@
-# Azure Account and Sign-In
+# Azure Account and Sign In
 
 <!-- region exclude-from-marketplace -->
 
@@ -6,10 +6,38 @@
 
 <!-- endregion exclude-from-marketplace -->
 
-The Azure Account extension provides a single Azure sign-in and subscription filtering experience for all other Azure extensions. It makes Azure's Cloud Shell service available in VS Code's integrated terminal.
+The Azure Account extension provides a single Azure sign in and subscription filtering experience for all other Azure extensions. It makes Azure's Cloud Shell service available in VS Code's integrated terminal.
+
+## Signing In/Out
+
+There are multiple commands accessible via the [command palette](https://aka.ms/AAephuz) that may be used to sign into Azure.
+
+![Sign in commands in the command palette](resources/readme/signInCommands.png)
+
+Sign out of Azure using the `Azure: Sign Out` command.
+
+![The sign out command in the command palette](resources/readme/signOutCommand.png)
+
+## Azure Cloud Shell
+
+Azure Cloud Shell instances can be started via the terminal view in VS Code. To begin, click the
+dropdown arrow in the terminal view and select from either `Azure Cloud Shell (Bash)` or
+`Azure Cloud Shell (PowerShell)`.
+
+![VS Code terminal view with context menu](resources/readme/terminalViewWithMenu.png)
+
+If this is your first time using the Cloud Shell, the following notification will appear prompting
+you to set it up.
+
+!["Must setup cloud shell" notification](resources/readme/mustSetupCloudShell.png)
+
+The Cloud Shell will load in the terminal view once you've finished configuring it.
+
+![The Azure Cloud Shell in the terminal window](resources/readme/cloudShell.png)
+
+You may also upload to the Cloud Shell using the `Azure: Upload to Cloud Shell` command.
 
 ## Commands
-
 
 | Command |  |
 | --- | --- |
@@ -19,8 +47,6 @@ The Azure Account extension provides a single Azure sign-in and subscription fil
 | `Azure: Sign Out` | Sign out of your Azure subscription.
 | `Azure: Select Subscriptions` | Pick the set of subscriptions you want to work with. Extensions should respect this list and only show resources within the filtered subscriptions.
 | `Azure: Create an Account`  | If you don't have an Azure Account, you can [sign up](https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account) for one today and receive $200 in free credits.
-| `Azure: Open Bash in Cloud Shell`<sup>1</sup> | Open a new terminal running Bash in Cloud Shell.
-| `Azure: Open PowerShell in Cloud Shell`<sup>1</sup> | Open a new terminal running PowerShell in Cloud Shell.
 | `Azure: Upload to Cloud Shell`<sup>1</sup> | Upload a file to your Cloud Shell storage account
 
 <sup>1</sup> On Windows: Requires Node.js 6 or later to be installed (https://nodejs.org).

@@ -1,9 +1,9 @@
 {
     "name": "azure-account",
     "displayName": "Azure Account",
-    "description": "A common Sign-In and Subscription management extension for VS Code.",
+    "description": "A common Sign In and Subscription management extension for VS Code.",
     "license": "SEE LICENSE IN LICENSE.md",
-    "icon": "images/Market_AzureAccount_128x.png",
+    "icon": "resources/Market_AzureAccount_128x.png",
     "repository": {
         "url": "https://github.com/microsoft/vscode-azure-account.git"
     },

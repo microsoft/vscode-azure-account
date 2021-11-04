@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [Unreleased]
+### Changed
+- The `Azure: Open Bash in Cloud Shell` and `Azure: Open PowerShell in Cloud Shell` commands have been replaced with entry
+points in the VS Code terminal view. See [README.md](https://github.com/microsoft/vscode-azure-account#azure-cloud-shell) for more details.
 
 ## [0.9.8]
 - When signing into a different cloud than previously used, shows a prompt to enter tenant id.

@@ -1,6 +1,6 @@
-Visual Studio Code Extension for Azure Account Sign-In
+Visual Studio Code Extension for Azure Account Sign In
 
-Copyright (c) Microsoft Corporation. 
+Copyright (c) Microsoft Corporation.
 
 All rights reserved.
 

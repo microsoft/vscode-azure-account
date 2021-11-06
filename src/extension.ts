@@ -6,7 +6,7 @@
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { CancellationToken, commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { createApiProvider, createAzExtOutputChannel, createExperimentationService, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, IActionContext, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
@@ -15,7 +15,6 @@ import { ext } from './extensionVariables';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
 import { UriEventHandler } from './login/exchangeCodeForToken';
 import { survey } from './nps';
-import { createReporter } from './telemetry';
 import { localize } from './utils/localize';
 import { getSettingValue } from './utils/settingUtils';
 
@@ -23,40 +22,39 @@ const enableLogging: boolean = false;
 
 export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
 	ext.context = context;
-	ext.experimentationService = await createExperimentationService(context);
-
-	ext.uriEventHandler = new UriEventHandler();
-	context.subscriptions.push(window.registerUriHandler(ext.uriEventHandler));
-
 	ext.outputChannel = createAzExtOutputChannel(displayName, extensionPrefix);
+	ext.uriEventHandler = new UriEventHandler();
 	context.subscriptions.push(ext.outputChannel);
-
+	context.subscriptions.push(window.registerUriHandler(ext.uriEventHandler));
 	registerUIExtensionVariables(ext);
 
-	await migrateEnvironmentSetting();
-	const reporter = createReporter(context);
-	const azureLoginHelper: AzureLoginHelper = new AzureLoginHelper(context, reporter);
-	if (enableLogging) {
-		logDiagnostics(context, azureLoginHelper.api);
-	}
-	context.subscriptions.push(createStatusBarItem(context, azureLoginHelper.api));
-	context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-	context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
+	const azureLoginHelper: AzureLoginHelper = new AzureLoginHelper(context);
 
-	window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
-		provideTerminalProfile: (token: CancellationToken) => {
-			return createCloudConsole(azureLoginHelper.api, reporter, 'Linux', token).terminalProfile;
+	await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
+		activateContext.telemetry.properties.isActivationEvent = 'true';
+		activateContext.telemetry.properties.activationTime = String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000);
+
+		await migrateEnvironmentSetting();
+		if (enableLogging) {
+			logDiagnostics(context, azureLoginHelper.api);
 		}
-	});
-	window.registerTerminalProfileProvider('azure-account.cloudShellPowerShell', {
-		provideTerminalProfile: (token: CancellationToken) => {
-			return createCloudConsole(azureLoginHelper.api, reporter, 'Windows', token).terminalProfile;
-		}
-	});
+		context.subscriptions.push(createStatusBarItem(context, azureLoginHelper.api));
+		context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
+		context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
 
-	survey(context, reporter);
+		window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
+			provideTerminalProfile: (token: CancellationToken) => {
+				return createCloudConsole(azureLoginHelper.api, 'Linux', token).terminalProfile;
+			}
+		});
+		window.registerTerminalProfileProvider('azure-account.cloudShellPowerShell', {
+			provideTerminalProfile: (token: CancellationToken) => {
+				return createCloudConsole(azureLoginHelper.api, 'Windows', token).terminalProfile;
+			}
+		});
 
-	reporter.sendSanitizedEvent('activate', { 'activationTime': String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000) });
+		await survey(context);
+	});
 
 	return Object.assign(azureLoginHelper.legacyApi, createApiProvider([azureLoginHelper.api]));
 }

@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { ExtensionContext, env, window, extensions, Uri } from 'vscode';
+import { env, ExtensionContext, extensions, Uri, window } from 'vscode';
+import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
 import * as nls from 'vscode-nls';
-import { TelemetryReporter } from './telemetry';
 
 const localize = nls.loadMessageBundle();
 
@@ -19,12 +19,12 @@ const LAST_SESSION_DATE_KEY = 'nps/lastSessionDate';
 const SKIP_VERSION_KEY = 'nps/skipVersion';
 const IS_CANDIDATE_KEY = 'nps/isCandidate';
 
-export function survey({ globalState }: ExtensionContext, reporter: TelemetryReporter): void {
-	(async () => {
+export async function survey({ globalState }: ExtensionContext): Promise<void> {
+	await callWithTelemetryAndErrorHandling('azure-account.nps.survey', async (context: IActionContext) => {
 		if (env.language !== 'en' && !env.language.startsWith('en-')) {
 			return;
 		}
-		
+
 		const skipVersion = globalState.get(SKIP_VERSION_KEY, '');
 		if (skipVersion) {
 			return;
@@ -60,10 +60,7 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 		const take = {
 			title: localize('azure-account.takeSurvey', "Take Survey"),
 			run: async () => {
-				/* __GDPR__
-					"nps.survey/takeShortSurvey" : {}
-				*/
-				reporter.sendSanitizedEvent('nps.survey/takeShortSurvey');
+				context.telemetry.properties.takeShortSurvey = 'true';
 				void env.openExternal(Uri.parse(`${NPS_SURVEY_URL}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(extensionVersion)}&m=${encodeURIComponent(env.machineId)}`));
 				await globalState.update(IS_CANDIDATE_KEY, false);
 				await globalState.update(SKIP_VERSION_KEY, extensionVersion);
@@ -72,10 +69,7 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 		const remind = {
 			title: localize('azure-account.remindLater', "Remind Me Later"),
 			run: async () => {
-				/* __GDPR__
-					"nps.survey/remindMeLater" : {}
-				*/
-				reporter.sendSanitizedEvent('nps.survey/remindMeLater');
+				context.telemetry.properties.remindMeLater = 'true';
 				await globalState.update(SESSION_COUNT_KEY, sessionCount - 3);
 			}
 		};
@@ -83,19 +77,14 @@ export function survey({ globalState }: ExtensionContext, reporter: TelemetryRep
 			title: localize('azure-account.neverAgain', "Don't Show Again"),
 			isSecondary: true,
 			run: async () => {
-				/* __GDPR__
-					"nps.survey/dontShowAgain" : {}
-				*/
-				reporter.sendSanitizedEvent('nps.survey/dontShowAgain');
+				context.telemetry.properties.dontShowAgain = 'true';
 				await globalState.update(IS_CANDIDATE_KEY, false);
 				await globalState.update(SKIP_VERSION_KEY, extensionVersion);
 			}
 		};
-		/* __GDPR__
-			"nps.survey/userAsked" : {}
-		*/
-		reporter.sendSanitizedEvent('nps.survey/userAsked');
+
+		context.telemetry.properties.userAsked = 'true';
 		const button = await window.showInformationMessage(localize('azure-account.surveyQuestion', "Do you mind taking a quick feedback survey about the Azure Extensions for VS Code?"), take, remind, never);
 		await (button || remind).run();
-	})().catch(console.error);
+	});
 }

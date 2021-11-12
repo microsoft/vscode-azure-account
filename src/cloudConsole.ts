@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, commands, MessageItem, EventEmitter, Terminal, Uri, env, QuickPickItem } from 'vscode';
+import { window, commands, MessageItem, EventEmitter, Terminal, Uri, env, QuickPickItem, version } from 'vscode';
 import { AzureAccount, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from './azure-account.api';
 import { tokenFromRefreshToken } from './azure-account';
 import { createServer, readJSON, Queue } from './ipc';
@@ -257,6 +257,12 @@ export function createCloudConsole(api: AzureAccount, osName: keyof typeof OSes)
 				// Work around https://github.com/electron/electron/issues/4218 https://github.com/nodejs/node/issues/11656
 				shellPath = 'node.exe';
 				shellArgs.shift();
+			}
+
+			if (!isWindows && semver.gte(version, '1.62.1')) {
+				// https://github.com/microsoft/vscode/issues/136987
+				// This fix can't be applied to all versions of VS Code. An error is thrown in versions less than the one specified
+				shellArgs.push('--ms-enable-electron-run-as-node');
 			}
 
 			const terminal = window.createTerminal({

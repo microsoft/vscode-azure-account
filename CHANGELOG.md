@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.9.11]
+- Fix Cloud Shell failure introduced in VS Code v1.62.1 [#357](https://github.com/microsoft/vscode-azure-account/pull/357)
+
 ## [0.9.10]
 - Fix experimentation framework initialization
 

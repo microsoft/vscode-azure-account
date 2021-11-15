@@ -6,7 +6,7 @@
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { CancellationToken, commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, IActionContext, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, createExperimentationService, IActionContext, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
@@ -54,6 +54,8 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		});
 
 		await survey(context);
+
+		ext.experimentationService = await createExperimentationService(context);
 	});
 
 	return Object.assign(azureLoginHelper.legacyApi, createApiProvider([azureLoginHelper.api]));

@@ -64,7 +64,7 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TokenResponse[]> {
+	public async loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean, resource?: string[]): Promise<TokenResponse[]> {
 		const storedCreds: string | undefined = await getStoredCredentials(environment, migrateToken);
 		if (!storedCreds) {
 			throw new AzureLoginError(localize('azure-account.refreshTokenMissing', 'Not signed in'));
@@ -78,7 +78,7 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 			parsedCreds = JSON.parse(storedCreds);
 		} catch {
-			tokenResponse = await tokenFromRefreshToken(environment, storedCreds, tenantId)
+			tokenResponse = await tokenFromRefreshToken(environment, storedCreds, tenantId, resource && resource.length ? resource[0] : undefined)
 		}
 
 		if (parsedCreds) {

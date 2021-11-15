@@ -64,14 +64,14 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		return authResult;
 	}
 
-	public async loginSilent(): Promise<AuthenticationResult> {
+	public async loginSilent(_environment: Environment, _tenantId: string, _migrateToken?: boolean, scopes?: string[]): Promise<AuthenticationResult> {
 		const msalTokenCache: TokenCache = this.publicClientApp.getTokenCache();
 		const accountInfo: AccountInfo[] = await msalTokenCache.getAllAccounts();
 		let authResult: AuthenticationResult | null;
 
 		if (accountInfo.length === 1) {
 			authResult = await this.publicClientApp.acquireTokenSilent({
-				scopes: msalScopes,
+				scopes: scopes ? scopes : msalScopes,
 				account: accountInfo[0]
 			});
 

@@ -6,7 +6,8 @@
 import { TokenCredential } from "@azure/core-auth";
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
-import { AccountInfo } from "@azure/msal-node";
+import { AccountInfo, AuthenticationResult } from "@azure/msal-node";
+import { TokenResponse } from "adal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
@@ -22,6 +23,7 @@ import { exchangeCodeForToken } from "./exchangeCodeForToken";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 
+export type AbstractLoginResult = TokenResponse[] | AuthenticationResult;
 export type AbstractCredentials = DeviceTokenCredentials;
 export type AbstractCredentials2 = DeviceTokenCredentials2 | TokenCredential;
 
@@ -30,7 +32,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 
 	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
-	public abstract loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean): Promise<TLoginResult>;
+	public abstract loginSilent(environment: Environment, tenantId: string, migrateToken?: boolean, resourceOrScope?: string[]): Promise<TLoginResult>;
 	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
 	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
 	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;

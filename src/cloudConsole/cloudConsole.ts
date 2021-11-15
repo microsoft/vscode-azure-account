@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AuthenticationResult } from '@azure/msal-common';
-import { TokenResponse } from 'adal-node';
 import * as FormData from 'form-data';
 import { ReadStream } from 'fs';
 import { ClientRequest } from 'http';
@@ -19,7 +17,7 @@ import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
-import { tokenFromRefreshToken } from '../login/adal/tokens';
+import { AbstractLoginResult } from '../login/AuthProviderBase';
 import { TelemetryReporter } from '../telemetry';
 import { exec } from '../utils/childProcessUtils';
 import { localize } from '../utils/localize';
@@ -378,7 +376,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 			session = <AzureSession>sessions[0];
 		}
 
-		let loginResult: AuthenticationResult | TokenResponse[] | undefined;
+		let loginResult: AbstractLoginResult | undefined;
 		if (session) {
 			loginResult = await ext.authProvider.loginSilent(session.environment, session.tenantId);
 		} else {
@@ -440,18 +438,28 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 
 		// Additional tokens
 		// TODO: Make an abstract function `getAdditionalTokens` `getTokenWithScope`
-		const [graphToken, keyVaultToken] = await Promise.all([
-			// tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
-			tokenFromRefreshToken(session.environment, '', session.tenantId, session.environment.activeDirectoryGraphResourceId),
-			session.environment.keyVaultDnsSuffix
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-				? tokenFromRefreshToken(session.environment, '', session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
-				: Promise.resolve(undefined)
-		]);
+		// const [graphToken, keyVaultToken] = await Promise.all([
+		// 	// tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
+		// 	ext.authProvider.loginSilent(session.environment, session.tenantId, false, session.environment.activeDirectoryGraphResourceId),
+		// 	session.environment.keyVaultDnsSuffix
+		// 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		// 		? ext.authProvider.loginSilent(session.environment, session.tenantId, false, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
+		// 		// ? tokenFromRefreshToken(session.environment, '', session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
+		// 		: Promise.resolve(undefined)
+		// ]);
+
+		const graphLoginResult: AbstractLoginResult = await ext.authProvider.loginSilent(session.environment, session.tenantId, false, ['https://graph.microsoft.com/offline_access', 'https://graph.microsoft.com/openid', 'https://graph.microsoft.com/profile']);
+		// const graphLoginResult: AbstractLoginResult = await ext.authProvider.loginSilent(session.environment, session.tenantId, false, session.environment.activeDirectoryGraphResourceId);
+		const keyVaultLoginResult: AbstractLoginResult | undefined = session.environment.keyVaultDnsSuffix
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			? await ext.authProvider.loginSilent(session.environment, session.tenantId, false, ['https://vault.azure.net/user_impersonation'])
+			// ? await ext.authProvider.loginSilent(session.environment, session.tenantId, false, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
+			: undefined;
+
 		const accessTokens: AccessTokens = {
 			resource: accessToken,
-			graph: graphToken.accessToken,
-			keyVault: keyVaultToken && keyVaultToken.accessToken
+			graph: Array.isArray(graphLoginResult) ? graphLoginResult[0].accessToken : graphLoginResult.accessToken,
+			keyVault: keyVaultLoginResult && (Array.isArray(keyVaultLoginResult) ? keyVaultLoginResult[0].accessToken : keyVaultLoginResult.accessToken)
 		};
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		deferredTokens!.resolve(accessTokens);

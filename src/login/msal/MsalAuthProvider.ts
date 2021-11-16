@@ -22,7 +22,10 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	constructor(enableVerboseLogs: boolean) {
 		super();
 		const msalConfiguration: Configuration = {
-			auth: { clientId },
+			auth: { 
+				clientId,
+				knownAuthorities: ['https://management.core.windows.net']
+			},
 			cache: { cachePlugin },
 			system: {
 				loggerOptions: {

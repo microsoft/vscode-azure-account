@@ -421,7 +421,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, reporter: Tele
 			await provisionTask();
 		} catch (err) {
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-			if (err && err.message === Errors.DeploymentOsTypeConflict) {
+			if (err && (<{ message: string}><unknown>err).message === Errors.DeploymentOsTypeConflict) {
 				const reset: boolean = await deploymentConflict(reporter, os);
 				if (reset) {
 					await resetConsole(accessToken, armEndpoint);

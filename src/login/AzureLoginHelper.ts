@@ -375,7 +375,7 @@ export class AzureLoginHelper {
 					if (!s.length) {
 						context.telemetry.properties.outcome = 'noSubscriptionsFound';
 						source.cancel();
-						this.noSubscriptionsFound()
+						this.showNoSubscriptionsFoundNotification()
 							.catch(console.error);
 					}
 					return s;
@@ -411,11 +411,15 @@ export class AzureLoginHelper {
 		});
 	}
 
-	private async noSubscriptionsFound(): Promise<void> {
-		const open: MessageItem = { title: localize('azure-account.open', "Open") };
-		const response: MessageItem | undefined = await window.showInformationMessage(localize('azure-account.noSubscriptionsFound', "No subscriptions were found. Set up your account at https://azure.microsoft.com/en-us/free/."), open);
-		if (response === open) {
-			void openUri('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account');
+	private async showNoSubscriptionsFoundNotification(): Promise<void> {
+		const noSubscriptionsFound = localize('azure-account.noSubscriptionsFound', 'No subscriptions were found. Check out our troubleshooting page for common solutions to this problem or setup your account.');
+		const openTroubleshooting = localize('azure-account.openTroubleshooting', 'Open Troubleshooting');
+		const setupAccount = localize('azure-account.setupAccount', 'Setup Account');
+		const response = await window.showInformationMessage(noSubscriptionsFound, openTroubleshooting, setupAccount);
+		if (response === openTroubleshooting) {
+			void openUri('https://aka.ms/AAevvhr');
+		} else if (response === setupAccount) {
+			void openUri('https://aka.ms/AAevntl');
 		}
 	}
 

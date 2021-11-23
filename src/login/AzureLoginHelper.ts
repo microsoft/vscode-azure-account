@@ -412,14 +412,14 @@ export class AzureLoginHelper {
 	}
 
 	private async showNoSubscriptionsFoundNotification(): Promise<void> {
-		const noSubscriptionsFound = localize('azure-account.noSubscriptionsFound', 'No subscriptions were found. Check out our troubleshooting page for common solutions to this problem or setup your account.');
-		const openTroubleshooting = localize('azure-account.openTroubleshooting', 'Open Troubleshooting');
+		const noSubscriptionsFound = localize('azure-account.noSubscriptionsFound', 'No subscriptions were found. Setup your account if you have yet to do so or check out our troubleshooting page for common solutions to this problem.');
 		const setupAccount = localize('azure-account.setupAccount', 'Setup Account');
-		const response = await window.showInformationMessage(noSubscriptionsFound, openTroubleshooting, setupAccount);
-		if (response === openTroubleshooting) {
+		const openTroubleshooting = localize('azure-account.openTroubleshooting', 'Open Troubleshooting');
+		const response = await window.showInformationMessage(noSubscriptionsFound, setupAccount, openTroubleshooting);
+		if (response === setupAccount) {
+			void openUri('https://aka.ms/AAeyf8k');
+		} else if (response === openTroubleshooting) {
 			void openUri('https://aka.ms/AAevvhr');
-		} else if (response === setupAccount) {
-			void openUri('https://aka.ms/AAevntl');
 		}
 	}
 

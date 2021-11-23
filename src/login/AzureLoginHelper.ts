@@ -11,12 +11,12 @@ import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azuree
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { authLibrarySetting, azureCustomCloud, azurePPE, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
+import { ext } from '../extensionVariables';
 import { listAll } from '../utils/arrayUtils';
 import { localize } from '../utils/localize';
 import { openUri } from '../utils/openUri';
 import { getAuthLibrary, getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
-import { AdalAuthProvider } from './adal/AdalAuthProvider';
 import { AuthProviderBase } from './AuthProviderBase';
 import { AzureAccountExtensionApi } from './AzureAccountExtensionApi';
 import { AzureAccountExtensionLegacyApi } from './AzureAccountExtensionLegacyApi';
@@ -24,7 +24,6 @@ import { AzureSessionInternal } from './AzureSessionInternal';
 import { getEnvironments, getSelectedEnvironment, isADFS } from './environments';
 import { addFilter, getNewFilters, removeFilter } from './filters';
 import { getKey } from './getKey';
-import { MsalAuthProvider } from './msal/MsalAuthProvider';
 import { checkRedirectServer } from './server';
 import { waitUntilOnline } from './waitUntilOnline';
 
@@ -36,8 +35,6 @@ const environmentLabels: Record<string, string> = {
 	[azureCustomCloud]: localize('azure-account.azureCustomCloud', 'Azure Custom Cloud'),
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
-
-const enableVerboseLogs: boolean = false;
 
 interface IAzureAccountWriteable extends AzureAccountExtensionApi {
 	status: AzureLoginStatus;
@@ -65,9 +62,6 @@ type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDevic
 export class AzureLoginHelper {
 	private oldResourceFilter: string = '';
 	private doLogin: boolean = false;
-	private adalAuthProvider: AdalAuthProvider;
-	private msalAuthProvider: MsalAuthProvider;
-	private authProvider: AdalAuthProvider | MsalAuthProvider;
 
 	public onStatusChanged: EventEmitter<AzureLoginStatus> = new EventEmitter<AzureLoginStatus>();
 	public onFiltersChanged: EventEmitter<void> = new EventEmitter<void>();
@@ -81,10 +75,6 @@ export class AzureLoginHelper {
 	public legacyApi: AzureAccountExtensionLegacyApi;
 
 	constructor(private context: ExtensionContext) {
-		this.adalAuthProvider = new AdalAuthProvider(enableVerboseLogs);
-		this.msalAuthProvider = new MsalAuthProvider(enableVerboseLogs);
-		this.authProvider = getAuthLibrary() === 'ADAL' ?  this.adalAuthProvider : this.msalAuthProvider;
-
 		this.api = new AzureAccountExtensionApi(this);
 		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
 
@@ -151,9 +141,9 @@ export class AzureLoginHelper {
 				const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
 				path = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
 				const loginResult = useCodeFlow ?
-					await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
-					await this.authProvider.loginWithDeviceCode(environment, tenantId);
-				await this.updateSessions(this.authProvider, environment, loginResult);
+					await ext.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
+					await ext.authProvider.loginWithDeviceCode(environment, tenantId);
+				await this.updateSessions(ext.authProvider, environment, loginResult);
 				await this.sendLoginTelemetry(context, trigger, path, environmentName, 'success', undefined, true);
 			} catch (err) {
 				if (err instanceof AzureLoginError && err.reason) {
@@ -247,8 +237,8 @@ export class AzureLoginHelper {
 				const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
 				await waitUntilOnline(environment, 5000);
 				this.beginLoggingIn();
-				const loginResult = await this.authProvider.loginSilent(environment, tenantId, migrateToken);
-				await this.updateSessions(this.authProvider, environment, loginResult);
+				const loginResult = await ext.authProvider.loginSilent(environment, tenantId, migrateToken);
+				await this.updateSessions(ext.authProvider, environment, loginResult);
 				void this.sendLoginTelemetry(context, trigger, 'tryExisting', environmentName, 'success', undefined, true);
 			} catch (err) {
 				await this.clearSessions(); // clear out cached data
@@ -270,7 +260,7 @@ export class AzureLoginHelper {
 		const cache: ISubscriptionCache | undefined = this.context.globalState.get(cacheKey);
 		if (cache) {
 			(<IAzureAccountWriteable>this.api).status = 'LoggedIn';
-			const sessions: Record<string, AzureSession> = await this.authProvider.initializeSessions(cache, this.api);
+			const sessions: Record<string, AzureSession> = await ext.authProvider.initializeSessions(cache, this.api);
 			const subscriptions: AzureSubscription[] = this.initializeSubscriptions(cache, sessions);
 			this.initializeFilters(subscriptions);
 		}
@@ -317,8 +307,8 @@ export class AzureLoginHelper {
 
 	private async clearSessions(): Promise<void> {
 		// Clear cache from all libraries: https://github.com/microsoft/vscode-azure-account/issues/309
-		await this.adalAuthProvider.clearTokenCache();
-		await this.msalAuthProvider.clearTokenCache();
+		await ext.adalAuthProvider.clearTokenCache();
+		await ext.msalAuthProvider.clearTokenCache();
 
 		const sessions: AzureSession[] = this.api.sessions;
 		sessions.length = 0;

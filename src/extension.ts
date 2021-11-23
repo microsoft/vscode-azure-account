@@ -12,16 +12,21 @@ import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
+import { AdalAuthProvider } from './login/adal/AdalAuthProvider';
 import { AzureLoginHelper } from './login/AzureLoginHelper';
 import { UriEventHandler } from './login/exchangeCodeForToken';
+import { MsalAuthProvider } from './login/msal/MsalAuthProvider';
 import { survey } from './nps';
 import { localize } from './utils/localize';
-import { getSettingValue } from './utils/settingUtils';
+import { getAuthLibrary, getSettingValue } from './utils/settingUtils';
 
 const enableLogging: boolean = false;
 
 export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
 	ext.context = context;
+	ext.adalAuthProvider = new AdalAuthProvider(enableLogging);
+	ext.msalAuthProvider = new MsalAuthProvider(enableLogging);
+	ext.authProvider = getAuthLibrary() === 'ADAL' ?  ext.adalAuthProvider : ext.msalAuthProvider;
 	ext.outputChannel = createAzExtOutputChannel(displayName, extensionPrefix);
 	ext.uriEventHandler = new UriEventHandler();
 	context.subscriptions.push(ext.outputChannel);

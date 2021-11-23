@@ -26,8 +26,6 @@ export const redirectUrlAAD: string = 'https://vscode-redirect.azurewebsites.net
 export const portADFS: number = 19472;
 export const redirectUrlADFS: string = `http://127.0.0.1:${portADFS}/callback`;
 
-export const msalScopes: string[] = ['user.read'];
-
 export const staticEnvironments: Environment[] = [
 	Environment.AzureCloud,
 	Environment.ChinaCloud,

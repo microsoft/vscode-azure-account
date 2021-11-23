@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as http from 'http';
 import * as request from 'request-promise';
 import * as WS from 'ws';
-import * as http from 'http';
-import { sendData, readJSON } from './ipc';
+import { readJSON, sendData } from './ipc';
 import HttpProxyAgent = require('http-proxy-agent');
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
 const HttpsProxyAgent = require('https-proxy-agent');

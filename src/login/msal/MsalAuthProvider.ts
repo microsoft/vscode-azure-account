@@ -7,7 +7,7 @@ import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceCodeResponse } from "@azure/msal-common";
 import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from "@azure/msal-node";
 import { AzureSession } from "../../azure-account.api";
-import { clientId, msalScopes } from "../../constants";
+import { clientId } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
@@ -15,6 +15,8 @@ import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../
 import { AzureSessionInternal } from "../AzureSessionInternal";
 import { cachePlugin } from "./cachePlugin";
 import { PublicClientCredential } from "./PublicClientCredential";
+
+const defaultScopes: string[] = ['https://management.core.windows.net/.default'];
 
 export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	private publicClientApp: PublicClientApplication;
@@ -39,7 +41,7 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 
 	public async loginWithAuthCode(code: string, redirectUrl: string): Promise<AuthenticationResult> {
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByCode({
-			scopes: msalScopes,
+			scopes: defaultScopes,
 			code,
 			redirectUri: redirectUrl,
 		});
@@ -53,7 +55,7 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 
 	public async loginWithDeviceCode(): Promise<AuthenticationResult> {
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByDeviceCode({
-			scopes: msalScopes,
+			scopes: defaultScopes,
 			deviceCodeCallback: (response: DeviceCodeResponse) => this.showDeviceCodeMessage(response.message, response.userCode, response.verificationUri)
 		});
 
@@ -64,14 +66,22 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		return authResult;
 	}
 
-	public async loginSilent(): Promise<AuthenticationResult> {
+	public async loginSilent(_environment: Environment, _tenantId: string, _migrateToken?: boolean, resource?: string): Promise<AuthenticationResult> {
 		const msalTokenCache: TokenCache = this.publicClientApp.getTokenCache();
 		const accountInfo: AccountInfo[] = await msalTokenCache.getAllAccounts();
 		let authResult: AuthenticationResult | null;
 
 		if (accountInfo.length === 1) {
+			let scopes = defaultScopes;
+
+			if (resource) {
+				// Convert the given resource to an MSAL scope
+				resource = resource.endsWith('/') ? resource : `${resource}/`;
+				scopes = [`${resource}.default`];
+			}
+
 			authResult = await this.publicClientApp.acquireTokenSilent({
-				scopes: msalScopes,
+				scopes,
 				account: accountInfo[0]
 			});
 

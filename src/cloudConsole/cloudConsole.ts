@@ -15,11 +15,11 @@ import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
 import { v4 as uuid } from 'uuid';
 import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, Uri, version, window } from 'vscode';
-import { callWithTelemetryAndErrorHandlingSync, IActionContext } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandlingSync, IActionContext, IParsedError, parseError } from 'vscode-azureextensionui';
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
-import { tokenFromRefreshToken } from '../login/adal/tokens';
+import { AbstractLoginResult, AuthProviderBase } from '../login/AuthProviderBase';
 import { localize } from '../utils/localize';
 import { Deferred } from '../utils/promiseUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
@@ -336,7 +336,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				}
 			}
 
-			let token: Token | undefined = undefined;
+			let session: AzureSession | undefined;
 			await api.waitForSubscriptions();
 			const sessions: AzureSession[] = [...new Set(api.subscriptions.map(subscription => subscription.session))]; // Only consider those with at least one subscription.
 			if (sessions.length > 1) {
@@ -373,13 +373,16 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 					updateStatus('Disconnected');
 					return;
 				}
-				token = await acquireToken(pick.session);
+				session = pick.session;
 			} else if (sessions.length === 1) {
-				token = await acquireToken(<AzureSession>sessions[0]);
+				session = sessions[0];
 			}
 
-			const result = token && await findUserSettings(token);
-			if (!result) {
+			const loginResult: AbstractLoginResult | undefined = session && await ext.authProvider.loginSilent(session.environment, session.tenantId);
+			const accessToken: string | undefined = loginResult && AuthProviderBase.getAccessTokenFromLoginResult(loginResult);
+			session = <AzureSession>session;
+			const userSettings = accessToken && await findUserSettings(accessToken, session);
+			if (!userSettings) {
 				serverQueue.push({ type: 'log', args: [localize('azure-account.setupNeeded', "Setup needed.")] });
 				await requiresSetUp(context);
 				serverQueue.push({ type: 'exit' });
@@ -387,26 +390,26 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				return;
 			}
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			deferredSession!.resolve(result.token.session);
+			deferredSession!.resolve(session);
 
 			// provision
 			let consoleUri: string;
-			const session: AzureSession = result.token.session;
-			const accessToken: string = result.token.accessToken;
 			const armEndpoint: string = session.environment.resourceManagerEndpointUrl;
 			const provisionTask: () => Promise<void> = async () => {
-				consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, OSes.Linux.id);
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+				consoleUri = await provisionConsole(accessToken!, armEndpoint, userSettings, OSes.Linux.id);
 				context.telemetry.properties.outcome = 'provisioned';
 			}
 			try {
 				serverQueue.push({ type: 'log', args: [localize('azure-account.requestingCloudConsole', "Requesting a Cloud Shell...")] });
 				await provisionTask();
 			} catch (err) {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-				if (err && err.message === Errors.DeploymentOsTypeConflict) {
+				const parsedError: IParsedError = parseError(err);
+				if (parsedError.message === Errors.DeploymentOsTypeConflict) {
 					const reset = await deploymentConflict(context, os);
 					if (reset) {
-						await resetConsole(accessToken, armEndpoint);
+						// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+						await resetConsole(accessToken!, armEndpoint);
 						return provisionTask();
 					} else {
 						serverQueue.push({ type: 'exit' });
@@ -419,17 +422,16 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 			}
 
 			// Additional tokens
-			const [graphToken, keyVaultToken] = await Promise.all([
-				tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
-				session.environment.keyVaultDnsSuffix
-					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-					? tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
-					: Promise.resolve(undefined)
-			]);
+			const graphLoginResult: AbstractLoginResult = await ext.authProvider.loginSilent(session.environment, session.tenantId, false, session.environment.activeDirectoryGraphResourceId);
+			const keyVaultLoginResult: AbstractLoginResult | undefined = session.environment.keyVaultDnsSuffix ?
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+				await ext.authProvider.loginSilent(session.environment, session.tenantId, false, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`) :
+				undefined;
 			const accessTokens: AccessTokens = {
-				resource: accessToken,
-				graph: graphToken.accessToken,
-				keyVault: keyVaultToken && keyVaultToken.accessToken
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+				resource: accessToken!,
+				graph: AuthProviderBase.getAccessTokenFromLoginResult(graphLoginResult),
+				keyVault: keyVaultLoginResult && AuthProviderBase.getAccessTokenFromLoginResult(keyVaultLoginResult)
 			};
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 			deferredTokens!.resolve(accessTokens);
@@ -479,11 +481,12 @@ async function waitForLoginStatus(api: AzureAccountExtensionApi): Promise<AzureL
 	});
 }
 
-async function findUserSettings(token: Token): Promise<{ userSettings: UserSettings; token: Token; } | undefined> {
-	const userSettings: UserSettings | undefined = await getUserSettings(token.accessToken, token.session.environment.resourceManagerEndpointUrl);
+async function findUserSettings(accessToken: string, session: AzureSession): Promise<UserSettings | undefined> {
+	const userSettings: UserSettings | undefined = await getUserSettings(accessToken, session.environment.resourceManagerEndpointUrl);
 	if (userSettings && userSettings.storageProfile) {
-		return { userSettings, token };
+		return userSettings;
 	}
+	return undefined;
 }
 
 async function requiresSetUp(context: IActionContext) {
@@ -520,35 +523,6 @@ async function deploymentConflict(context: IActionContext, os: OS) {
 	const reset: boolean = response === ok;
 	context.telemetry.properties.outcome = reset ? 'deploymentConflictReset' : 'deploymentConflictCancel';
 	return reset;
-}
-
-interface Token {
-	session: AzureSession;
-	accessToken: string;
-	refreshToken: string;
-}
-
-async function acquireToken(session: AzureSession): Promise<Token> {
-	return new Promise<Token>((resolve, reject) => {
-		/* eslint-disable @typescript-eslint/no-explicit-any */
-		const credentials: any = (<AzureSessionLegacy>session).credentials;
-		const environment: any = session.environment;
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-		credentials.context.acquireToken(environment.activeDirectoryResourceId, credentials.username, credentials.clientId, function (err: any, result: any) {
-		/* eslint-enable @typescript-eslint/no-explicit-any */
-			if (err) {
-				reject(err);
-			} else {
-				resolve({
-					session,
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-					accessToken: result.accessToken,
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-					refreshToken: result.refreshToken
-				});
-			}
-		});
-	});
 }
 
 interface TenantDetails {

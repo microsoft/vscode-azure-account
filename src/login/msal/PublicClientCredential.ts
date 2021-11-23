@@ -5,6 +5,7 @@
 
 import { AccessToken, TokenCredential } from "@azure/core-auth";
 import { AccountInfo, AuthenticationResult, PublicClientApplication } from "@azure/msal-node";
+import { defaultMsalScopes } from "../../constants";
 
 export class PublicClientCredential implements TokenCredential {
 	private publicClientApp: PublicClientApplication;
@@ -19,8 +20,8 @@ export class PublicClientCredential implements TokenCredential {
 		scopes = Array.isArray(scopes) ? scopes : [scopes];
 
 		if (scopes.length === 1 && scopes[0] === 'https://management.azure.com/.default') {
-			// The Azure Functions & App Service APIs only accept the legacy scope
-			scopes = ['https://management.core.windows.net/.default'];
+			// The Azure Functions & App Service APIs only accept the legacy scope (which is the default scope we use)
+			scopes = defaultMsalScopes;
 		}
 
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenSilent({

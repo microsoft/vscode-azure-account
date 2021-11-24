@@ -154,13 +154,13 @@ export class AzureLoginHelper {
 					await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
 					await this.authProvider.loginWithDeviceCode(environment, tenantId);
 				await this.updateSessions(this.authProvider, environment, loginResult);
-				await this.sendLoginTelemetry(context, trigger, path, environmentName, 'success', undefined, true);
+				void this.sendLoginTelemetry(context, trigger, path, environmentName, 'success', undefined, true);
 			} catch (err) {
 				if (err instanceof AzureLoginError && err.reason) {
 					console.error(err.reason);
-					await this.sendLoginTelemetry(context, trigger, path, environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
+					void this.sendLoginTelemetry(context, trigger, path, environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
 				} else {
-					await this.sendLoginTelemetry(context, trigger, path, environmentName, 'failure', getErrorMessage(err));
+					void this.sendLoginTelemetry(context, trigger, path, environmentName, 'failure', getErrorMessage(err));
 				}
 				throw err;
 			} finally {

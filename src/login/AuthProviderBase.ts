@@ -15,12 +15,12 @@ import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { localize } from "../utils/localize";
 import { openUri } from "../utils/openUri";
-import { ISubscriptionCache } from "./AzureLoginHelper";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { exchangeCodeForToken } from "./exchangeCodeForToken";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
+import { ISubscriptionCache } from "./subscriptionTypes";
 
 export type AbstractCredentials = DeviceTokenCredentials;
 export type AbstractCredentials2 = DeviceTokenCredentials2 | TokenCredential;

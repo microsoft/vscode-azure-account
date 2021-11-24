@@ -14,7 +14,7 @@ import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
-import { getUserCode } from "./login";
+import { getUserCode } from "./getUserCode";
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
 const staticEnvironmentNames: string[] = [

@@ -7,7 +7,7 @@ import { Disposable, Event } from 'vscode';
 import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
 import * as types from '../azure-account.api';
 import { createCloudConsole, OSName } from '../cloudConsole/cloudConsole';
-import { AzureLoginHelper } from './AzureLoginHelper';
+import { AzureAccountLoginHelper } from './AzureLoginHelper';
 
 export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi {
 	public apiVersion: string = '1.0.0';
@@ -22,11 +22,11 @@ export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi 
 	public onSessionsChanged: Event<void>;
 	public onSubscriptionsChanged: Event<void>;
 
-	constructor(public azureLoginHelper: AzureLoginHelper) {
-		this.onStatusChanged = azureLoginHelper.onStatusChanged.event;
-		this.onFiltersChanged = azureLoginHelper.onFiltersChanged.event;
-		this.onSessionsChanged = azureLoginHelper.onSessionsChanged.event;
-		this.onSubscriptionsChanged = azureLoginHelper.onSubscriptionsChanged.event;
+	constructor(public loginHelper: AzureAccountLoginHelper) {
+		this.onStatusChanged = loginHelper.onStatusChanged.event;
+		this.onFiltersChanged = loginHelper.onFiltersChanged.event;
+		this.onSessionsChanged = loginHelper.onSessionsChanged.event;
+		this.onSubscriptionsChanged = loginHelper.onSubscriptionsChanged.event;
 	}
 
 	public async waitForFilters(isLegacyApi?: boolean): Promise<boolean> {
@@ -36,7 +36,7 @@ export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi 
 			if (!(await this.waitForSubscriptions())) {
 				return false;
 			}
-			await this.azureLoginHelper.filtersTask;
+			await this.loginHelper.filtersTask;
 			return true;
 		}) || false;
 	}
@@ -72,7 +72,7 @@ export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi 
 			if (!(await this.waitForLogin())) {
 				return false;
 			}
-			await this.azureLoginHelper.subscriptionsTask;
+			await this.loginHelper.subscriptionsTask;
 			return true;
 		}) || false;
 	}

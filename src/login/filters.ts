@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AzureResourceFilter, AzureSubscription } from "../azure-account.api";
-import { ISubscriptionItem } from "./AzureLoginHelper";
+import { ISubscriptionItem } from "./subscriptionTypes";
 
 export function addFilter(resourceFilter: string[], item: ISubscriptionItem): void {
 	const { session, subscription } = item.subscription;

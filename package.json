@@ -70,7 +70,7 @@
             {
                 "command": "azure-account.reportIssue",
                 "title": "%azure-account.commands.reportIssue%",
-                "category": "%azure-account.commands.azure-account%"
+                "category": "%azure-account.commands.azureAccount%"
             },
             {
                 "command": "azure-account.selectSubscriptions",

@@ -375,7 +375,7 @@ export class AzureLoginHelper {
 					if (!s.length) {
 						context.telemetry.properties.outcome = 'noSubscriptionsFound';
 						source.cancel();
-						this.showNoSubscriptionsFoundNotification()
+						this.showNoSubscriptionsFoundNotification(context)
 							.catch(console.error);
 					}
 					return s;
@@ -411,14 +411,16 @@ export class AzureLoginHelper {
 		});
 	}
 
-	private async showNoSubscriptionsFoundNotification(): Promise<void> {
+	private async showNoSubscriptionsFoundNotification(context: IActionContext): Promise<void> {
 		const noSubscriptionsFound = localize('azure-account.noSubscriptionsFound', 'No subscriptions were found. Setup your account if you have yet to do so or check out our troubleshooting page for common solutions to this problem.');
 		const setupAccount = localize('azure-account.setupAccount', 'Setup Account');
 		const openTroubleshooting = localize('azure-account.openTroubleshooting', 'Open Troubleshooting');
 		const response = await window.showInformationMessage(noSubscriptionsFound, setupAccount, openTroubleshooting);
 		if (response === setupAccount) {
+			context.telemetry.properties.setupAccount = 'true';
 			void openUri('https://aka.ms/AAeyf8k');
 		} else if (response === openTroubleshooting) {
+			context.telemetry.properties.openTroubleshooting = 'true';
 			void openUri('https://aka.ms/AAevvhr');
 		}
 	}

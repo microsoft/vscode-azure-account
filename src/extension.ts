@@ -6,7 +6,7 @@
 import { createReadStream } from 'fs';
 import { basename } from 'path';
 import { CancellationToken, commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, createExperimentationService, IActionContext, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, createExperimentationService, IActionContext, registerReportIssueCommand, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
@@ -50,6 +50,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(ext.loginHelper.api, uri)));
 		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptions));
 		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
+		registerReportIssueCommand('azure-account.reportIssue');
 
 		window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
 			provideTerminalProfile: (token: CancellationToken) => {

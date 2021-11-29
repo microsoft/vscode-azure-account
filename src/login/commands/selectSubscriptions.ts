@@ -33,7 +33,7 @@ export async function selectSubscriptions(): Promise<unknown> {
 				if (!s.length) {
 					context.telemetry.properties.outcome = 'noSubscriptionsFound';
 					source.cancel();
-					showNoSubscriptionsFoundNotification();
+					showNoSubscriptionsFoundNotification(context);
 				}
 				return s;
 			});
@@ -87,14 +87,16 @@ async function updateConfiguration(azureConfig: WorkspaceConfiguration, resource
 	await azureConfig.update(resourceFilterSetting, resourceFilter[0] !== 'all' ? resourceFilter : undefined, target);
 }
 
-function showNoSubscriptionsFoundNotification(): void {
+function showNoSubscriptionsFoundNotification(context: IActionContext): void {
 	const noSubscriptionsFound = localize('azure-account.noSubscriptionsFound', 'No subscriptions were found. Setup your account if you have yet to do so or check out our troubleshooting page for common solutions to this problem.');
 	const setupAccount = localize('azure-account.setupAccount', 'Setup Account');
 	const openTroubleshooting = localize('azure-account.openTroubleshooting', 'Open Troubleshooting');
 	void window.showInformationMessage(noSubscriptionsFound, setupAccount, openTroubleshooting).then(response => {
 		if (response === setupAccount) {
+			context.telemetry.properties.setupAccount = 'true';
 			void openUri('https://aka.ms/AAeyf8k');
 		} else if (response === openTroubleshooting) {
+			context.telemetry.properties.openTroubleshooting = 'true';
 			void openUri('https://aka.ms/AAevvhr');
 		}
 	});

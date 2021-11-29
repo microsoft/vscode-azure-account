@@ -22,6 +22,7 @@ import { ext } from '../extensionVariables';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
 import { localize } from '../utils/localize';
 import { Deferred } from '../utils/promiseUtils';
+import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
 import { CloudShellInternal } from './CloudShellInternal';
 import { createServer, Queue, readJSON, Server } from './ipc';
@@ -318,6 +319,11 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 			}
 
 			liveServerQueue = serverQueue;
+
+			if (getAuthLibrary() === 'MSAL') {
+				serverQueue.push({ type: 'log', args: [localize('azure-account.doesNotSupportMsal', 'Cloud Shell does not currently support authenticating with MSAL. Please set the "azure.authenticationLibrary" setting to "ADAL" and try again.')] });
+				return;
+			}
 
 			const loginStatus: AzureLoginStatus = await waitForLoginStatus(api);
 			if (loginStatus !== 'LoggedIn') {

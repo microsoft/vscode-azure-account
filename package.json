@@ -7,12 +7,14 @@
     "repository": {
         "url": "https://github.com/microsoft/vscode-azure-account.git"
     },
-    "homepage": "https://github.com/Microsoft/vscode-azure-account/blob/master/README.md",
+    "bugs": {
+        "url": "https://github.com/microsoft/vscode-azure-account/issues"
+    },
+    "homepage": "https://github.com/Microsoft/vscode-azure-account/blob/main/README.md",
     "galleryBanner": {
         "color": "#0072c6",
         "theme": "dark"
     },
-    "enableProposedApi": true,
     "version": "0.9.12-alpha",
     "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
     "publisher": "ms-vscode",
@@ -31,6 +33,7 @@
         "onCommand:azure-account.loginToCloud",
         "onCommand:azure-account.loginWithDeviceCode",
         "onCommand:azure-account.logout",
+        "onCommand:azure-account.reportIssue",
         "onCommand:azure-account.selectSubscriptions",
         "onCommand:azure-account.uploadFileCloudConsole",
         "onTerminalProfile:azure-account.cloudShellBash",
@@ -63,6 +66,11 @@
                 "command": "azure-account.logout",
                 "title": "%azure-account.commands.logout%",
                 "category": "%azure-account.commands.azure%"
+            },
+            {
+                "command": "azure-account.reportIssue",
+                "title": "%azure-account.commands.reportIssue%",
+                "category": "%azure-account.commands.azureAccount%"
             },
             {
                 "command": "azure-account.selectSubscriptions",

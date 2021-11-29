@@ -7,7 +7,7 @@ import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceCodeResponse } from "@azure/msal-common";
 import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from "@azure/msal-node";
 import { AzureSession } from "../../azure-account.api";
-import { clientId, msalScopes } from "../../constants";
+import { clientId, defaultMsalScopes } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
@@ -39,7 +39,7 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 
 	public async loginWithAuthCode(code: string, redirectUrl: string): Promise<AuthenticationResult> {
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByCode({
-			scopes: msalScopes,
+			scopes: defaultMsalScopes,
 			code,
 			redirectUri: redirectUrl,
 		});
@@ -53,7 +53,7 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 
 	public async loginWithDeviceCode(): Promise<AuthenticationResult> {
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByDeviceCode({
-			scopes: msalScopes,
+			scopes: defaultMsalScopes,
 			deviceCodeCallback: (response: DeviceCodeResponse) => this.showDeviceCodeMessage(response.message, response.userCode, response.verificationUri)
 		});
 
@@ -71,7 +71,7 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 
 		if (accountInfo.length === 1) {
 			authResult = await this.publicClientApp.acquireTokenSilent({
-				scopes: msalScopes,
+				scopes: defaultMsalScopes,
 				account: accountInfo[0]
 			});
 

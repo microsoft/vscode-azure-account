@@ -33,6 +33,7 @@
         "onCommand:azure-account.loginToCloud",
         "onCommand:azure-account.loginWithDeviceCode",
         "onCommand:azure-account.logout",
+        "onCommand:azure-account.reportIssue",
         "onCommand:azure-account.selectSubscriptions",
         "onCommand:azure-account.uploadFileCloudConsole",
         "onTerminalProfile:azure-account.cloudShellBash",
@@ -65,6 +66,11 @@
                 "command": "azure-account.logout",
                 "title": "%azure-account.commands.logout%",
                 "category": "%azure-account.commands.azure%"
+            },
+            {
+                "command": "azure-account.reportIssue",
+                "title": "%azure-account.commands.reportIssue%",
+                "category": "%azure-account.commands.azure-account%"
             },
             {
                 "command": "azure-account.selectSubscriptions",

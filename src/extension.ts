@@ -12,8 +12,13 @@ import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
-import { AzureLoginHelper } from './login/AzureLoginHelper';
+import { AzureAccountLoginHelper } from './login/AzureLoginHelper';
+import { askForLogin } from './login/commands/askForLogin';
+import { loginToCloud } from './login/commands/loginToCloud';
+import { selectSubscriptions } from './login/commands/selectSubscriptions';
 import { UriEventHandler } from './login/exchangeCodeForToken';
+import { updateFilters } from './login/updateFilters';
+import { updateSubscriptions } from './login/updateSubscriptions';
 import { survey } from './nps';
 import { localize } from './utils/localize';
 import { getSettingValue } from './utils/settingUtils';
@@ -22,13 +27,12 @@ const enableLogging: boolean = false;
 
 export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
 	ext.context = context;
+	ext.loginHelper = new AzureAccountLoginHelper(context);
 	ext.outputChannel = createAzExtOutputChannel(displayName, extensionPrefix);
 	ext.uriEventHandler = new UriEventHandler();
 	context.subscriptions.push(ext.outputChannel);
 	context.subscriptions.push(window.registerUriHandler(ext.uriEventHandler));
 	registerUIExtensionVariables(ext);
-
-	const azureLoginHelper: AzureLoginHelper = new AzureLoginHelper(context);
 
 	await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
 		activateContext.telemetry.properties.isActivationEvent = 'true';
@@ -36,21 +40,26 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 
 		await migrateEnvironmentSetting();
 		if (enableLogging) {
-			logDiagnostics(context, azureLoginHelper.api);
+			logDiagnostics(context, ext.loginHelper.api);
 		}
-		context.subscriptions.push(createStatusBarItem(context, azureLoginHelper.api));
+		context.subscriptions.push(createStatusBarItem(context, ext.loginHelper.api));
+		context.subscriptions.push(commands.registerCommand('azure-account.loginToCloud', loginToCloud));
+		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', selectSubscriptions));
+		context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', askForLogin));
 		context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-		context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(azureLoginHelper.api, uri)));
+		context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(ext.loginHelper.api, uri)));
+		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptions));
+		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
 		registerReportIssueCommand('azure-account.reportIssue');
 
 		window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
 			provideTerminalProfile: (token: CancellationToken) => {
-				return createCloudConsole(azureLoginHelper.api, 'Linux', token).terminalProfile;
+				return createCloudConsole(ext.loginHelper.api, 'Linux', token).terminalProfile;
 			}
 		});
 		window.registerTerminalProfileProvider('azure-account.cloudShellPowerShell', {
 			provideTerminalProfile: (token: CancellationToken) => {
-				return createCloudConsole(azureLoginHelper.api, 'Windows', token).terminalProfile;
+				return createCloudConsole(ext.loginHelper.api, 'Windows', token).terminalProfile;
 			}
 		});
 
@@ -59,7 +68,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		ext.experimentationService = await createExperimentationService(context);
 	});
 
-	return Object.assign(azureLoginHelper.legacyApi, createApiProvider([azureLoginHelper.api]));
+	return Object.assign(ext.loginHelper.legacyApi, createApiProvider([ext.loginHelper.api]));
 }
 
 async function migrateEnvironmentSetting() {

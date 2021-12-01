@@ -11,6 +11,7 @@ import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { env, MessageItem, UIKind, Uri, window } from "vscode";
+import { parseError } from "vscode-azureextensionui";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { localize } from "../utils/localize";
@@ -94,8 +95,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 					serverResponse.end();
 				}
 			} catch (err) {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-				serverResponse.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
+				serverResponse.writeHead(302, { Location: `/?error=${encodeURIComponent(parseError(err).message || 'Unknown error')}` });
 				serverResponse.end();
 				throw err;
 			}

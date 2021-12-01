@@ -15,7 +15,7 @@ import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
 import { v4 as uuid } from 'uuid';
 import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, Uri, version, window } from 'vscode';
-import { callWithTelemetryAndErrorHandlingSync, IActionContext } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandlingSync, IActionContext, parseError } from 'vscode-azureextensionui';
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
@@ -408,8 +408,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				serverQueue.push({ type: 'log', args: [localize('azure-account.requestingCloudConsole', "Requesting a Cloud Shell...")] });
 				await provisionTask();
 			} catch (err) {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-				if (err && err.message === Errors.DeploymentOsTypeConflict) {
+				if (parseError(err).message === Errors.DeploymentOsTypeConflict) {
 					const reset = await deploymentConflict(context, os);
 					if (reset) {
 						await resetConsole(accessToken, armEndpoint);

@@ -19,6 +19,7 @@ jobs:
   steps:
   - template: common/build.yml
   - template: common/package.yml
+  - template: common/sbom.yml # only generate on linux
   - template: common/lint.yml
 
 - job: macOS

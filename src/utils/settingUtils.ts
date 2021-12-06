@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, WorkspaceConfiguration } from "vscode";
-import { AuthLibrary, authLibrarySetting, extensionPrefix } from "../constants";
+import { extensionPrefix } from "../constants";
 
 export function getSettingWithPrefix(settingName: string): string {
 	return `${extensionPrefix}.${settingName}`;
@@ -13,8 +13,4 @@ export function getSettingWithPrefix(settingName: string): string {
 export function getSettingValue<T>(settingName: string): T | undefined {
 	const config: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
 	return config.get(settingName);
-}
-
-export function getAuthLibrary(): AuthLibrary {
-	return getSettingValue<AuthLibrary>(authLibrarySetting) || 'ADAL';
 }

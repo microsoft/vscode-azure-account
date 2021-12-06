@@ -225,7 +225,7 @@
                         "Azure Active Directory Authentication Library",
                         "Microsoft Authentication Library (Preview)"
                     ],
-                    "description": "The authentication library to use. Note: You must sign out and reload the window after modifying this setting for it to take effect."
+                    "description": "The authentication library to use. The extension will choose a library for you if this setting is left blank. Note: You must sign out and reload the window after modifying this setting for it to take effect."
                 }
             }
         }

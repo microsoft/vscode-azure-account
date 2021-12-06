@@ -20,9 +20,9 @@ import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, C
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
+import { getAuthLibrary } from '../login/getAuthLibrary';
 import { localize } from '../utils/localize';
 import { Deferred } from '../utils/promiseUtils';
-import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
 import { CloudShellInternal } from './CloudShellInternal';
 import { createServer, Queue, readJSON, Server } from './ipc';

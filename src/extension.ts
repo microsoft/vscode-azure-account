@@ -27,7 +27,6 @@ const enableLogging: boolean = false;
 
 export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
 	ext.context = context;
-	ext.loginHelper = new AzureAccountLoginHelper(context);
 	ext.outputChannel = createAzExtOutputChannel(displayName, extensionPrefix);
 	ext.uriEventHandler = new UriEventHandler();
 	context.subscriptions.push(ext.outputChannel);
@@ -37,6 +36,10 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 	await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
 		activateContext.telemetry.properties.isActivationEvent = 'true';
 		activateContext.telemetry.properties.activationTime = String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000);
+
+		ext.experimentationService = await createExperimentationService(context);
+		ext.isMsalTreatmentVariable = await ext.experimentationService.getCachedTreatmentVariable('azure-account.isMsal');
+		ext.loginHelper = new AzureAccountLoginHelper(context);
 
 		await migrateEnvironmentSetting();
 		if (enableLogging) {
@@ -64,8 +67,6 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		});
 
 		await survey(context);
-
-		ext.experimentationService = await createExperimentationService(context);
 	});
 
 	return Object.assign(ext.loginHelper.legacyApi, createApiProvider([ext.loginHelper.api]));

@@ -11,7 +11,7 @@ import { authLibrarySetting, cacheKey, clientId, cloudSetting, commonTenantId, c
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { localize } from '../utils/localize';
 import { openUri } from '../utils/openUri';
-import { getAuthLibrary, getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
+import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
 import { AuthProviderBase } from './AuthProviderBase';
@@ -19,6 +19,7 @@ import { AzureAccountExtensionApi } from './AzureAccountExtensionApi';
 import { AzureAccountExtensionLegacyApi } from './AzureAccountExtensionLegacyApi';
 import { getSelectedEnvironment, isADFS } from './environments';
 import { getNewFilters } from './filters';
+import { getAuthLibrary } from './getAuthLibrary';
 import { getKey } from './getKey';
 import { MsalAuthProvider } from './msal/MsalAuthProvider';
 import { checkRedirectServer } from './server';

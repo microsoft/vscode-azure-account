@@ -9,8 +9,7 @@ import { ext } from "../extensionVariables";
 import { getSettingValue } from "../utils/settingUtils";
 
 export function getAuthLibrary(): AuthLibrary {
-	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-	return (callWithTelemetryAndErrorHandlingSync('getAuthLibrary', (context: IActionContext) => {
+	return callWithTelemetryAndErrorHandlingSync('getAuthLibrary', (context: IActionContext) => {
 		let authLibrary: AuthLibrary | undefined = getSettingValue<AuthLibrary>(authLibrarySetting);
 
 		switch (authLibrary) {
@@ -30,5 +29,5 @@ export function getAuthLibrary(): AuthLibrary {
 		}
 
 		return authLibrary;
-	}))!;
+	}) as AuthLibrary;
 }

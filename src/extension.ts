@@ -55,16 +55,16 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
 		registerReportIssueCommand('azure-account.reportIssue');
 
-		window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
+		context.subscriptions.push(window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
 			provideTerminalProfile: (token: CancellationToken) => {
 				return createCloudConsole(ext.loginHelper.api, 'Linux', token).terminalProfile;
 			}
-		});
-		window.registerTerminalProfileProvider('azure-account.cloudShellPowerShell', {
+		}));
+		context.subscriptions.push(window.registerTerminalProfileProvider('azure-account.cloudShellPowerShell', {
 			provideTerminalProfile: (token: CancellationToken) => {
 				return createCloudConsole(ext.loginHelper.api, 'Windows', token).terminalProfile;
 			}
-		});
+		}));
 
 		await survey(context);
 	});

@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
 import * as request from 'request-promise';
 import * as WS from 'ws';
-import { ext } from '../extensionVariables';
-import { localize } from '../utils/localize';
-import { logErrorMessage } from '../utils/logErrorMessage';
-import { readJSON, sendData } from './ipc';
+import * as http from 'http';
+import { sendData, readJSON } from './ipc';
 import HttpProxyAgent = require('http-proxy-agent');
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
 const HttpsProxyAgent = require('https-proxy-agent');
@@ -243,9 +240,9 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.statusCode !== 503 && response.statusCode !== 504 && response.body && response.body.error) {
 				if (response.body && response.body.error && response.body.error.message) {
-					ext.outputChannel.appendLog(`${response.body.error.message} (${response.statusCode})`);
+					console.log(`${response.body.error.message} (${response.statusCode})`);
 				} else {
-					ext.outputChannel.appendLog(`${response.statusCode} ${response.headers} ${response.body}`);
+					console.log(response.statusCode, response.headers, response.body);
 				}
 				break;
 			}
@@ -257,7 +254,7 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 		return;
 	}
 
-	ext.outputChannel.appendLog(localize('azure-account.resizeFail', 'Failed to resize terminal.'));
+	console.log('Failed to resize terminal.');
 }
 
 function connectSocket(ipcHandle: string, url: string) {
@@ -274,7 +271,9 @@ function connectSocket(ipcHandle: string, url: string) {
 		});
 		startKeepAlive();
 		sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Connected' } ]))
-			.catch(logErrorMessage);
+			.catch(err => {
+				console.error(err);
+			});
 	});
 
 	ws.on('message', function (data) {
@@ -284,13 +283,15 @@ function connectSocket(ipcHandle: string, url: string) {
 	let error = false;
 	ws.on('error', function (event) {
 		error = true;
-		ext.outputChannel.appendLog(localize('azure-account.socketError', 'Socket error: ' + JSON.stringify(event)));
+		console.error('Socket error: ' + JSON.stringify(event));
 	});
 
 	ws.on('close', function () {
-		ext.outputChannel.appendLog(localize('azure-account.socketClosed', 'Socket closed'));
+		console.log('Socket closed');
 		sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Disconnected' } ]))
-			.catch(logErrorMessage);
+			.catch(err => {
+				console.error(err);
+			});
 		if (!error) {
 			process.exit(0);
 		}
@@ -304,7 +305,7 @@ function connectSocket(ipcHandle: string, url: string) {
 		const timer = setInterval(() => {
 			if (isAlive === false) {
 				error = true;
-				ext.outputChannel.appendLog(localize('azure-account.socketTimeout', 'Socket timeout'));
+				console.log('Socket timeout');
 				ws.terminate();
 				clearInterval(timer);
 			} else {
@@ -337,7 +338,7 @@ export function main() {
 			for (const message of await readJSON<any>(res)) {
 				/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 				if (message.type === 'log') {
-					Array.isArray(message.args) && ext.outputChannel.appendLog((<string[]>message.args).join(' '));
+					console.log(...message.args);
 				} else if (message.type === 'connect') {
 					try {
 						const accessTokens: AccessTokens = message.accessTokens;
@@ -345,12 +346,14 @@ export function main() {
 						connectSocket(ipcHandle, consoleUris.socketUri);
 						process.stdout.on('resize', () => {
 							resize(accessTokens, consoleUris.terminalUri)
-								.catch(logErrorMessage);
+								.catch(console.error);
 						});
 					} catch(err) {
-						logErrorMessage(err);
+						console.error(err);
 						sendData(ipcHandle, JSON.stringify([ { type: 'status', status: 'Disconnected' } ]))
-							.catch(logErrorMessage);
+							.catch(err => {
+								console.error(err);
+							});
 					}
 				} else if (message.type === 'exit') {
 					process.exit(message.code);
@@ -359,5 +362,5 @@ export function main() {
 			}
 		}
 	})()
-		.catch(logErrorMessage);
+		.catch(console.error);
 }

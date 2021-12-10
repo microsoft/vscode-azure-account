@@ -7,6 +7,7 @@ import { Environment } from "@azure/ms-rest-azure-env";
 import * as http from 'http';
 import * as https from 'https';
 import { CancellationTokenSource } from "vscode";
+import { logErrorMessage } from "../utils/logErrorMessage";
 import { delay } from "../utils/timeUtils";
 
 export async function waitUntilOnline(environment: Environment, interval: number, token = new CancellationTokenSource().token): Promise<void> {
@@ -28,7 +29,7 @@ async function checkIsOnline(environment: Environment): Promise<boolean> {
 		});
 		return true;
 	} catch (err) {
-		console.warn(err);
+		logErrorMessage(err);
 		return false;
 	}
 }

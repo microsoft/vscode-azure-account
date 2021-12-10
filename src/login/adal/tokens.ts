@@ -12,6 +12,7 @@ import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { listAll } from "../../utils/arrayUtils";
 import { localize } from "../../utils/localize";
+import { logErrorMessage } from "../../utils/logErrorMessage";
 import { isADFS } from "../environments";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, import/no-internal-modules
@@ -112,7 +113,8 @@ export async function tokensFromToken(environment: Environment, firstTokenRespon
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		return tokenFromRefreshToken(environment, firstTokenResponse.refreshToken!, tenant.tenantId!)
 			.catch(err => {
-				console.error(err instanceof AzureLoginError && err.reason ? err.reason : err);
+				logErrorMessage(err);
+				err instanceof AzureLoginError && err.reason && ext.outputChannel.appendLog(err.reason);
 				return null;
 			});
 	}))).filter(r => r);

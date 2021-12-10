@@ -12,6 +12,7 @@ import { parse, ParsedUrlQuery } from 'querystring';
 import * as url from 'url';
 import { portADFS, redirectUrlAAD } from '../constants';
 import { ext } from '../extensionVariables';
+import { logErrorMessage } from '../utils/logErrorMessage';
 import { Deferred } from '../utils/promiseUtils';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,8 +35,8 @@ export async function checkRedirectServer(isAdfs: boolean): Promise<boolean> {
 			const location: string | string[] | undefined = key && res.headers[key]
 			resolve(res.statusCode === 302 && typeof location === 'string' && location.startsWith('http://127.0.0.1:3333/callback'));
 		});
-		req.on('error', err => {
-			console.error(err);
+		req.on('error', error => {
+			logErrorMessage(error);
 			resolve(false);
 		});
 		req.on('close', () => {
@@ -161,7 +162,7 @@ export async function startServer(server: http.Server, adfs: boolean): Promise<n
 function sendFile(res: http.ServerResponse, filepath: string, contentType: string): void {
 	fs.readFile(filepath, (err, body) => {
 		if (err) {
-			console.error(err);
+			logErrorMessage(err);
 		} else {
 			res.writeHead(200, {
 				'Content-Length': body.length,

@@ -21,6 +21,7 @@ import { updateFilters } from './login/updateFilters';
 import { updateSubscriptions } from './login/updateSubscriptions';
 import { survey } from './nps';
 import { localize } from './utils/localize';
+import { logErrorMessage } from './utils/logErrorMessage';
 import { getSettingValue } from './utils/settingUtils';
 
 const enableLogging: boolean = false;
@@ -126,32 +127,32 @@ function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
 			});
 		}
 	})()
-		.catch(console.error);
+		.catch(logErrorMessage);
 }
 
 function logDiagnostics(context: ExtensionContext, api: AzureAccountExtensionApi) {
 	const subscriptions = context.subscriptions;
 	subscriptions.push(api.onStatusChanged(status => {
-		console.log(`onStatusChanged: ${status}`);
+		ext.outputChannel.appendLog(`onStatusChanged: ${status}`);
 	}));
 	subscriptions.push(api.onSessionsChanged(() => {
-		console.log(`onSessionsChanged: ${api.sessions.length} ${api.status}`);
+		ext.outputChannel.appendLog(`onSessionsChanged: ${api.sessions.length} ${api.status}`);
 	}));
 	(async () => {
-		console.log(`waitForLogin: ${await api.waitForLogin()} ${api.status}`);
-	})().catch(console.error);
+		ext.outputChannel.appendLog(`waitForLogin: ${await api.waitForLogin()} ${api.status}`);
+	})().catch(logErrorMessage);
 	subscriptions.push(api.onSubscriptionsChanged(() => {
-		console.log(`onSubscriptionsChanged: ${api.subscriptions.length}`);
+		ext.outputChannel.appendLog(`onSubscriptionsChanged: ${api.subscriptions.length}`);
 	}));
 	(async () => {
-		console.log(`waitForSubscriptions: ${await api.waitForSubscriptions()} ${api.subscriptions.length}`);
-	})().catch(console.error);
+		ext.outputChannel.appendLog(`waitForSubscriptions: ${await api.waitForSubscriptions()} ${api.subscriptions.length}`);
+	})().catch(logErrorMessage);
 	subscriptions.push(api.onFiltersChanged(() => {
-		console.log(`onFiltersChanged: ${api.filters.length}`);
+		ext.outputChannel.appendLog(`onFiltersChanged: ${api.filters.length}`);
 	}));
 	(async () => {
-		console.log(`waitForFilters: ${await api.waitForFilters()} ${api.filters.length}`);
-	})().catch(console.error);
+		ext.outputChannel.appendLog(`waitForFilters: ${await api.waitForFilters()} ${api.filters.length}`);
+	})().catch(logErrorMessage);
 }
 
 function createAccount() {

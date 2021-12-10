@@ -9,6 +9,7 @@ import * as crypto from 'crypto';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
+import { logErrorMessage } from '../utils/logErrorMessage';
 
 export async function createServer(ipcHandlePrefix: string, onRequest: http.RequestListener): Promise<Server> {
 	const buffer = await randomBytes(20);
@@ -26,10 +27,9 @@ export class Server {
 	constructor(public ipcHandlePath: string, onRequest: http.RequestListener) {
 		this.server = http.createServer((req, res) => {
 			Promise.resolve(onRequest(req, res))
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-				.catch((err) => console.error(err && err.message || err));
+				.catch(logErrorMessage);
 		});
-		this.server.on('error', err => console.error(err));
+		this.server.on('error', logErrorMessage);
 	}
 
 	listen(): void {

@@ -15,13 +15,14 @@ import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
 import { v4 as uuid } from 'uuid';
 import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, Uri, version, window } from 'vscode';
-import { callWithTelemetryAndErrorHandlingSync, IActionContext, parseError } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandlingSync, IActionContext, IParsedError, parseError } from 'vscode-azureextensionui';
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
 import { getAuthLibrary } from '../login/getAuthLibrary';
 import { localize } from '../utils/localize';
+import { logErrorMessage } from '../utils/logErrorMessage';
 import { Deferred } from '../utils/promiseUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
 import { CloudShellInternal } from './CloudShellInternal';
@@ -233,7 +234,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 					if (message.type === 'poll') {
 						dequeue = true;
 					} else if (message.type === 'log') {
-						console.log(...message.args);
+						Array.isArray(message.args) && ext.outputChannel.appendLog((<string[]>message.args).join(' '));
 					} else if (message.type === 'size') {
 						deferredInitialSize.resolve(message.size);
 					} else if (message.type === 'status') {
@@ -353,7 +354,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 					tenantDetails: TenantDetails;
 				} | undefined)[]> = Promise.all(sessions.map(session => fetchTenantDetails(<AzureSession>session)
 					.catch(err => {
-						console.error(err);
+						logErrorMessage(err);
 						return undefined;
 					})))
 					.then(tenantDetails => tenantDetails.filter(details => details));
@@ -458,15 +459,15 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				consoleUris
 			});
 		})().catch(err => {
-			/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-			console.error(err && err.stack || err);
+			const parsedError: IParsedError = parseError(err);
+			ext.outputChannel.appendLog(parsedError.message);
+			parsedError.stack && ext.outputChannel.appendLog(parsedError.stack);
 			updateStatus('Disconnected');
 			context.telemetry.properties.outcome = 'error';
-			context.telemetry.properties.message = String(err && err.message || err);
+			context.telemetry.properties.message = parsedError.message;
 			if (liveServerQueue) {
-				liveServerQueue.push({ type: 'log', args: [localize('azure-account.error', "Error: {0}", String(err && err.message || err))] });
+				liveServerQueue.push({ type: 'log', args: [localize('azure-account.error', "Error: {0}", parsedError.message)] });
 			}
-			/* eslint-enable @typescript-eslint/no-unsafe-member-access */
 		});
 		return state;
 	}))!;

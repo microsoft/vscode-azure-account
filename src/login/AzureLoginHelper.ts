@@ -9,7 +9,9 @@ import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azuree
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { authLibrarySetting, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
+import { ext } from '../extensionVariables';
 import { localize } from '../utils/localize';
+import { logErrorMessage } from '../utils/logErrorMessage';
 import { openUri } from '../utils/openUri';
 import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
@@ -62,15 +64,15 @@ export class AzureAccountLoginHelper {
 		this.api = new AzureAccountExtensionApi(this);
 		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
 
-		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(console.error)));
-		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(console.error)));
-		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(console.error)));
+		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(logErrorMessage)));
+		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(logErrorMessage)));
+		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(logErrorMessage)));
 		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
 				const doLogin: boolean = this.doLogin;
 				this.doLogin = false;
 				this.initialize(e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
-					.catch(console.error);
+					.catch(logErrorMessage);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				updateFilters(true);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting))) {
@@ -85,7 +87,7 @@ export class AzureAccountLoginHelper {
 			}
 		}));
 		this.initialize('activation', false, true)
-			.catch(console.error);
+			.catch(logErrorMessage);
 	}
 
 	public async login(trigger: LoginTrigger): Promise<void> {
@@ -126,7 +128,7 @@ export class AzureAccountLoginHelper {
 				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
 			} catch (err) {
 				if (err instanceof AzureLoginError && err.reason) {
-					console.error(err.reason);
+					ext.outputChannel.appendLog(err.reason);
 					void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'error', message: getErrorMessage(err.reason) || getErrorMessage(err) });
 				} else {
 					void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'failure', message: getErrorMessage(err) });

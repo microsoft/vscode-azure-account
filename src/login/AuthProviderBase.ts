@@ -15,6 +15,7 @@ import { parseError } from "vscode-azureextensionui";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { localize } from "../utils/localize";
+import { logErrorMessage } from "../utils/logErrorMessage";
 import { openUri } from "../utils/openUri";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
@@ -57,7 +58,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const port: number = await startServer(server, isAdfs);
 			await openUri(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`);
 			// eslint-disable-next-line @typescript-eslint/no-misused-promises
-			const redirectTimer = setTimeout(() => redirectTimeout().catch(console.error), 10*1000);
+			const redirectTimer = setTimeout(() => redirectTimeout().catch(logErrorMessage), 10*1000);
 			const redirectResult: RedirectResult = await redirectPromise;
 
 			if ('err' in redirectResult) {

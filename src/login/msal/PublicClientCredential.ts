@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AccessToken, TokenCredential } from "@azure/core-auth";
+import { Constants as MSRestConstants, WebResource } from "@azure/ms-rest-js";
 import { AccountInfo, AuthenticationResult, PublicClientApplication } from "@azure/msal-node";
+import { AzExtServiceClientCredentials } from "vscode-azureextensionui";
 import { defaultMsalScopes } from "../../constants";
 
-export class PublicClientCredential implements TokenCredential {
+export class PublicClientCredential implements TokenCredential, AzExtServiceClientCredentials {
 	private publicClientApp: PublicClientApplication;
 	private accountInfo: AccountInfo;
 
@@ -37,5 +39,16 @@ export class PublicClientCredential implements TokenCredential {
 		}
 
 		return null;
+	}
+
+	public async signRequest(webResource: WebResource): Promise<WebResource | undefined> {
+		const tokenResponse: AccessToken | null = await this.getToken(defaultMsalScopes);
+		if (tokenResponse) {
+			webResource.headers.set(
+				MSRestConstants.HeaderConstants.AUTHORIZATION,
+				`${MSRestConstants.HeaderConstants.AUTHORIZATION_SCHEME} ${tokenResponse.token}`
+			);
+			return webResource;
+		}
 	}
 }

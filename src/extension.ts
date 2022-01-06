@@ -16,6 +16,7 @@ import { AzureAccountLoginHelper } from './login/AzureLoginHelper';
 import { askForLogin } from './login/commands/askForLogin';
 import { loginToCloud } from './login/commands/loginToCloud';
 import { selectSubscriptions } from './login/commands/selectSubscriptions';
+import { selectTenant } from './login/commands/selectTenant';
 import { UriEventHandler } from './login/exchangeCodeForToken';
 import { updateFilters } from './login/updateFilters';
 import { updateSubscriptions } from './login/updateSubscriptions';
@@ -49,6 +50,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		context.subscriptions.push(createStatusBarItem(context, ext.loginHelper.api));
 		context.subscriptions.push(commands.registerCommand('azure-account.loginToCloud', loginToCloud));
 		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', selectSubscriptions));
+		context.subscriptions.push(commands.registerCommand('azure-account.selectTenant', selectTenant));
 		context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', askForLogin));
 		context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
 		context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(ext.loginHelper.api, uri)));

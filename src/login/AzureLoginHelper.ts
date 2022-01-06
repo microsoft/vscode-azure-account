@@ -6,7 +6,7 @@
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, window, workspace } from 'vscode';
 import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
-import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
+import { AzureLoginStatus, AzureSession } from '../azure-account.api';
 import { authLibrarySetting, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { ext } from '../extensionVariables';
@@ -25,7 +25,7 @@ import { getAuthLibrary } from './getAuthLibrary';
 import { getKey } from './getKey';
 import { MsalAuthProvider } from './msal/MsalAuthProvider';
 import { checkRedirectServer } from './server';
-import { ISubscriptionCache } from './subscriptionTypes';
+import { AzureResourceFilterInternal, AzureSubscriptionInternal, ISubscriptionCache } from './subscriptionTypes';
 import { updateFilters } from './updateFilters';
 import { waitUntilOnline } from './waitUntilOnline';
 
@@ -50,8 +50,8 @@ export class AzureAccountLoginHelper {
 	public onSessionsChanged: EventEmitter<void> = new EventEmitter<void>();
 	public onSubscriptionsChanged: EventEmitter<void> = new EventEmitter<void>();
 
-	public filtersTask: Promise<AzureResourceFilter[]> = Promise.resolve(<AzureResourceFilter[]>[]);
-	public subscriptionsTask: Promise<AzureSubscription[]> = Promise.resolve(<AzureSubscription[]>[]);
+	public filtersTask: Promise<AzureResourceFilterInternal[]> = Promise.resolve(<AzureResourceFilterInternal[]>[]);
+	public subscriptionsTask: Promise<AzureSubscriptionInternal[]> = Promise.resolve(<AzureSubscriptionInternal[]>[]);
 
 	public api: AzureAccountExtensionApi;
 	public legacyApi: AzureAccountExtensionLegacyApi;
@@ -195,12 +195,13 @@ export class AzureAccountLoginHelper {
 			(<IAzureAccountWriteable>this.api).status = 'LoggedIn';
 			const sessions: Record<string, AzureSession> = await this.authProvider.initializeSessions(cache, this.api);
 
-			const subscriptions: AzureSubscription[] = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
+			const subscriptions: AzureSubscriptionInternal[] = cache.subscriptions.map<AzureSubscriptionInternal>(({ session, subscription, tenants }) => {
 				const { environment, userId, tenantId } = session;
 				const key: string = getKey(environment, userId, tenantId);
 				return {
 					session: sessions[key],
-					subscription
+					subscription,
+					tenants
 				};
 			});
 			this.subscriptionsTask = Promise.resolve(subscriptions);
@@ -208,7 +209,7 @@ export class AzureAccountLoginHelper {
 
 			const resourceFilter: string[] | undefined = getSettingValue(resourceFilterSetting);
 			this.oldResourceFilter = JSON.stringify(resourceFilter);
-			const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
+			const newFilters: AzureResourceFilterInternal[] = getNewFilters(subscriptions, resourceFilter);
 			this.filtersTask = Promise.resolve(newFilters);
 			this.api.filters.push(...newFilters);
 		}

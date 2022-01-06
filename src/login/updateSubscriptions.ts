@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SubscriptionClient } from "@azure/arm-subscriptions";
-import { AzureSubscription } from "../azure-account.api";
 import { cacheKey } from "../constants";
 import { ext } from "../extensionVariables";
 import { listAll } from "../utils/arrayUtils";
 import { AzureSessionInternal } from "./AzureSessionInternal";
-import { ISubscriptionCache } from "./subscriptionTypes";
+import { AzureSubscriptionInternal, ISubscriptionCache } from "./subscriptionTypes";
 
 export async function updateSubscriptions(): Promise<void> {
 	await ext.loginHelper.api.waitForLogin();
@@ -22,14 +21,15 @@ export async function updateSubscriptions(): Promise<void> {
 	}
 
 	const cache: ISubscriptionCache = {
-		subscriptions: ext.loginHelper.api.subscriptions.map(({ session, subscription }) => ({
+		subscriptions: (<AzureSubscriptionInternal[]>ext.loginHelper.api.subscriptions).map(({ session, subscription, tenants }) => ({
 			session: {
 				environment: session.environment.name,
 				userId: session.userId,
 				tenantId: session.tenantId,
 				accountInfo: (<AzureSessionInternal>session).accountInfo
 			},
-			subscription
+			subscription,
+			tenants
 		}))
 	}
 	void ext.loginHelper.context.globalState.update(cacheKey, cache);
@@ -37,16 +37,25 @@ export async function updateSubscriptions(): Promise<void> {
 	ext.loginHelper.onSubscriptionsChanged.fire();
 }
 
-async function loadSubscriptions(): Promise<AzureSubscription[]> {
-	const lists: AzureSubscription[][] = await Promise.all(ext.loginHelper.api.sessions.map(session => {
+async function loadSubscriptions(): Promise<AzureSubscriptionInternal[]> {
+	const lists: AzureSubscriptionInternal[][] = await Promise.all(ext.loginHelper.api.sessions.map(async session => {
 		const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl });
+		const tenants: string[] = [];
+
+		await listAll(client.tenants, client.tenants.list())
+			.then(list => {
+				list.forEach(t => t.tenantId && tenants.push(t.tenantId));
+			});
+
 		return listAll(client.subscriptions, client.subscriptions.list())
 			.then(list => list.map(subscription => ({
 				session,
 				subscription,
+				tenants
 			})));
 	}));
-	const subscriptions: AzureSubscription[] = (<AzureSubscription[]>[]).concat(...lists);
+
+	const subscriptions: AzureSubscriptionInternal[] = (<AzureSubscriptionInternal[]>[]).concat(...lists);
 	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 	subscriptions.sort((a, b) => a.subscription.displayName!.localeCompare(b.subscription.displayName!));
 	return subscriptions;

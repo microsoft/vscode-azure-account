@@ -5,8 +5,8 @@
 
 import { createReadStream } from 'fs';
 import { basename } from 'path';
-import { CancellationToken, commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
-import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, createExperimentationService, IActionContext, registerReportIssueCommand, registerUIExtensionVariables } from 'vscode-azureextensionui';
+import { CancellationToken, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, createExperimentationService, IActionContext, registerCommand, registerReportIssueCommand, registerUIExtensionVariables } from 'vscode-azureextensionui';
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
@@ -47,17 +47,18 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		if (enableLogging) {
 			logDiagnostics(context, ext.loginHelper.api);
 		}
-		context.subscriptions.push(createStatusBarItem(context, ext.loginHelper.api));
-		context.subscriptions.push(commands.registerCommand('azure-account.loginToCloud', loginToCloud));
-		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', selectSubscriptions));
-		context.subscriptions.push(commands.registerCommand('azure-account.selectTenant', selectTenant));
-		context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', askForLogin));
-		context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-		context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(ext.loginHelper.api, uri)));
-		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptions));
-		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
+
+		registerCommand('azure-account.loginToCloud', loginToCloud);
+		registerCommand('azure-account.selectSubscriptions', selectSubscriptions);
+		registerCommand('azure-account.selectTenant', selectTenant);
+		registerCommand('azure-account.askForLogin', askForLogin);
+		registerCommand('azure-account.createAccount', createAccount);
+		registerCommand('azure-account.uploadFileCloudConsole', (_context, uri) => uploadFile(ext.loginHelper.api, uri));
 		registerReportIssueCommand('azure-account.reportIssue');
 
+		context.subscriptions.push(createStatusBarItem(context, ext.loginHelper.api));
+		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptions));
+		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
 		context.subscriptions.push(window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
 			provideTerminalProfile: (token: CancellationToken) => {
 				return createCloudConsole(ext.loginHelper.api, 'Linux', token).terminalProfile;

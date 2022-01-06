@@ -10,5 +10,6 @@
     "azure-account.commands.logout": "Sign Out",
     "azure-account.commands.reportIssue": "Report Issue...",
     "azure-account.commands.selectSubscriptions": "Select Subscriptions",
+    "azure-account.commands.selectTenant": "Select Tenant",
     "azure-account.commands.uploadFileCloudConsole": "Upload to Cloud Shell"
 }

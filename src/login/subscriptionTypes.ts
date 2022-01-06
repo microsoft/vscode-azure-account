@@ -21,5 +21,12 @@ export interface ISubscriptionCache {
 			accountInfo?: AccountInfo;
 		};
 		subscription: SubscriptionModels.Subscription;
+		tenants: string[];
 	}[];
 }
+
+export interface AzureSubscriptionInternal extends AzureSubscription {
+	tenants: string[];
+}
+
+export type AzureResourceFilterInternal = AzureSubscriptionInternal;

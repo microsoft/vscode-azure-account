@@ -35,6 +35,7 @@
         "onCommand:azure-account.logout",
         "onCommand:azure-account.reportIssue",
         "onCommand:azure-account.selectSubscriptions",
+        "onCommand:azure-account.selectTenant",
         "onCommand:azure-account.uploadFileCloudConsole",
         "onTerminalProfile:azure-account.cloudShellBash",
         "onTerminalProfile:azure-account.cloudShellPowerShell"
@@ -75,6 +76,11 @@
             {
                 "command": "azure-account.selectSubscriptions",
                 "title": "%azure-account.commands.selectSubscriptions%",
+                "category": "%azure-account.commands.azure%"
+            },
+            {
+                "command": "azure-account.selectTenant",
+                "title": "%azure-account.commands.selectTenant%",
                 "category": "%azure-account.commands.azure%"
             },
             {

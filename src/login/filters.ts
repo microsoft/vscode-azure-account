@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AzureResourceFilter, AzureSubscription } from "../azure-account.api";
-import { ISubscriptionItem } from "./subscriptionTypes";
+import { AzureResourceFilterInternal, AzureSubscriptionInternal, ISubscriptionItem } from "./subscriptionTypes";
 
 export function addFilter(resourceFilter: string[], item: ISubscriptionItem): void {
 	const { session, subscription } = item.subscription;
@@ -19,7 +18,7 @@ export function removeFilter(resourceFilter: string[], item: ISubscriptionItem):
 	item.picked = false;
 }
 
-export function getNewFilters(subscriptions: AzureSubscription[], resourceFilter: string[] | undefined): AzureResourceFilter[] {
+export function getNewFilters(subscriptions: AzureSubscriptionInternal[], resourceFilter: string[] | undefined): AzureResourceFilterInternal[] {
 	if (resourceFilter && !Array.isArray(resourceFilter)) {
 		resourceFilter = [];
 	}

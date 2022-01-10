@@ -19,7 +19,7 @@ import { selectSubscriptions } from './login/commands/selectSubscriptions';
 import { selectTenant } from './login/commands/selectTenant';
 import { UriEventHandler } from './login/exchangeCodeForToken';
 import { updateFilters } from './login/updateFilters';
-import { updateSubscriptions } from './login/updateSubscriptions';
+import { updateSubscriptionsAndTenants } from './login/updateSubscriptions';
 import { survey } from './nps';
 import { localize } from './utils/localize';
 import { logErrorMessage } from './utils/logErrorMessage';
@@ -54,7 +54,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', askForLogin));
 		context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
 		context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(ext.loginHelper.api, uri)));
-		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptions));
+		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptionsAndTenants));
 		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
 		registerReportIssueCommand('azure-account.reportIssue');
 

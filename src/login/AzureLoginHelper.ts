@@ -6,7 +6,7 @@
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, window, workspace } from 'vscode';
 import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
-import { AzureLoginStatus, AzureSession } from '../azure-account.api';
+import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { authLibrarySetting, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { ext } from '../extensionVariables';
@@ -25,7 +25,7 @@ import { getAuthLibrary } from './getAuthLibrary';
 import { getKey } from './getKey';
 import { MsalAuthProvider } from './msal/MsalAuthProvider';
 import { checkRedirectServer } from './server';
-import { AzureResourceFilterInternal, AzureSubscriptionInternal, ISubscriptionCache } from './subscriptionTypes';
+import { SubscriptionTenantCache } from './subscriptionTypes';
 import { updateFilters } from './updateFilters';
 import { waitUntilOnline } from './waitUntilOnline';
 
@@ -50,8 +50,9 @@ export class AzureAccountLoginHelper {
 	public onSessionsChanged: EventEmitter<void> = new EventEmitter<void>();
 	public onSubscriptionsChanged: EventEmitter<void> = new EventEmitter<void>();
 
-	public filtersTask: Promise<AzureResourceFilterInternal[]> = Promise.resolve(<AzureResourceFilterInternal[]>[]);
-	public subscriptionsTask: Promise<AzureSubscriptionInternal[]> = Promise.resolve(<AzureSubscriptionInternal[]>[]);
+	public filtersTask: Promise<AzureResourceFilter[]> = Promise.resolve(<AzureResourceFilter[]>[]);
+	public subscriptionsTask: Promise<AzureSubscription[]> = Promise.resolve(<AzureSubscription[]>[]);
+	public tenantsTask: Promise<string[]> = Promise.resolve(<string[]>[]);
 
 	public api: AzureAccountExtensionApi;
 	public legacyApi: AzureAccountExtensionLegacyApi;
@@ -164,7 +165,7 @@ export class AzureAccountLoginHelper {
 			let environmentName: string = 'uninitialized';
 			const codePath: CodePath = 'tryExisting';
 			try {
-				await this.loadSubscriptionCache();
+				await this.loadSubscriptionTenantCache();
 				const environment: Environment = await getSelectedEnvironment();
 				environmentName = environment.name;
 				const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
@@ -189,27 +190,27 @@ export class AzureAccountLoginHelper {
 		});
 	}
 
-	private async loadSubscriptionCache(): Promise<void> {
-		const cache: ISubscriptionCache | undefined = this.context.globalState.get(cacheKey);
+	private async loadSubscriptionTenantCache(): Promise<void> {
+		const cache: SubscriptionTenantCache | undefined = this.context.globalState.get(cacheKey);
 		if (cache) {
 			(<IAzureAccountWriteable>this.api).status = 'LoggedIn';
 			const sessions: Record<string, AzureSession> = await this.authProvider.initializeSessions(cache, this.api);
 
-			const subscriptions: AzureSubscriptionInternal[] = cache.subscriptions.map<AzureSubscriptionInternal>(({ session, subscription, tenants }) => {
+			const subscriptions: AzureSubscription[] = cache.subscriptions.map<AzureSubscription>(({ session, subscription }) => {
 				const { environment, userId, tenantId } = session;
 				const key: string = getKey(environment, userId, tenantId);
 				return {
 					session: sessions[key],
-					subscription,
-					tenants
+					subscription
 				};
 			});
 			this.subscriptionsTask = Promise.resolve(subscriptions);
 			this.api.subscriptions.push(...subscriptions);
+			this.tenantsTask = Promise.resolve(cache.tenants);
 
 			const resourceFilter: string[] | undefined = getSettingValue(resourceFilterSetting);
 			this.oldResourceFilter = JSON.stringify(resourceFilter);
-			const newFilters: AzureResourceFilterInternal[] = getNewFilters(subscriptions, resourceFilter);
+			const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
 			this.filtersTask = Promise.resolve(newFilters);
 			this.api.filters.push(...newFilters);
 		}

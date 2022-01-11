@@ -22,7 +22,7 @@ import { getEnvironments } from "./environments";
 import { exchangeCodeForToken } from "./exchangeCodeForToken";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
-import { ISubscriptionCache } from "./subscriptionTypes";
+import { SubscriptionTenantCache } from "./subscriptionTypes";
 
 export type AbstractCredentials = DeviceTokenCredentials;
 export type AbstractCredentials2 = DeviceTokenCredentials2 | TokenCredential;
@@ -130,7 +130,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		return await Promise.race([exchangeCodeForToken<TLoginResult>(this, clientId, environment, tenantId, redirectUrlAAD, state), timeoutPromise]);
 	}
 
-	public async initializeSessions(cache: ISubscriptionCache, api: AzureAccountExtensionApi): Promise<Record<string, AzureSession>> {
+	public async initializeSessions(cache: SubscriptionTenantCache, api: AzureAccountExtensionApi): Promise<Record<string, AzureSession>> {
 		const sessions: Record<string, AzureSessionInternal> = {};
 		const environments: Environment[] = await getEnvironments();
 

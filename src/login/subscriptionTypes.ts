@@ -12,7 +12,7 @@ export interface ISubscriptionItem extends QuickPickItem {
 	subscription: AzureSubscription;
 }
 
-export interface ISubscriptionCache {
+export interface SubscriptionTenantCache {
 	subscriptions: {
 		session: {
 			environment: string;
@@ -21,12 +21,6 @@ export interface ISubscriptionCache {
 			accountInfo?: AccountInfo;
 		};
 		subscription: SubscriptionModels.Subscription;
-		tenants: string[];
 	}[];
-}
-
-export interface AzureSubscriptionInternal extends AzureSubscription {
 	tenants: string[];
 }
-
-export type AzureResourceFilterInternal = AzureSubscriptionInternal;

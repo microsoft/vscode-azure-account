@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SubscriptionClient } from "@azure/arm-subscriptions";
+import { HttpOperationResponse, RequestPrepareOptions } from "@azure/ms-rest-js";
 import { AzureSubscription } from "../azure-account.api";
 import { cacheKey } from "../constants";
 import { ext } from "../extensionVariables";
 import { listAll } from "../utils/arrayUtils";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { SubscriptionTenantCache } from "./subscriptionTypes";
+import { TenantIdDescription } from "./TenantIdDescription";
 
 export async function updateSubscriptionsAndTenants(): Promise<void> {
 	await ext.loginHelper.api.waitForLogin();
@@ -39,18 +41,51 @@ export async function updateSubscriptionsAndTenants(): Promise<void> {
 	ext.loginHelper.onSubscriptionsChanged.fire();
 }
 
-async function loadTenants(): Promise<string[]> {
-	const tenantSet = new Set<string>();
+async function loadTenants(): Promise<TenantIdDescription[]> {
+	const knownTenantIds: Set<string> = new Set();
+	const knownTenants: TenantIdDescription[] = [];
 
 	for (const session of ext.loginHelper.api.sessions) {
 		const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl });
-		await listAll(client.tenants, client.tenants.list())
-			.then(list => {
-				list.forEach(t => t.tenantId && tenantSet.add(t.tenantId));
-			});
+		let url: string | undefined = 'https://management.azure.com/tenants?api-version=2020-01-01';
+
+		do {
+			const options: RequestPrepareOptions = {
+				url,
+				method: 'GET'
+			};
+			const response: HttpOperationResponse = await client.sendRequest(options)
+
+			if (response.parsedBody && 'value' in response.parsedBody) {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+				const value: any = response.parsedBody.value;
+
+				if (Array.isArray(value)) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					const tenants: any[] = value as any[];
+					tenants.forEach(tenant => {
+						if ('tenantId' in tenant && 'displayName' in tenant) {
+							const sanitizedTenant: TenantIdDescription = tenant as TenantIdDescription;
+							if (!knownTenantIds.has(sanitizedTenant.tenantId)) {
+								knownTenantIds.add(sanitizedTenant.tenantId);
+								knownTenants.push(tenant);
+							}
+						}
+					});
+
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+					if ('nextLink' in response.parsedBody) {
+						// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+						url = response.parsedBody.nextLink as string | undefined;
+					} else {
+						url = undefined;
+					}
+				}
+			}
+		} while (url);
 	}
 
-	return Array.from(tenantSet);
+	return knownTenants;
 }
 
 async function loadSubscriptions(): Promise<AzureSubscription[]> {

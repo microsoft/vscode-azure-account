@@ -26,6 +26,7 @@ import { getKey } from './getKey';
 import { MsalAuthProvider } from './msal/MsalAuthProvider';
 import { checkRedirectServer } from './server';
 import { SubscriptionTenantCache } from './subscriptionTypes';
+import { TenantIdDescription } from './TenantIdDescription';
 import { updateFilters } from './updateFilters';
 import { waitUntilOnline } from './waitUntilOnline';
 
@@ -52,7 +53,7 @@ export class AzureAccountLoginHelper {
 
 	public filtersTask: Promise<AzureResourceFilter[]> = Promise.resolve(<AzureResourceFilter[]>[]);
 	public subscriptionsTask: Promise<AzureSubscription[]> = Promise.resolve(<AzureSubscription[]>[]);
-	public tenantsTask: Promise<string[]> = Promise.resolve(<string[]>[]);
+	public tenantsTask: Promise<TenantIdDescription[]> = Promise.resolve(<TenantIdDescription[]>[]);
 
 	public api: AzureAccountExtensionApi;
 	public legacyApi: AzureAccountExtensionLegacyApi;

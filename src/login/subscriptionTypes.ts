@@ -7,6 +7,7 @@ import { SubscriptionModels } from "@azure/arm-subscriptions";
 import { AccountInfo } from "@azure/msal-node";
 import { QuickPickItem } from "vscode";
 import { AzureSubscription } from "../azure-account.api";
+import { TenantIdDescription } from "./TenantIdDescription";
 
 export interface ISubscriptionItem extends QuickPickItem {
 	subscription: AzureSubscription;
@@ -22,5 +23,5 @@ export interface SubscriptionTenantCache {
 		};
 		subscription: SubscriptionModels.Subscription;
 	}[];
-	tenants: string[];
+	tenants: TenantIdDescription[];
 }

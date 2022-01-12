@@ -210,7 +210,7 @@ export class AzureAccountLoginHelper {
 
 			const resourceFilter: string[] | undefined = getSettingValue(resourceFilterSetting);
 			this.oldResourceFilter = JSON.stringify(resourceFilter);
-			const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
+			const newFilters: AzureResourceFilter[] = getNewFilters(subscriptions, resourceFilter);
 			this.filtersTask = Promise.resolve(newFilters);
 			this.api.filters.push(...newFilters);
 		}

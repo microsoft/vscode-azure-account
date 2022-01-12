@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AzureSubscription } from "../azure-account.api";
+import { AzureResourceFilter, AzureSubscription } from "../azure-account.api";
 import { resourceFilterSetting } from "../constants";
 import { ext } from "../extensionVariables";
 import { getSettingValue } from "../utils/settingUtils";
@@ -18,7 +18,7 @@ export function updateFilters(configChange = false): void {
 		await ext.loginHelper.api.waitForSubscriptions();
 		const subscriptions: AzureSubscription[] = await ext.loginHelper.subscriptionsTask;
 		ext.loginHelper.oldResourceFilter = JSON.stringify(resourceFilter);
-		const newFilters: AzureSubscription[] = getNewFilters(subscriptions, resourceFilter);
+		const newFilters: AzureResourceFilter[] = getNewFilters(subscriptions, resourceFilter);
 		ext.loginHelper.api.filters.splice(0, ext.loginHelper.api.filters.length, ...newFilters);
 		ext.loginHelper.onFiltersChanged.fire();
 		return ext.loginHelper.api.filters;

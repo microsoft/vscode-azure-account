@@ -5,75 +5,38 @@
 
 //@ts-check
 
+// See https://github.com/Microsoft/vscode-azuretools/wiki/webpack for guidance
+
 'use strict';
 
-const path = require('path');
-const TerserPlugin = require('terser-webpack-plugin');
+const process = require('process');
+const dev = require("vscode-azureextensiondev");
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
-module.exports = (_, argv) => {
-	/**@type {import('webpack').Configuration}*/
-	const config = {
-		target: 'node',
+let DEBUG_WEBPACK = !!process.env.DEBUG_WEBPACK;
 
-		entry: {
-			extension: './src/extension.ts',
-			cloudConsoleLauncher: './src/cloudConsole/cloudConsoleLauncher.ts',
-		},
-		output: {
-			path: path.join(__dirname, 'dist'),
-			filename: '[name].js',
-			libraryTarget: 'commonjs2',
-			devtoolModuleFilenameTemplate: '../[resource-path]',
-		},
-		node: {
-			__dirname: false, // leave the __dirname-behaviour intact
-		},
-		devtool: argv.mode === 'none' ? 'source-map' : undefined,
-		externals: {
-			vscode: 'commonjs vscode',
-			bufferutil: 'commonjs bufferutil',
-			'utf-8-validate': 'commonjs utf-8-validate',
-			'./platform/openbsd': 'commonjs copy-paste-openbsd',
-		},
-		resolve: {
-			extensions: ['.ts', '.js']
-		},
-		module: {
-			// require
-			unknownContextRegExp: /$^/,
-			unknownContextCritical: false,
-			// require(expr)
-			exprContextRegExp: /$^/,
-			exprContextCritical: false,
-			// require("prefix" + expr + "surfix")
-			wrappedContextRegExp: /$^/,
-			wrappedContextCritical: false,
-			rules: [{
-				test: /\.ts$/,
-				exclude: /node_modules/,
-				use: [{
-						loader: 'ts-loader',
-						options: {
-							compilerOptions: {
-								sourceMap: true,
-							}
-						}
-					}]
-			}]
-		},
+let config = dev.getDefaultWebpackConfig({
+	entries: {
+		cloudConsoleLauncher: './src/cloudConsole/cloudConsoleLauncher.ts',
+	},
+    projectRoot: __dirname,
+    verbosity: DEBUG_WEBPACK ? 'debug' : 'normal',
+    externals: {
+		bufferutil: 'commonjs bufferutil',
+		'utf-8-validate': 'commonjs utf-8-validate',
+		'./platform/openbsd': 'commonjs copy-paste-openbsd',
+	},
+    plugins: [
+        new CopyWebpackPlugin({
+            patterns: [
+                { from: './out/src/utils/getCoreNodeModule.js', to: 'node_modules' }
+            ]
+        })
+    ]
+});
 
-		// Workaround for https://github.com/node-fetch/node-fetch/issues/784
-		optimization: {
-			minimizer: [
-				new TerserPlugin({
-					extractComments: false,
-					terserOptions: {
-						keep_classnames: /^AbortSignal$/,
-					},
-				}),
-			],
-		},
-	}
-
-	return config;
+if (DEBUG_WEBPACK) {
+    console.log('Config:', config);
 }
+
+module.exports = config;

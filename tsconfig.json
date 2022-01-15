@@ -9,17 +9,16 @@
 			"es6"
 		],
 		"typeRoots": [
-			"node_modules/@types",
-			"src/typings"
+			"node_modules/@types/*",
+			"*"
 		],
 		"sourceMap": true,
 		"rootDir": ".",
 		"resolveJsonModule": true
 	},
 	"exclude": [
-		"node_modules"
-	],
-	"include": [
-		"src/**/*"
+		"node_modules",
+		"gulpfile.ts",
+		"sample/*"
 	]
 }

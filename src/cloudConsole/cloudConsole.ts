@@ -273,7 +273,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				shellArgs.shift();
 			}
 
-			if (!isWindows && semver.gte(version, '1.62.1')) {
+			if (process.platform === 'darwin' && semver.gte(version, '1.62.1')) {
 				// https://github.com/microsoft/vscode/issues/136987
 				// This fix can't be applied to all versions of VS Code. An error is thrown in versions less than the one specified
 				shellArgs.push('--ms-enable-electron-run-as-node');

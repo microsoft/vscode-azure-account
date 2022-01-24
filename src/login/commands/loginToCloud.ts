@@ -5,6 +5,7 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 import { QuickPickItem, window, workspace, WorkspaceConfiguration } from "vscode";
+import { IActionContext } from "vscode-azureextensionui";
 import { azureCustomCloud, azurePPE, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, tenantSetting } from "../../constants";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
@@ -20,7 +21,7 @@ const environmentLabels: Record<string, string> = {
 	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
 };
 
-export async function loginToCloud(): Promise<void> {
+export async function loginToCloud(context: IActionContext): Promise<void> {
 	const current: Environment = await getSelectedEnvironment();
 	const selected: QuickPickItem & { environment: Environment } | undefined = await window.showQuickPick<QuickPickItem & { environment: Environment }>(getEnvironments(true /* includePartial */)
 		.then(environments => environments.map(environment => ({
@@ -61,6 +62,6 @@ export async function loginToCloud(): Promise<void> {
 				return;
 			}
 		}
-		return ext.loginHelper.login('loginToCloud');
+		return ext.loginHelper.login(context, 'loginToCloud');
 	}
 }

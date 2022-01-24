@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, Event } from 'vscode';
-import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
+import { callWithTelemetryAndErrorHandling, callWithTelemetryAndErrorHandlingSync, IActionContext } from 'vscode-azureextensionui';
 import * as types from '../azure-account.api';
 import { createCloudConsole, OSName } from '../cloudConsole/cloudConsole';
 import { AzureAccountLoginHelper } from './AzureLoginHelper';
@@ -78,6 +78,9 @@ export class AzureAccountExtensionApi implements types.AzureAccountExtensionApi 
 	}
 
 	public createCloudShell(os: OSName): types.CloudShell {
-		return <types.CloudShell>createCloudConsole(this, os);
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		return callWithTelemetryAndErrorHandlingSync('createCloudShell', (context: IActionContext) => {
+			return <types.CloudShell>createCloudConsole(context, os);
+		})!;
 	}
 }

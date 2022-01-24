@@ -12,6 +12,7 @@ export namespace ext {
     export let context: ExtensionContext;
     export let loginHelper: AzureAccountLoginHelper;
     export let outputChannel: IAzExtOutputChannel;
+    export let ignoreBundle: boolean | undefined;
     export let uriEventHandler: UriEventHandler;
     export let experimentationService: IExperimentationServiceAdapter;
     export let isMsalTreatmentVariable: boolean | undefined;

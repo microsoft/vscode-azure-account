@@ -5,7 +5,7 @@
 
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, window, workspace } from 'vscode';
-import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
+import { IActionContext } from 'vscode-azureextensionui';
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { authLibrarySetting, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
@@ -58,7 +58,7 @@ export class AzureAccountLoginHelper {
 	public api: AzureAccountExtensionApi;
 	public legacyApi: AzureAccountExtensionLegacyApi;
 
-	constructor(public context: ExtensionContext) {
+	constructor(actionContext: IActionContext, public context: ExtensionContext) {
 		this.adalAuthProvider = new AdalAuthProvider(enableVerboseLogs);
 		this.msalAuthProvider = new MsalAuthProvider(enableVerboseLogs);
 		this.authProvider = getAuthLibrary() === 'ADAL' ?  this.adalAuthProvider : this.msalAuthProvider;
@@ -66,14 +66,14 @@ export class AzureAccountLoginHelper {
 		this.api = new AzureAccountExtensionApi(this);
 		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
 
-		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login('login').catch(logErrorMessage)));
-		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(logErrorMessage)));
+		context.subscriptions.push(commands.registerCommand('azure-account.login', () => this.login(actionContext, 'login').catch(logErrorMessage)));
+		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login(actionContext, 'loginWithDeviceCode').catch(logErrorMessage)));
 		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(logErrorMessage)));
 		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
 				const doLogin: boolean = this.doLogin;
 				this.doLogin = false;
-				this.initialize(e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
+				this.initialize(actionContext, e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
 					.catch(logErrorMessage);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				updateFilters(true);
@@ -88,60 +88,58 @@ export class AzureAccountLoginHelper {
 				});
 			}
 		}));
-		this.initialize('activation', false, true)
+		this.initialize(actionContext, 'activation', false, true)
 			.catch(logErrorMessage);
 	}
 
-	public async login(trigger: LoginTrigger): Promise<void> {
-		await callWithTelemetryAndErrorHandling('azure-account.login', async (context: IActionContext) => {
-			let codePath: CodePath = 'newLogin';
-			let environmentName: string = 'uninitialized';
-			const cancelSource: CancellationTokenSource = new CancellationTokenSource();
-			try {
-				const environment: Environment = await getSelectedEnvironment();
-				environmentName = environment.name;
-				const onlineTask: Promise<void> = waitUntilOnline(environment, 2000, cancelSource.token);
-				const timerTask: Promise<boolean | PromiseLike<boolean> | undefined> = delay(2000, true);
+	public async login(context: IActionContext, trigger: LoginTrigger): Promise<void> {
+		let codePath: CodePath = 'newLogin';
+		let environmentName: string = 'uninitialized';
+		const cancelSource: CancellationTokenSource = new CancellationTokenSource();
+		try {
+			const environment: Environment = await getSelectedEnvironment();
+			environmentName = environment.name;
+			const onlineTask: Promise<void> = waitUntilOnline(environment, 2000, cancelSource.token);
+			const timerTask: Promise<boolean | PromiseLike<boolean> | undefined> = delay(2000, true);
 
-				if (await Promise.race([onlineTask, timerTask])) {
-					const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel") };
-					await Promise.race([
-						onlineTask,
-						window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
-							.then(result => {
-								if (result === cancel) {
-									throw new AzureLoginError(localize('azure-account.offline', "Offline"));
-								}
-							})
-					]);
-					await onlineTask;
-				}
-
-				this.beginLoggingIn();
-
-				const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
-				const isAdfs: boolean = isADFS(environment);
-				const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
-				codePath = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-				const loginResult = useCodeFlow ?
-					await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
-					await this.authProvider.loginWithDeviceCode(environment, tenantId);
-				await this.updateSessions(this.authProvider, environment, loginResult);
-				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
-			} catch (err) {
-				if (err instanceof AzureLoginError && err.reason) {
-					ext.outputChannel.appendLog(err.reason);
-					void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'error', message: getErrorMessage(err.reason) || getErrorMessage(err) });
-				} else {
-					void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'failure', message: getErrorMessage(err) });
-				}
-				throw err;
-			} finally {
-				cancelSource.cancel();
-				cancelSource.dispose();
-				this.updateLoginStatus();
+			if (await Promise.race([onlineTask, timerTask])) {
+				const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel") };
+				await Promise.race([
+					onlineTask,
+					window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
+						.then(result => {
+							if (result === cancel) {
+								throw new AzureLoginError(localize('azure-account.offline', "Offline"));
+							}
+						})
+				]);
+				await onlineTask;
 			}
-		});
+
+			this.beginLoggingIn();
+
+			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
+			const isAdfs: boolean = isADFS(environment);
+			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
+			codePath = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
+			const loginResult = useCodeFlow ?
+				await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
+				await this.authProvider.loginWithDeviceCode(environment, tenantId);
+			await this.updateSessions(this.authProvider, environment, loginResult);
+			void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
+		} catch (err) {
+			if (err instanceof AzureLoginError && err.reason) {
+				ext.outputChannel.appendLog(err.reason);
+				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'error', message: getErrorMessage(err.reason) || getErrorMessage(err) });
+			} else {
+				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'failure', message: getErrorMessage(err) });
+			}
+			throw err;
+		} finally {
+			cancelSource.cancel();
+			cancelSource.dispose();
+			this.updateLoginStatus();
+		}
 	}
 
 	private async sendLoginTelemetry(context: IActionContext, properties: { trigger: LoginTrigger, codePath: CodePath, environmentName: string, outcome: string, message?: string }, includeSubscriptions?: boolean) {
@@ -161,34 +159,32 @@ export class AzureAccountLoginHelper {
 		this.updateLoginStatus();
 	}
 
-	private async initialize(trigger: LoginTrigger, doLogin?: boolean, migrateToken?: boolean): Promise<void> {
-		await callWithTelemetryAndErrorHandling('azure-account.initialize', async (context: IActionContext) => {
-			let environmentName: string = 'uninitialized';
-			const codePath: CodePath = 'tryExisting';
-			try {
-				await this.loadSubscriptionTenantCache();
-				const environment: Environment = await getSelectedEnvironment();
-				environmentName = environment.name;
-				const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
-				await waitUntilOnline(environment, 5000);
-				this.beginLoggingIn();
-				const loginResult = await this.authProvider.loginSilent(environment, tenantId, migrateToken);
-				await this.updateSessions(this.authProvider, environment, loginResult);
-				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
-			} catch (err) {
-				await this.clearSessions(); // clear out cached data
-				if (err instanceof AzureLoginError && err.reason) {
-					void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'error', message: getErrorMessage(err.reason) || getErrorMessage(err) });
-				} else {
-					void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'failure', message: getErrorMessage(err) });
-				}
-				if (doLogin) {
-					await this.login(trigger);
-				}
-			} finally {
-				this.updateLoginStatus();
+	private async initialize(context: IActionContext, trigger: LoginTrigger, doLogin?: boolean, migrateToken?: boolean): Promise<void> {
+		let environmentName: string = 'uninitialized';
+		const codePath: CodePath = 'tryExisting';
+		try {
+			await this.loadSubscriptionTenantCache();
+			const environment: Environment = await getSelectedEnvironment();
+			environmentName = environment.name;
+			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
+			await waitUntilOnline(environment, 5000);
+			this.beginLoggingIn();
+			const loginResult = await this.authProvider.loginSilent(environment, tenantId, migrateToken);
+			await this.updateSessions(this.authProvider, environment, loginResult);
+			void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
+		} catch (err) {
+			await this.clearSessions(); // clear out cached data
+			if (err instanceof AzureLoginError && err.reason) {
+				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'error', message: getErrorMessage(err.reason) || getErrorMessage(err) });
+			} else {
+				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'failure', message: getErrorMessage(err) });
 			}
-		});
+			if (doLogin) {
+				await this.login(context, trigger);
+			}
+		} finally {
+			this.updateLoginStatus();
+		}
 	}
 
 	private async loadSubscriptionTenantCache(): Promise<void> {

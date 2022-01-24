@@ -1,24 +1,31 @@
 {
-	"compilerOptions": {
-		"module": "commonjs",
-		"target": "es6",
-		"strict": true,
-		"noUnusedLocals": true,
-		"outDir": "./out",
-		"lib": [
-			"es6"
-		],
-		"typeRoots": [
-			"node_modules/@types/*",
-			"*"
-		],
-		"sourceMap": true,
-		"rootDir": ".",
-		"resolveJsonModule": true
-	},
-	"exclude": [
-		"node_modules",
-		"gulpfile.ts",
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es6",
+        "outDir": "out",
+        "lib": [
+            "es6"
+        ],
+        "strict": true,
+        "sourceMap": true,
+        "rootDir": ".",
+        "noUnusedLocals": true,
+        "noImplicitThis": true,
+        "noImplicitReturns": true,
+        "strictNullChecks": true,
+        "noUnusedParameters": true,
+        "baseUrl": "./",
+        "paths": {
+            "*": [
+                "node_modules/vscode/*",
+                "*"
+            ]
+        }
+    },
+    "exclude": [
+        "node_modules",
+        ".vscode-test",
+        "gulpfile.ts",
 		"sample/*"
-	]
+    ]
 }

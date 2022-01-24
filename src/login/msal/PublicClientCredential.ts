@@ -50,5 +50,6 @@ export class PublicClientCredential implements TokenCredential, AzExtServiceClie
 			);
 			return webResource;
 		}
+		return undefined;
 	}
 }

@@ -11,7 +11,6 @@
 
 const process = require('process');
 const dev = require("vscode-azureextensiondev");
-const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 let DEBUG_WEBPACK = !!process.env.DEBUG_WEBPACK;
 
@@ -25,14 +24,7 @@ let config = dev.getDefaultWebpackConfig({
 		bufferutil: 'commonjs bufferutil',
 		'utf-8-validate': 'commonjs utf-8-validate',
 		'./platform/openbsd': 'commonjs copy-paste-openbsd',
-	},
-    plugins: [
-        new CopyWebpackPlugin({
-            patterns: [
-                { from: './out/src/utils/getCoreNodeModule.js', to: 'node_modules' }
-            ]
-        })
-    ]
+	}
 });
 
 if (DEBUG_WEBPACK) {

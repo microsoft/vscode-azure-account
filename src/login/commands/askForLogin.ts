@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { commands, MessageItem, window } from "vscode";
+import { IActionContext } from "vscode-azureextensionui";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 
-export async function askForLogin(): Promise<unknown> {
+export async function askForLogin(_context: IActionContext): Promise<unknown> {
 	if (ext.loginHelper.api.status === 'LoggedIn') {
 		return;
 	}

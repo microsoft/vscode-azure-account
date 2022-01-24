@@ -65,6 +65,7 @@ export async function getStoredCredentials(environment: Environment, migrateToke
 	} catch {
 		// ignore
 	}
+	return undefined;
 }
 
 export async function storeRefreshToken(environment: Environment, token: string): Promise<void> {

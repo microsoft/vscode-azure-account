@@ -15,7 +15,7 @@
         "color": "#0072c6",
         "theme": "dark"
     },
-    "version": "0.9.12-alpha",
+    "version": "0.9.12-beta",
     "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
     "publisher": "ms-vscode",
     "engines": {
@@ -274,6 +274,7 @@
         "typescript": "^4.0.2",
         "vsce": "^1.91.0",
         "vscode-azureextensiondev": "^0.10.2",
+        "vscode-extension-telemetry": "^0.4.5",
         "webpack": "^5.24.1",
         "webpack-cli": "^4.5.0"
     },

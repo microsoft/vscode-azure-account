@@ -21,6 +21,7 @@ import { UriEventHandler } from './login/exchangeCodeForToken';
 import { updateFilters } from './login/updateFilters';
 import { updateSubscriptionsAndTenants } from './login/updateSubscriptions';
 import { survey } from './nps';
+import { createReporter } from './telemetry';
 import { localize } from './utils/localize';
 import { logErrorMessage } from './utils/logErrorMessage';
 import { getSettingValue } from './utils/settingUtils';
@@ -42,7 +43,9 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 
 		ext.experimentationService = await createExperimentationService(context);
 		ext.isMsalTreatmentVariable = await ext.experimentationService.getCachedTreatmentVariable('azure-account.isMsal');
-		ext.loginHelper = new AzureAccountLoginHelper(activateContext, context);
+
+		const reporter = createReporter(context);
+		ext.loginHelper = new AzureAccountLoginHelper(activateContext, context, reporter);
 
 		await migrateEnvironmentSetting();
 

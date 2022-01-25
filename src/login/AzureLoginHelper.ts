@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from '@azure/ms-rest-azure-env';
+import { TelemetryReporter } from 'src/telemetry';
 import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, window, workspace } from 'vscode';
 import { IActionContext } from 'vscode-azureextensionui';
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
@@ -58,7 +59,7 @@ export class AzureAccountLoginHelper {
 	public api: AzureAccountExtensionApi;
 	public legacyApi: AzureAccountExtensionLegacyApi;
 
-	constructor(actionContext: IActionContext, public context: ExtensionContext) {
+	constructor(actionContext: IActionContext, public context: ExtensionContext, private reporter: TelemetryReporter) {
 		this.adalAuthProvider = new AdalAuthProvider(enableVerboseLogs);
 		this.msalAuthProvider = new MsalAuthProvider(enableVerboseLogs);
 		this.authProvider = getAuthLibrary() === 'ADAL' ?  this.adalAuthProvider : this.msalAuthProvider;
@@ -127,12 +128,15 @@ export class AzureAccountLoginHelper {
 				await this.authProvider.loginWithDeviceCode(environment, tenantId);
 			await this.updateSessions(this.authProvider, environment, loginResult);
 			void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
+			void this.sendLoginTelemetryLegacy(trigger, 'tryExisting', environmentName, 'success', undefined, true);
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				ext.outputChannel.appendLog(err.reason);
 				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'error', message: getErrorMessage(err.reason) || getErrorMessage(err) });
+				void this.sendLoginTelemetryLegacy(trigger, 'tryExisting', environmentName, 'error', getErrorMessage(err.reason) || getErrorMessage(err));
 			} else {
 				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'failure', message: getErrorMessage(err) });
+				void this.sendLoginTelemetryLegacy(trigger, codePath, environmentName, 'failure', getErrorMessage(err));
 			}
 			throw err;
 		} finally {
@@ -151,6 +155,29 @@ export class AzureAccountLoginHelper {
 			await this.api.waitForSubscriptions();
 			context.telemetry.properties.subscriptions = JSON.stringify((this.api.subscriptions).map(s => s.subscription.subscriptionId));
 		}
+	}
+
+	private async sendLoginTelemetryLegacy(trigger: LoginTrigger, path: CodePath, cloud: string, outcome: string, message?: string, includeSubscriptions?: boolean) {
+		/* __GDPR__
+		   "login" : {
+			  "trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "cloud" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+			  "subscriptions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "endPoint": "AzureSubscriptionId" }
+		   }
+		 */
+		const event: Record<string, string> = { trigger, path, cloud, outcome };
+		if (message) {
+			event.message = message;
+		}
+		if (includeSubscriptions) {
+			await this.api.waitForSubscriptions();
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			event.subscriptions = JSON.stringify((await this.subscriptionsTask).map(s => s.subscription.subscriptionId!));
+		}
+		this.reporter.sendSanitizedEvent('login', event);
 	}
 
 	public async logout(): Promise<void> {

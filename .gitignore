@@ -3,3 +3,4 @@ out
 dist
 node_modules
 *.vsix
+*.js.map

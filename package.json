@@ -233,7 +233,9 @@
                     ],
                     "description": "The authentication library to use. Note: You must sign out and reload the window after modifying this setting for it to take effect.",
                     "default": "ADAL",
-                    "tags": ["experimental"]
+                    "tags": [
+                        "experimental"
+                    ]
                 }
             }
         }

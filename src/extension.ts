@@ -40,7 +40,6 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		activateContext.telemetry.properties.activationTime = String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000);
 
 		ext.experimentationService = await createExperimentationService(context);
-		ext.isMsalTreatmentVariable = await ext.experimentationService.getCachedTreatmentVariable('azure-account.isMsal');
 		ext.loginHelper = new AzureAccountLoginHelper(context);
 
 		await migrateEnvironmentSetting();

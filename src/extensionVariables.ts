@@ -14,5 +14,4 @@ export namespace ext {
     export let outputChannel: IAzExtOutputChannel;
     export let uriEventHandler: UriEventHandler;
     export let experimentationService: IExperimentationServiceAdapter;
-    export let isMsalTreatmentVariable: boolean | undefined;
 }

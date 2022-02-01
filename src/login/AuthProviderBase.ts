@@ -5,7 +5,6 @@
 
 import { TokenCredential } from "@azure/core-auth";
 import { Environment } from "@azure/ms-rest-azure-env";
-import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AccountInfo } from "@azure/msal-node";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
@@ -17,6 +16,7 @@ import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { localize } from "../utils/localize";
 import { logErrorMessage } from "../utils/logErrorMessage";
 import { openUri } from "../utils/openUri";
+import { DeviceTokenCredentials2 } from "./adal/DeviceTokenCredentials2";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { exchangeCodeForToken } from "./exchangeCodeForToken";

@@ -13,7 +13,7 @@ import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
 import { AbstractCredentials, AuthProviderBase } from "../AuthProviderBase";
-import { ForwardCompatibleToken } from "./ForwardCompatibleToken";
+import { DeviceTokenCredentials2 } from "./DeviceTokenCredentials2";
 import { getUserCode } from "./getUserCode";
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
@@ -103,8 +103,8 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		return new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.delayedTokenCache, domain: tenantId });
 	}
 
-	public getCredentials2(environment: Environment, userId: string, tenantId: string): ForwardCompatibleToken {
-		return new ForwardCompatibleToken(clientId, tenantId, userId, undefined, environment, this.delayedTokenCache);
+	public getCredentials2(environment: Environment, userId: string, tenantId: string): DeviceTokenCredentials2 {
+		return new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, environment, this.delayedTokenCache);
 	}
 
 	public async updateSessions(environment: Environment, loginResult: TokenResponse[], sessions: AzureSession[]): Promise<void> {

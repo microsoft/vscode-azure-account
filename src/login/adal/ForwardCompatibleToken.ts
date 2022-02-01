@@ -22,7 +22,7 @@ export class ForwardCompatibleToken extends DeviceTokenCredentials implements To
 
 	}
 
-    public async signRequest(webResource: WebResource): Promise<WebResource> {
+	public async signRequest(webResource: WebResource): Promise<WebResource> {
 		const tokenResponse: AccessToken = <AccessToken>(await this.getToken());
 			webResource.headers.set(
 				MSRestConstants.HeaderConstants.AUTHORIZATION,

@@ -18,7 +18,7 @@ export class ForwardCompatibleToken extends DeviceTokenCredentials implements To
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	public async getToken(): Promise<any> {
 		const tokenResponse = await this.getTokenFromCache(this.username);
-		return <AccessToken>{ token: tokenResponse.accessToken, expiresOnTimestamp: tokenResponse.expiresIn }
+		return <AccessToken>{ token: tokenResponse.accessToken, expiresOnTimestamp: tokenResponse.expiresIn };
 
 	}
 

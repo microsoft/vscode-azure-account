@@ -28,6 +28,6 @@ export class ForwardCompatibleToken extends DeviceTokenCredentials implements To
 				MSRestConstants.HeaderConstants.AUTHORIZATION,
 				`${MSRestConstants.HeaderConstants.AUTHORIZATION_SCHEME} ${tokenResponse.token}`
 			);
-			return webResource;
+		return webResource;
 	}
 }

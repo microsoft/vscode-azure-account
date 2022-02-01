@@ -293,21 +293,6 @@ export class AzureLoginHelper {
 			try {
 				const environment = await getSelectedEnvironment();
 				environmentName = environment.name;
-				const online = becomeOnline(environment, 2000, cancelSource.token);
-				const timer = delay(2000, true);
-				if (await Promise.race([online, timer])) {
-					const cancel = { title: localize('azure-account.cancel', "Cancel") };
-					await Promise.race([
-						online,
-						window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
-							.then(result => {
-								if (result === cancel) {
-									throw new AzureLoginError(localize('azure-account.offline', "Offline"));
-								}
-							})
-					]);
-					await online;
-				}
 				this.beginLoggingIn();
 				const tenantId = getTenantId();
 				const adfs = codeFlowLogin.isADFS(environment);

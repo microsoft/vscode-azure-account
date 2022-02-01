@@ -14,7 +14,7 @@ import { DeviceTokenCredentials } from '@azure/ms-rest-nodeauth';
  * `DeviceTokenCredentials` forces `getToken` to return `TokenResponse` so this is to
  * overwrite that implementation
  */
-export class ForwardCompatibleToken extends DeviceTokenCredentials implements TokenCredential {
+export class DeviceTokenCredentials2 extends DeviceTokenCredentials implements TokenCredential {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	public async getToken(): Promise<any> {
 		const tokenResponse = await this.getTokenFromCache(this.username);

@@ -35,6 +35,30 @@ let config = dev.getDefaultWebpackConfig({
     ]
 });
 
+Object.assign(config, { module: {
+	// require
+	unknownContextRegExp: /$^/,
+	unknownContextCritical: false,
+	// require(expr)
+	exprContextRegExp: /$^/,
+	exprContextCritical: false,
+	// require("prefix" + expr + "surfix")
+	wrappedContextRegExp: /$^/,
+	wrappedContextCritical: false,
+	rules: [{
+		test: /\.ts$/,
+		exclude: /node_modules/,
+		use: [{
+				loader: 'ts-loader',
+				options: {
+					compilerOptions: {
+						sourceMap: true,
+					}
+				}
+			}]
+	}]
+}});
+
 if (DEBUG_WEBPACK) {
     console.log('Config:', config);
 }

@@ -15,7 +15,7 @@ steps:
     debugMode: true # Needed to suppress folders
     folderSuppression: true
   continueOnError: true
-  condition: eq(variables['ENABLE_COMPLIANCE'], 'true')
+  condition: eq(variables['ENABLE_COMPLIANCE'], 'false')
 
 - task: securedevelopmentteam.vss-secure-development-tools.build-task-antimalware.AntiMalware@3
   displayName: 'AntiMalware Scanner'
@@ -33,4 +33,4 @@ steps:
   displayName: 'Post Analysis'
   inputs:
     AllTools: true
-  condition: eq(variables['ENABLE_COMPLIANCE'], 'true')
+  condition: eq(variables['ENABLE_COMPLIANCE'], 'false')

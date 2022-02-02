@@ -19,7 +19,10 @@ export class DeviceTokenCredentials2 extends DeviceTokenCredentials implements T
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	public async getToken(): Promise<any> {
 		const tokenResponse = <AccessToken & TokenResponse>(await this.getTokenFromCache(this.username));
-		return Object.assign(tokenResponse, {token: tokenResponse.accessToken, expiresOnTimestamp: tokenResponse.expiresIn});
+		return Object.assign(tokenResponse, {
+			token: tokenResponse.accessToken, 
+			expiresOnTimestamp: new Date().getTime() + tokenResponse.expiresIn 
+		});
 	}
 
 	public async signRequest(webResource: WebResource): Promise<WebResource> {

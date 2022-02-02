@@ -92,7 +92,21 @@ const config = {
             patterns: [
                 { from: './out/src/utils/getCoreNodeModule.js', to: 'node_modules' }
             ]
-        })
+        }),
+        {
+            "dangerouslyAllowCleanPatternsOutsideProject": false,
+            "dry": false,
+            "verbose": true,
+            "cleanStaleWebpackAssets": true,
+            "protectWebpackAssets": true,
+            "cleanAfterEveryBuildPatterns": [],
+            "cleanOnceBeforeBuildPatterns": [
+              "**/*"
+            ],
+            "currentAssets": [],
+            "initialClean": false,
+            "outputPath": ""
+          },
 	],
     module: {
         rules: [

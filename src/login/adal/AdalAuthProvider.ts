@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
-import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { Logging, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { AzureSession } from "../../azure-account.api";
@@ -13,7 +12,8 @@ import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { timeout } from "../../utils/timeUtils";
-import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
+import { AbstractCredentials, AuthProviderBase } from "../AuthProviderBase";
+import { DeviceTokenCredentials2 } from "./DeviceTokenCredentials2";
 import { getUserCode } from "./getUserCode";
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
@@ -103,7 +103,7 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		return new DeviceTokenCredentials({ environment: (<any>Environment)[environment], username: userId, clientId, tokenCache: this.delayedTokenCache, domain: tenantId });
 	}
 
-	public getCredentials2(environment: Environment, userId: string, tenantId: string): AbstractCredentials2 {
+	public getCredentials2(environment: Environment, userId: string, tenantId: string): DeviceTokenCredentials2 {
 		return new DeviceTokenCredentials2(clientId, tenantId, userId, undefined, environment, this.delayedTokenCache);
 	}
 

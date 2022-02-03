@@ -4,6 +4,10 @@
         {
             "folder": "node_modules\\",
             "_justification": "No need to scan external node modules."
+        },
+        {
+            "file": "extension.bundle.js.map",
+            "_justification": ""
         }
     ]
 }

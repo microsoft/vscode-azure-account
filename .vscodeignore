@@ -14,3 +14,4 @@ src
 package-lock.json
 tsconfig.json
 webpack.config.js
+**/*.map

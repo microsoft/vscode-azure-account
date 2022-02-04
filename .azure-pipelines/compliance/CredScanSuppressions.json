@@ -4,6 +4,10 @@
         {
             "folder": "node_modules\\",
             "_justification": "No need to scan external node modules."
+        },
+        {
+            "hash": "/emif90WUK+sGxnCor3kHmrhC65OTPF+7TZ0cEkqHbc=",
+            "_justification": "The suspected secret was found in extension.bundle.js.map. It does not appear in the extension's source code or in any code that is shipped to customers as part of the VSIX."
         }
     ]
 }

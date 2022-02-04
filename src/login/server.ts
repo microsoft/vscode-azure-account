@@ -80,7 +80,7 @@ export function createServer(nonce: string): {
 		const reqUrl: url.UrlWithParsedQuery = url.parse(req.url!, /* parseQueryString */ true);
 		switch (reqUrl.pathname) {
 			case '/signin':
-				const receivedNonce: string = (reqUrl.query.nonce.toString() || '').replace(/ /g, '+');
+				const receivedNonce: string = (reqUrl.query.nonce?.toString() || '').replace(/ /g, '+');
 				if (receivedNonce === nonce) {
 					deferredRedirect.resolve({ req, res });
 				} else {

@@ -4,6 +4,10 @@
         {
             "folder": "node_modules\\",
             "_justification": "No need to scan external node modules."
+        },
+        {
+            "folder": "dist\\",
+            "_justification": "This folder is home to webpacked code, build artifacts, and dependencies: not source code."
         }
     ]
 }

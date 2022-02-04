@@ -6,8 +6,8 @@
             "_justification": "No need to scan external node modules."
         },
         {
-            "file": "extension.bundle.js.map",
-            "_justification": ""
+            "hash": "/emif90WUK+sGxnCor3kHmrhC65OTPF+7TZ0cEkqHbc=",
+            "_justification": "The suspected secret does not appear in the extension's source code or in any code that is shipped to customers as part of the VSIX."
         }
     ]
 }

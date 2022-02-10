@@ -9,6 +9,7 @@ import { AccountInfo, AuthenticationResult, PublicClientApplication } from "@azu
 import { AzExtServiceClientCredentials } from "vscode-azureextensionui";
 import { defaultMsalScopes } from "../../constants";
 
+// Implements `AzExtServiceClientCredentials` for backwards compatibility with dependents that still rely on `signRequest`
 export class PublicClientCredential implements TokenCredential, AzExtServiceClientCredentials {
 	private publicClientApp: PublicClientApplication;
 	private accountInfo: AccountInfo;

@@ -1,7 +1,16 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
-## [Unreleased]
+## [0.10.0]
+
+### Added
+- Support for the Microsoft Authentication Library (MSAL) via the `Azure: Authentication Library` setting.
+- The `Azure: Select Tenant` command allows you to view/select available tenants or enter a custom tenant.
+- The extension now supports a [versioned API](https://github.com/microsoft/vscode-azure-account/blob/main/src/azure-account.api.d.ts) 
+accessible by calling [`getApi`](https://github.com/microsoft/vscode-azuretools/blob/d38498f0085deb912675e4d2cb376f973c12f31e/utils/api.d.ts#L22)
+on the extension's exports. A [legacy API](https://github.com/microsoft/vscode-azure-account/blob/main/src/azure-account.legacy.api.d.ts)
+is still supported.
+
 ### Changed
 - The `Azure: Open Bash in Cloud Shell` and `Azure: Open PowerShell in Cloud Shell` commands have been replaced with entry
 points in the VS Code terminal view. See [README.md](https://github.com/microsoft/vscode-azure-account#azure-cloud-shell) for more details.

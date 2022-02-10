@@ -10,7 +10,7 @@ import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutput
 import { AzureExtensionApiProvider } from 'vscode-azureextensionui/api';
 import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
-import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
+import { authLibrarySetting, cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
 import { AzureAccountLoginHelper } from './login/AzureLoginHelper';
 import { askForLogin } from './login/commands/askForLogin';
@@ -38,9 +38,10 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 	await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
 		activateContext.telemetry.properties.isActivationEvent = 'true';
 		activateContext.telemetry.properties.activationTime = String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000);
+		activateContext.telemetry.properties.authLibraryOnStartup = getSettingValue(authLibrarySetting) || 'undefined';
 
 		ext.experimentationService = await createExperimentationService(context);
-		ext.loginHelper = new AzureAccountLoginHelper(context);
+		ext.loginHelper = new AzureAccountLoginHelper(context, activateContext);
 
 		await migrateEnvironmentSetting();
 		if (enableLogging) {

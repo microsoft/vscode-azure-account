@@ -6,7 +6,7 @@
 import { SubscriptionModels } from '@azure/arm-subscriptions';
 import { TokenCredential } from '@azure/core-auth';
 import { Environment } from '@azure/ms-rest-azure-env';
-import { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
+import type { TokenCredentialsBase } from '@azure/ms-rest-nodeauth';
 import { ReadStream } from 'fs';
 import { CancellationToken, Event, Progress, Terminal } from 'vscode';
 

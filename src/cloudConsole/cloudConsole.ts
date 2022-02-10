@@ -14,7 +14,7 @@ import * as path from 'path';
 import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
 import { v4 as uuid } from 'uuid';
-import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, Uri, version, window } from 'vscode';
+import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, UIKind, Uri, version, window } from 'vscode';
 import { callWithTelemetryAndErrorHandlingSync, IActionContext, IParsedError, parseError } from 'vscode-azureextensionui';
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
@@ -273,7 +273,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				shellArgs.shift();
 			}
 
-			if (process.platform === 'darwin' && semver.gte(version, '1.62.1')) {
+			if (!isWindows && env.uiKind === UIKind.Desktop && semver.gte(version, '1.62.1')) {
 				// https://github.com/microsoft/vscode/issues/136987
 				// This fix can't be applied to all versions of VS Code. An error is thrown in versions less than the one specified
 				shellArgs.push('--ms-enable-electron-run-as-node');

@@ -58,7 +58,7 @@ export class AzureAccountLoginHelper {
 	public api: AzureAccountExtensionApi;
 	public legacyApi: AzureAccountExtensionLegacyApi;
 
-	constructor(public context: ExtensionContext) {
+	constructor(public context: ExtensionContext, actionContext: IActionContext) {
 		this.adalAuthProvider = new AdalAuthProvider(enableVerboseLogs);
 		this.msalAuthProvider = new MsalAuthProvider(enableVerboseLogs);
 		this.authProvider = getAuthLibrary() === 'ADAL' ?  this.adalAuthProvider : this.msalAuthProvider;
@@ -71,17 +71,21 @@ export class AzureAccountLoginHelper {
 		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(logErrorMessage)));
 		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
+				actionContext.telemetry.properties.changeCloudOrTenant = 'true';
 				const doLogin: boolean = this.doLogin;
 				this.doLogin = false;
 				this.initialize(e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
 					.catch(logErrorMessage);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
+				actionContext.telemetry.properties.changeResourceFilter = 'true';
 				updateFilters(true);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting))) {
+				actionContext.telemetry.properties.changeAuthLibrary = 'true';
 				const mustSignOutAndReload: string = localize('azure-account.mustSignOutAndReload', 'You must sign out and reload the window to authenticate with "{0}"', getAuthLibrary());
 				const signOutAndReload: string = localize('azure-account.signOutAndReload', 'Sign Out and Reload Window');
 				void window.showInformationMessage(mustSignOutAndReload, signOutAndReload).then(async value => {
 					if (value === signOutAndReload) {
+						actionContext.telemetry.properties.signOutAndReload = 'true';
 						await this.logout();
 						await commands.executeCommand('workbench.action.reloadWindow');
 					}

@@ -161,6 +161,8 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 	return (callWithTelemetryAndErrorHandlingSync('azure-account.createCloudConsole', (context: IActionContext) => {
 		const os: OS = OSes[osName];
+		context.telemetry.properties.cloudShellType = os.shellName;
+
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		let liveServerQueue: Queue<any> | undefined;
 		const event: EventEmitter<CloudShellStatus> = new EventEmitter<CloudShellStatus>();

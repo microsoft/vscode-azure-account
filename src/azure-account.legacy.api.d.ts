@@ -14,7 +14,7 @@ import { CancellationToken, Event, Progress, Terminal } from 'vscode';
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
 /**
- * @deprecated Use `AzureAccountExtensionApi`, exported from azure-account.api.d.ts
+ * @deprecated Use `AzureAccountExtensionApi` exported from azure-account.api.d.ts
  */
 export interface AzureAccount {
 	readonly status: AzureLoginStatus;
@@ -31,6 +31,9 @@ export interface AzureAccount {
 	createCloudShell(os: 'Linux' | 'Windows'): CloudShell;
 }
 
+/**
+ * @deprecated Use `AzureSession` exported from azure-account.api.d.ts
+ */
 export interface AzureSession {
 	readonly environment: Environment;
 	readonly userId: string;

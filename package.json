@@ -235,7 +235,8 @@
                     "default": "ADAL",
                     "tags": [
                         "experimental"
-                    ]
+                    ],
+                    "scope": "machine-overridable"
                 }
             }
         }

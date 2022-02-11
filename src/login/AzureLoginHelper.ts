@@ -7,7 +7,7 @@ import { Environment } from '@azure/ms-rest-azure-env';
 import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, window, workspace } from 'vscode';
 import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
-import { authLibrarySetting, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, resourceFilterSetting, tenantSetting } from '../constants';
+import { AuthLibrary, authLibrarySetting, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { ext } from '../extensionVariables';
 import { localize } from '../utils/localize';
@@ -16,6 +16,7 @@ import { openUri } from '../utils/openUri';
 import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
+import { authLibraryCacheKey } from './AuthLibraryCache';
 import { AuthProviderBase } from './AuthProviderBase';
 import { AzureAccountExtensionApi } from './AzureAccountExtensionApi';
 import { AzureAccountExtensionLegacyApi } from './AzureAccountExtensionLegacyApi';
@@ -81,7 +82,11 @@ export class AzureAccountLoginHelper {
 				updateFilters(true);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting))) {
 				actionContext.telemetry.properties.changeAuthLibrary = 'true';
-				const mustSignOutAndReload: string = localize('azure-account.mustSignOutAndReload', 'You must sign out and reload the window to authenticate with "{0}"', getAuthLibrary());
+	
+				const newAuthLibrary: AuthLibrary = getAuthLibrary();
+				await this.context.globalState.update(authLibraryCacheKey, { lastUsedAuthLibrary: newAuthLibrary });
+
+				const mustSignOutAndReload: string = localize('azure-account.mustSignOutAndReload', 'You must sign out and reload the window to authenticate with "{0}"', newAuthLibrary);
 				const signOutAndReload: string = localize('azure-account.signOutAndReload', 'Sign Out and Reload Window');
 				void window.showInformationMessage(mustSignOutAndReload, signOutAndReload).then(async value => {
 					if (value === signOutAndReload) {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { callWithTelemetryAndErrorHandling, IActionContext } from '@microsoft/vscode-azext-utils';
 import { Disposable, Event } from 'vscode';
-import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
 import * as types from '../azure-account.api';
 import { createCloudConsole, OSName } from '../cloudConsole/cloudConsole';
 import { AzureAccountLoginHelper } from './AzureLoginHelper';

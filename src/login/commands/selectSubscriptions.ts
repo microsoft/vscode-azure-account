@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { callWithTelemetryAndErrorHandling, IActionContext } from "@microsoft/vscode-azext-utils";
 import { CancellationTokenSource, commands, ConfigurationTarget, QuickPickItem, window, workspace, WorkspaceConfiguration } from "vscode";
-import { callWithTelemetryAndErrorHandling, IActionContext } from "vscode-azureextensionui";
 import { AzureSubscription } from "../../azure-account.api";
 import { extensionPrefix, resourceFilterSetting } from "../../constants";
 import { ext } from "../../extensionVariables";

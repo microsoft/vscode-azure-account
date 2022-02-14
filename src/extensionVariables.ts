@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAzExtOutputChannel, IExperimentationServiceAdapter } from "@microsoft/vscode-azext-utils";
 import { ExtensionContext } from "vscode";
-import { IAzExtOutputChannel, IExperimentationServiceAdapter } from "vscode-azureextensionui";
 import { AzureAccountLoginHelper } from "./login/AzureLoginHelper";
 import { UriEventHandler } from "./login/exchangeCodeForToken";
 

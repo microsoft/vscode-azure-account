@@ -6,7 +6,7 @@
 import { AccessToken, TokenCredential } from "@azure/core-auth";
 import { Constants as MSRestConstants, WebResource } from "@azure/ms-rest-js";
 import { AccountInfo, AuthenticationResult, PublicClientApplication } from "@azure/msal-node";
-import { AzExtServiceClientCredentials } from "vscode-azureextensionui";
+import { AzExtServiceClientCredentials } from "@microsoft/vscode-azext-utils";
 import { defaultMsalScopes } from "../../constants";
 
 // Implements `AzExtServiceClientCredentials` for backwards compatibility with dependents that still rely on `signRequest`

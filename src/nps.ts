@@ -5,8 +5,8 @@
 
 'use strict';
 
+import { callWithTelemetryAndErrorHandling, IActionContext } from '@microsoft/vscode-azext-utils';
 import { env, ExtensionContext, extensions, Uri, window } from 'vscode';
-import { callWithTelemetryAndErrorHandling, IActionContext } from 'vscode-azureextensionui';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();

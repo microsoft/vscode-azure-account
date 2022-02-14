@@ -6,11 +6,11 @@
 import { TokenCredential } from "@azure/core-auth";
 import { Environment } from "@azure/ms-rest-azure-env";
 import { AccountInfo } from "@azure/msal-node";
+import { parseError } from "@microsoft/vscode-azext-utils";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { env, MessageItem, UIKind, Uri, window } from "vscode";
-import { parseError } from "vscode-azureextensionui";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { localize } from "../utils/localize";

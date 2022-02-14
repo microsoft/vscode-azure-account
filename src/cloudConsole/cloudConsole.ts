@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { callWithTelemetryAndErrorHandlingSync, IActionContext, IParsedError, parseError } from '@microsoft/vscode-azext-utils';
 import * as cp from 'child_process';
 import * as FormData from 'form-data';
 import { ReadStream } from 'fs';
@@ -15,7 +16,6 @@ import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
 import { v4 as uuid } from 'uuid';
 import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, UIKind, Uri, version, window } from 'vscode';
-import { callWithTelemetryAndErrorHandlingSync, IActionContext, IParsedError, parseError } from 'vscode-azureextensionui';
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';

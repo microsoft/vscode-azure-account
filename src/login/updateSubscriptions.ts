@@ -5,7 +5,7 @@
 
 import { SubscriptionClient } from "@azure/arm-subscriptions";
 import { HttpOperationResponse, RequestPrepareOptions } from "@azure/ms-rest-js";
-import { callWithTelemetryAndErrorHandling, IActionContext } from "vscode-azureextensionui";
+import { callWithTelemetryAndErrorHandling, IActionContext } from "@microsoft/vscode-azext-utils";
 import { AzureSubscription } from "../azure-account.api";
 import { cacheKey } from "../constants";
 import { ext } from "../extensionVariables";

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { callWithTelemetryAndErrorHandlingSync, IActionContext } from "vscode-azureextensionui";
+import { callWithTelemetryAndErrorHandlingSync, IActionContext } from "@microsoft/vscode-azext-utils";
 import { AuthLibrary, authLibrarySetting } from "../constants";
 import { getSettingValue } from "../utils/settingUtils";
 

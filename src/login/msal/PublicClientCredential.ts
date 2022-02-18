@@ -19,8 +19,12 @@ export class PublicClientCredential implements TokenCredential, AzExtServiceClie
 		this.accountInfo = accountInfo;
 	}
 
-	public async getToken(scopes: string | string[]): Promise<AccessToken | null> {
-		scopes = Array.isArray(scopes) ? scopes : [scopes];
+	public async getToken(scopes?: string | string[]): Promise<AccessToken | null> {
+		if (scopes) {
+			scopes = Array.isArray(scopes) ? scopes : [scopes];
+		} else {
+			scopes = [];
+		}
 
 		if (scopes.length === 1 && scopes[0] === 'https://management.azure.com/.default') {
 			// The Azure Functions & App Service APIs only accept the legacy scope (which is the default scope we use)

@@ -56,7 +56,7 @@ export async function loginToCloud(): Promise<void> {
 				}
 				await config.update(tenantSetting, tenantId, getCurrentTarget(config.inspect(tenantSetting)));
 				// if outside of normal range, set ppe setting
-				await config.update(tenantSetting, selected.environment.name, getCurrentTarget(config.inspect(cloudSetting)));
+				await config.update(cloudSetting, selected.environment.name, getCurrentTarget(config.inspect(cloudSetting)));
 			} else {
 				return;
 			}

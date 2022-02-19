@@ -7,13 +7,15 @@ import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceCodeResponse } from "@azure/msal-common";
 import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from "@azure/msal-node";
 import { AzureSession } from "../../azure-account.api";
-import { clientId, defaultMsalScopes } from "../../constants";
+import { clientId } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { AzureSessionInternal } from "../AzureSessionInternal";
 import { cachePlugin } from "./cachePlugin";
+import { getAzureCloudInstance } from "./getAzureCloudInstance";
+import { getDefaultMsalScopes } from "./getDefaultMsalScopes";
 import { PublicClientCredential } from "./PublicClientCredential";
 
 export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
@@ -37,11 +39,15 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		this.publicClientApp = new PublicClientApplication(msalConfiguration);
 	}
 
-	public async loginWithAuthCode(code: string, redirectUrl: string): Promise<AuthenticationResult> {
+	public async loginWithAuthCode(code: string, redirectUrl: string, _clientId: string, environment: Environment, tenantId: string): Promise<AuthenticationResult> {
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByCode({
-			scopes: defaultMsalScopes,
+			scopes: getDefaultMsalScopes(environment),
 			code,
 			redirectUri: redirectUrl,
+			azureCloudOptions: {
+				azureCloudInstance: getAzureCloudInstance(environment),
+				tenant: tenantId
+			},
 		});
 
 		if (!authResult) {
@@ -51,10 +57,14 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		return authResult;
 	}
 
-	public async loginWithDeviceCode(): Promise<AuthenticationResult> {
+	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AuthenticationResult> {
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByDeviceCode({
-			scopes: defaultMsalScopes,
-			deviceCodeCallback: (response: DeviceCodeResponse) => this.showDeviceCodeMessage(response.message, response.userCode, response.verificationUri)
+			scopes: getDefaultMsalScopes(environment),
+			deviceCodeCallback: (response: DeviceCodeResponse) => this.showDeviceCodeMessage(response.message, response.userCode, response.verificationUri),
+			azureCloudOptions: {
+				azureCloudInstance: getAzureCloudInstance(environment),
+				tenant: tenantId
+			}
 		});
 
 		if (!authResult) {
@@ -64,15 +74,19 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		return authResult;
 	}
 
-	public async loginSilent(): Promise<AuthenticationResult> {
+	public async loginSilent(environment: Environment, tenantId: string): Promise<AuthenticationResult> {
 		const msalTokenCache: TokenCache = this.publicClientApp.getTokenCache();
 		const accountInfo: AccountInfo[] = await msalTokenCache.getAllAccounts();
 		let authResult: AuthenticationResult | null;
 
 		if (accountInfo.length === 1) {
 			authResult = await this.publicClientApp.acquireTokenSilent({
-				scopes: defaultMsalScopes,
-				account: accountInfo[0]
+				scopes: getDefaultMsalScopes(environment),
+				account: accountInfo[0],
+				azureCloudOptions: {
+					azureCloudInstance: getAzureCloudInstance(environment),
+					tenant: tenantId
+				},
 			});
 
 			if (!authResult) {

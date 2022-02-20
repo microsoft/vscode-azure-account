@@ -5,12 +5,13 @@
 
 import { SubscriptionClient } from "@azure/arm-subscriptions";
 import { HttpOperationResponse, RequestPrepareOptions } from "@azure/ms-rest-js";
-import { callWithTelemetryAndErrorHandling, IActionContext } from "@microsoft/vscode-azext-utils";
+import { callWithTelemetryAndErrorHandling, IActionContext, parseError } from "@microsoft/vscode-azext-utils";
 import { AzureSubscription } from "../azure-account.api";
 import { cacheKey } from "../constants";
 import { ext } from "../extensionVariables";
 import { listAll } from "../utils/arrayUtils";
 import { AzureSessionInternal } from "./AzureSessionInternal";
+import { getSelectedEnvironment } from "./environments";
 import { SubscriptionTenantCache } from "./subscriptionTypes";
 import { TenantIdDescription } from "./TenantIdDescription";
 
@@ -50,42 +51,51 @@ async function loadTenants(context: IActionContext): Promise<TenantIdDescription
 
 	for (const session of ext.loginHelper.api.sessions) {
 		const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl });
-		let url: string | undefined = 'https://management.azure.com/tenants?api-version=2020-01-01';
+		const environment = await getSelectedEnvironment();
+		const resourceManagerEndpointUrl: string = environment.resourceManagerEndpointUrl.endsWith('/') ? 
+			environment.resourceManagerEndpointUrl : 
+			`${environment.resourceManagerEndpointUrl}/`;
+		let url: string | undefined = `${resourceManagerEndpointUrl}tenants?api-version=2020-01-01`;
 
-		do {
+		while (url) {
 			const options: RequestPrepareOptions = {
 				url,
 				method: 'GET'
 			};
 			const response: HttpOperationResponse = await client.sendRequest(options)
 
-			if (response.parsedBody && 'value' in response.parsedBody) {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-				const value: any = response.parsedBody.value;
+			if (response.parsedBody) {
+				if ('value' in response.parsedBody) {
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+					const value: any = response.parsedBody.value;
 
-				if (Array.isArray(value)) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					const tenants: any[] = value as any[];
-					tenants.forEach(tenant => {
-						if ('tenantId' in tenant && 'displayName' in tenant) {
-							const sanitizedTenant: TenantIdDescription = tenant as TenantIdDescription;
-							if (!knownTenantIds.has(sanitizedTenant.tenantId)) {
-								knownTenantIds.add(sanitizedTenant.tenantId);
-								knownTenants.push(tenant);
+					if (Array.isArray(value)) {
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+						const tenants: any[] = value as any[];
+						tenants.forEach(tenant => {
+							if ('tenantId' in tenant && 'displayName' in tenant) {
+								const sanitizedTenant: TenantIdDescription = tenant as TenantIdDescription;
+								if (!knownTenantIds.has(sanitizedTenant.tenantId)) {
+									knownTenantIds.add(sanitizedTenant.tenantId);
+									knownTenants.push(tenant);
+								}
 							}
-						}
-					});
+						});
 
-					// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-					if ('nextLink' in response.parsedBody) {
 						// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-						url = response.parsedBody.nextLink as string | undefined;
-					} else {
-						url = undefined;
+						if ('nextLink' in response.parsedBody) {
+							// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+							url = response.parsedBody.nextLink as string | undefined;
+							continue;
+						}
 					}
+				} else if ('error' in response.parsedBody) {
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+					throw new Error(parseError(response.parsedBody.error).message);
 				}
 			}
-		} while (url);
+			url = undefined;
+		}
 	}
 
 	context.telemetry.properties.numTenants = knownTenants.length.toString();

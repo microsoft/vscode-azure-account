@@ -7,7 +7,7 @@ import { Environment } from '@azure/ms-rest-azure-env';
 import { callWithTelemetryAndErrorHandling, IActionContext } from '@microsoft/vscode-azext-utils';
 import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, window, workspace } from 'vscode';
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
-import { AuthLibrary, authLibrarySetting, cacheKey, clientId, cloudSetting, commonTenantId, customCloudArmUrlSetting, resourceFilterSetting, tenantSetting } from '../constants';
+import { AuthLibrary, authLibrarySetting, cacheKey, clientId, commonTenantId, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { ext } from '../extensionVariables';
 import { localize } from '../utils/localize';
@@ -37,11 +37,10 @@ interface IAzureAccountWriteable extends AzureAccountExtensionApi {
 	status: AzureLoginStatus;
 }
 
-type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud' | 'cloudChange' | 'tenantChange' | 'customCloudARMUrlChange';
+type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToCloud';
 type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
 
 export class AzureAccountLoginHelper {
-	private doLogin: boolean = false;
 	private adalAuthProvider: AdalAuthProvider;
 	private msalAuthProvider: MsalAuthProvider;
 	private authProvider: AdalAuthProvider | MsalAuthProvider;
@@ -71,13 +70,7 @@ export class AzureAccountLoginHelper {
 		context.subscriptions.push(commands.registerCommand('azure-account.loginWithDeviceCode', () => this.login('loginWithDeviceCode').catch(logErrorMessage)));
 		context.subscriptions.push(commands.registerCommand('azure-account.logout', () => this.logout().catch(logErrorMessage)));
 		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) || e.affectsConfiguration(getSettingWithPrefix(customCloudArmUrlSetting))) {
-				actionContext.telemetry.properties.changeCloudOrTenant = 'true';
-				const doLogin: boolean = this.doLogin;
-				this.doLogin = false;
-				this.initialize(e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) ? 'cloudChange' : e.affectsConfiguration(getSettingWithPrefix(tenantSetting)) ? 'tenantChange' : 'customCloudARMUrlChange', doLogin)
-					.catch(logErrorMessage);
-			} else if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
+			if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				actionContext.telemetry.properties.changeResourceFilter = 'true';
 				updateFilters(true);
 			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting))) {
@@ -97,12 +90,14 @@ export class AzureAccountLoginHelper {
 				});
 			}
 		}));
-		this.initialize('activation', false, true)
+		this.initialize('activation')
 			.catch(logErrorMessage);
 	}
 
 	public async login(trigger: LoginTrigger): Promise<void> {
 		await callWithTelemetryAndErrorHandling('azure-account.login', async (context: IActionContext) => {
+			await ext.loginHelper.logout();
+
 			let codePath: CodePath = 'newLogin';
 			let environmentName: string = 'uninitialized';
 			const cancelSource: CancellationTokenSource = new CancellationTokenSource();
@@ -170,7 +165,7 @@ export class AzureAccountLoginHelper {
 		this.updateLoginStatus();
 	}
 
-	private async initialize(trigger: LoginTrigger, doLogin?: boolean, migrateToken?: boolean): Promise<void> {
+	private async initialize(trigger: LoginTrigger): Promise<void> {
 		await callWithTelemetryAndErrorHandling('azure-account.initialize', async (context: IActionContext) => {
 			let environmentName: string = 'uninitialized';
 			const codePath: CodePath = 'tryExisting';
@@ -181,7 +176,7 @@ export class AzureAccountLoginHelper {
 				const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
 				await waitUntilOnline(environment, 5000);
 				this.beginLoggingIn();
-				const loginResult = await this.authProvider.loginSilent(environment, tenantId, migrateToken);
+				const loginResult = await this.authProvider.loginSilent(environment, tenantId);
 				await this.updateSessions(this.authProvider, environment, loginResult);
 				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
 			} catch (err) {
@@ -190,9 +185,6 @@ export class AzureAccountLoginHelper {
 					void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'error', message: getErrorMessage(err.reason) || getErrorMessage(err) });
 				} else {
 					void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'failure', message: getErrorMessage(err) });
-				}
-				if (doLogin) {
-					await this.login(trigger);
 				}
 			} finally {
 				this.updateLoginStatus();

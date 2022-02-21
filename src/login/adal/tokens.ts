@@ -46,16 +46,14 @@ export class ProxyTokenCache {
 	/* eslint-enable */
 }
 
-export async function getStoredCredentials(environment: Environment, migrateToken?: boolean): Promise<string | undefined> {
+export async function getStoredCredentials(environment: Environment): Promise<string | undefined> {
 	try {
-		if (migrateToken) {
-			const token = await ext.context.secrets.get('Refresh Token');
-			if (token) {
-				if (!await ext.context.secrets.get('Azure')) {
-					await ext.context.secrets.store('Azure', token);
-				}
-				await ext.context.secrets.delete('Refresh Token');
+		const token = await ext.context.secrets.get('Refresh Token');
+		if (token) {
+			if (!await ext.context.secrets.get('Azure')) {
+				await ext.context.secrets.store('Azure', token);
 			}
+			await ext.context.secrets.delete('Refresh Token');
 		}
 	} catch {
 		// ignore

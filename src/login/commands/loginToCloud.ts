@@ -50,7 +50,7 @@ export async function loginToCloud(): Promise<void> {
 				prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
 				placeHolder: localize('azure-account.tenantIdPlaceholder', "Enter your tenant id, or '{0}' for the default tenant", commonTenantId),
 				ignoreFocusOut: true});
-			if (tenantId) {
+			if (tenantId !== undefined) {
 				if (armUrl) {
 					await config.update(customCloudArmUrlSetting, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlSetting)));
 				}

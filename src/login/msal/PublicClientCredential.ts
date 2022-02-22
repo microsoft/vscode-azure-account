@@ -7,7 +7,11 @@ import { AccessToken, TokenCredential } from "@azure/core-auth";
 import { Constants as MSRestConstants, WebResource } from "@azure/ms-rest-js";
 import { AccountInfo, AuthenticationResult, PublicClientApplication } from "@azure/msal-node";
 import { AzExtServiceClientCredentials } from "@microsoft/vscode-azext-utils";
-import { defaultMsalScopes } from "../../constants";
+import { commonTenantId, tenantSetting } from "../../constants";
+import { getSettingValue } from "../../utils/settingUtils";
+import { getSelectedEnvironment } from "../environments";
+import { getAzureCloudInstance } from "./getAzureCloudInstance";
+import { getDefaultMsalScopes } from "./getDefaultMsalScopes";
 
 // Implements `AzExtServiceClientCredentials` for backwards compatibility with dependents that still rely on `signRequest`
 export class PublicClientCredential implements TokenCredential, AzExtServiceClientCredentials {
@@ -26,14 +30,20 @@ export class PublicClientCredential implements TokenCredential, AzExtServiceClie
 			scopes = [];
 		}
 
+		const environment = await getSelectedEnvironment();
+
 		if (scopes.length === 1 && scopes[0] === 'https://management.azure.com/.default') {
 			// The Azure Functions & App Service APIs only accept the legacy scope (which is the default scope we use)
-			scopes = defaultMsalScopes;
+			scopes = getDefaultMsalScopes(environment);
 		}
 
 		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenSilent({
 			scopes,
-			account: this.accountInfo
+			account: this.accountInfo,
+			azureCloudOptions: {
+				azureCloudInstance: getAzureCloudInstance(environment),
+				tenant: getSettingValue(tenantSetting) || commonTenantId
+			}
 		});
 
 		if (authResult && authResult.expiresOn) {
@@ -47,7 +57,7 @@ export class PublicClientCredential implements TokenCredential, AzExtServiceClie
 	}
 
 	public async signRequest(webResource: WebResource): Promise<WebResource | undefined> {
-		const tokenResponse: AccessToken | null = await this.getToken(defaultMsalScopes);
+		const tokenResponse: AccessToken | null = await this.getToken(getDefaultMsalScopes(await getSelectedEnvironment()));
 		if (tokenResponse) {
 			webResource.headers.set(
 				MSRestConstants.HeaderConstants.AUTHORIZATION,

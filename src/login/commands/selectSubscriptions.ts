@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { callWithTelemetryAndErrorHandling, IActionContext } from "@microsoft/vscode-azext-utils";
+import { IActionContext } from "@microsoft/vscode-azext-utils";
 import { CancellationTokenSource, commands, ConfigurationTarget, QuickPickItem, window, workspace, WorkspaceConfiguration } from "vscode";
 import { AzureSubscription } from "../../azure-account.api";
 import { extensionPrefix, resourceFilterSetting } from "../../constants";
@@ -14,58 +14,56 @@ import { addFilter, removeFilter } from "../filters";
 import { getCurrentTarget } from "../getCurrentTarget";
 import { ISubscriptionItem } from "../subscriptionTypes";
 
-export async function selectSubscriptions(): Promise<unknown> {
-	return await callWithTelemetryAndErrorHandling('azure-account.selectSubscriptions', async (context: IActionContext) => {
-		if (!(await ext.loginHelper.api.waitForSubscriptions())) {
-			context.telemetry.properties.outcome = 'notLoggedIn';
-			return commands.executeCommand('azure-account.askForLogin');
-		}
+export async function selectSubscriptions(context: IActionContext): Promise<unknown> {
+	if (!(await ext.loginHelper.api.waitForSubscriptions())) {
+		context.telemetry.properties.outcome = 'notLoggedIn';
+		return commands.executeCommand('azure-account.askForLogin');
+	}
 
-		try {
-			const azureConfig: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
-			const resourceFilter: string[] = (azureConfig.get<string[]>(resourceFilterSetting) || ['all']).slice();
-			let filtersChanged: boolean = false;
+	try {
+		const azureConfig: WorkspaceConfiguration = workspace.getConfiguration(extensionPrefix);
+		const resourceFilter: string[] = (azureConfig.get<string[]>(resourceFilterSetting) || ['all']).slice();
+		let filtersChanged: boolean = false;
 
-			const subscriptions = ext.loginHelper.subscriptionsTask
-				.then(list => getSubscriptionItems(list, resourceFilter));
-			const source: CancellationTokenSource = new CancellationTokenSource();
-			const cancellable: Promise<ISubscriptionItem[]> = subscriptions.then(s => {
-				if (!s.length) {
-					context.telemetry.properties.outcome = 'noSubscriptionsFound';
-					source.cancel();
-					showNoSubscriptionsFoundNotification(context);
+		const subscriptions = ext.loginHelper.subscriptionsTask
+			.then(list => getSubscriptionItems(list, resourceFilter));
+		const source: CancellationTokenSource = new CancellationTokenSource();
+		const cancellable: Promise<ISubscriptionItem[]> = subscriptions.then(s => {
+			if (!s.length) {
+				context.telemetry.properties.outcome = 'noSubscriptionsFound';
+				source.cancel();
+				showNoSubscriptionsFoundNotification(context);
+			}
+			return s;
+		});
+		const picks: QuickPickItem[] | undefined = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
+		if (picks) {
+			if (resourceFilter[0] === 'all') {
+				resourceFilter.splice(0, 1);
+				for (const subscription of await subscriptions) {
+					addFilter(resourceFilter, subscription);
 				}
-				return s;
-			});
-			const picks: QuickPickItem[] | undefined = await window.showQuickPick(cancellable, { canPickMany: true, placeHolder: 'Select Subscriptions' }, source.token);
-			if (picks) {
-				if (resourceFilter[0] === 'all') {
-					resourceFilter.splice(0, 1);
-					for (const subscription of await subscriptions) {
+			}
+			for (const subscription of await subscriptions) {
+				if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
+					filtersChanged = true;
+					if (subscription.picked) {
+						removeFilter(resourceFilter, subscription);
+					} else {
 						addFilter(resourceFilter, subscription);
 					}
 				}
-				for (const subscription of await subscriptions) {
-					if (subscription.picked !== (picks.indexOf(subscription) !== -1)) {
-						filtersChanged = true;
-						if (subscription.picked) {
-							removeFilter(resourceFilter, subscription);
-						} else {
-							addFilter(resourceFilter, subscription);
-						}
-					}
-				}
 			}
-
-			if (filtersChanged) {
-				await updateConfiguration(azureConfig, resourceFilter);
-			}
-			context.telemetry.properties.outcome = 'success';
-		} catch (error) {
-			context.telemetry.properties.outcome = 'error';
-			throw error;
 		}
-	});
+
+		if (filtersChanged) {
+			await updateConfiguration(azureConfig, resourceFilter);
+		}
+		context.telemetry.properties.outcome = 'success';
+	} catch (error) {
+		context.telemetry.properties.outcome = 'error';
+		throw error;
+	}
 }
 
 function getSubscriptionItems(subscriptions: AzureSubscription[], resourceFilter: string[]): ISubscriptionItem[] {

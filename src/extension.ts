@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, createExperimentationService, IActionContext, registerReportIssueCommand, registerUIExtensionVariables } from '@microsoft/vscode-azext-utils';
+import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, createExperimentationService, IActionContext, registerCommand, registerReportIssueCommand, registerUIExtensionVariables } from '@microsoft/vscode-azext-utils';
 import { AzureExtensionApiProvider } from '@microsoft/vscode-azext-utils/api';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
@@ -50,12 +50,12 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 			logDiagnostics(context, ext.loginHelper.api);
 		}
 		context.subscriptions.push(createStatusBarItem(context, ext.loginHelper.api));
-		context.subscriptions.push(commands.registerCommand('azure-account.loginToCloud', loginToCloud));
-		context.subscriptions.push(commands.registerCommand('azure-account.selectSubscriptions', selectSubscriptions));
-		context.subscriptions.push(commands.registerCommand('azure-account.selectTenant', selectTenant));
-		context.subscriptions.push(commands.registerCommand('azure-account.askForLogin', askForLogin));
-		context.subscriptions.push(commands.registerCommand('azure-account.createAccount', createAccount));
-		context.subscriptions.push(commands.registerCommand('azure-account.uploadFileCloudConsole', uri => uploadFile(ext.loginHelper.api, uri)));
+		registerCommand('azure-account.loginToCloud', loginToCloud);
+		registerCommand('azure-account.selectSubscriptions', selectSubscriptions);
+		registerCommand('azure-account.selectTenant', selectTenant);
+		registerCommand('azure-account.askForLogin', askForLogin);
+		registerCommand('azure-account.createAccount', createAccount);
+		registerCommand('azure-account.uploadFileCloudConsole', uploadFile);
 		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptionsAndTenants));
 		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
 		registerReportIssueCommand('azure-account.reportIssue');
@@ -137,15 +137,15 @@ async function migrateEnvironmentSetting() {
 	await migrateSetting('AzureChina', 'AzureChinaCloud');
 }
 
-function cloudConsole(api: AzureAccountExtensionApi, os: OSName) {
-	const shell = api.createCloudShell(os);
+function cloudConsole(os: OSName) {
+	const shell = ext.loginHelper.api.createCloudShell(os);
 	if (shell) {
 		void shell.terminal.then(terminal => terminal.show());
 		return shell;
 	}
 }
 
-function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
+function uploadFile(_context: IActionContext, uri?: Uri) {
 	(async () => {
 		let shell = shells[0];
 		if (!shell) {
@@ -154,7 +154,7 @@ function uploadFile(api: AzureAccountExtensionApi, uri?: Uri) {
 				return;
 			}
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			shell = cloudConsole(api, shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
+			shell = cloudConsole(shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
 		}
 		if (!uri) {
 			uri = (await window.showOpenDialog({}) || [])[0];

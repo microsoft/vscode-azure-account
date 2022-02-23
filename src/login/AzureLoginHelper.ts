@@ -66,7 +66,7 @@ export class AzureAccountLoginHelper {
 		this.api = new AzureAccountExtensionApi(this);
 		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
 
-		registerCommand('azure-account.login', (context: IActionContext) => this.login(context, 'login').catch(logErrorMessage));
+		registerCommand('azure-account.login', (context: IActionContext) => this.login(context, 'login').catch(logErrorMessage), 3 * 1000);
 		registerCommand('azure-account.loginWithDeviceCode', (context: IActionContext) => this.login(context, 'loginWithDeviceCode').catch(logErrorMessage));
 		registerCommand('azure-account.logout', () => this.logout().catch(logErrorMessage));
 		context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {

@@ -6,13 +6,14 @@
 import { TokenCredential } from "@azure/core-auth";
 import { Environment } from "@azure/ms-rest-azure-env";
 import { AccountInfo } from "@azure/msal-node";
-import { parseError } from "@microsoft/vscode-azext-utils";
+import { IActionContext, parseError } from "@microsoft/vscode-azext-utils";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { env, MessageItem, UIKind, Uri, window } from "vscode";
+import { CancellationToken, env, MessageItem, UIKind, Uri, window } from "vscode";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
+import { ext } from "../extensionVariables";
 import { localize } from "../utils/localize";
 import { logErrorMessage } from "../utils/logErrorMessage";
 import { openUri } from "../utils/openUri";
@@ -31,14 +32,14 @@ export abstract class AuthProviderBase<TLoginResult> {
 	private terminateServer: (() => Promise<void>) | undefined;
 
 	public abstract loginWithAuthCode(code: string, redirectUrl: string, clientId: string, environment: Environment, tenantId: string): Promise<TLoginResult>;
-	public abstract loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TLoginResult>;
+	public abstract loginWithDeviceCode(context: IActionContext, environment: Environment, tenantId: string, cancellationToken: CancellationToken): Promise<TLoginResult>;
 	public abstract loginSilent(environment: Environment, tenantId: string): Promise<TLoginResult>;
 	public abstract getCredentials(environment: string, userId: string, tenantId: string): AbstractCredentials;
 	public abstract getCredentials2(environment: Environment, userId: string, tenantId: string, accountInfo?: AccountInfo): AbstractCredentials2;
 	public abstract updateSessions(environment: Environment, loginResult: TLoginResult, sessions: AzureSession[]): Promise<void>;
 	public abstract clearTokenCache(): Promise<void>;
 
-	public async login(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>): Promise<TLoginResult> {
+	public async login(context: IActionContext, clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>, cancellationToken: CancellationToken): Promise<TLoginResult> {
 		if (env.uiKind === UIKind.Web) {
 			return await this.loginWithoutLocalServer(clientId, environment, isAdfs, tenantId);
 		}
@@ -48,7 +49,14 @@ export abstract class AuthProviderBase<TLoginResult> {
 		}
 
 		const nonce: string = randomBytes(16).toString('base64');
-		const { server, redirectPromise, codePromise } = createServer(nonce);
+		const { server, redirectPromise, codePromise, codeTimer } = createServer(context, nonce);
+
+		cancellationToken.onCancellationRequested(() => {
+			server.close();
+			clearTimeout(codeTimer);
+			context.telemetry.properties.serverClosed = 'true';
+			ext.outputChannel.appendLog(localize('azure-account.serverClosed', 'Server closed.'));
+		});
 
 		if (isAdfs) {
 			this.terminateServer = createTerminateServer(server);
@@ -160,8 +168,6 @@ export abstract class AuthProviderBase<TLoginResult> {
 		if (response === copyAndOpen) {
 			void env.clipboard.writeText(userCode);
 			await openUri(verificationUrl);
-		} else {
-			return Promise.reject('user canceled');
 		}
 	}
 }

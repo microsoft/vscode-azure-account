@@ -6,20 +6,11 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { IActionContext } from "@microsoft/vscode-azext-utils";
 import { QuickPickItem, window, workspace, WorkspaceConfiguration } from "vscode";
-import { azureCustomCloud, azurePPE, cloudSetting, commonTenantId, customCloudArmUrlSetting, extensionPrefix, tenantSetting } from "../../constants";
+import { azureCustomCloud, cloudSetting, commonTenantId, customCloudArmUrlSetting, environmentLabels, extensionPrefix, tenantSetting } from "../../constants";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { getEnvironments, getSelectedEnvironment } from "../environments";
 import { getCurrentTarget } from "../getCurrentTarget";
-
-const environmentLabels: Record<string, string> = {
-	AzureCloud: localize('azure-account.azureCloud', 'Azure'),
-	AzureChinaCloud: localize('azure-account.azureChinaCloud', 'Azure China'),
-	AzureGermanCloud: localize('azure-account.azureGermanyCloud', 'Azure Germany'),
-	AzureUSGovernment: localize('azure-account.azureUSCloud', 'Azure US Government'),
-	[azureCustomCloud]: localize('azure-account.azureCustomCloud', 'Azure Custom Cloud'),
-	[azurePPE]: localize('azure-account.azurePPE', 'Azure PPE'),
-};
 
 export async function loginToCloud(context: IActionContext): Promise<void> {
 	const current: Environment = await getSelectedEnvironment();

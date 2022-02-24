@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
+import { IActionContext } from "@microsoft/vscode-azext-utils";
 import { Logging, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
 import { DeviceTokenCredentials } from "ms-rest-azure";
+import { CancellationToken } from "vscode";
 import { AzureSession } from "../../azure-account.api";
-import { azureCustomCloud, azurePPE, clientId, staticEnvironments } from "../../constants";
+import { authTimeoutMs, azureCustomCloud, azurePPE, clientId, staticEnvironments, stoppedAuthTaskMessage } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
-import { timeout } from "../../utils/timeUtils";
+import { Deferred } from "../../utils/promiseUtils";
 import { AbstractCredentials, AuthProviderBase } from "../AuthProviderBase";
 import { DeviceTokenCredentials2 } from "./DeviceTokenCredentials2";
 import { getUserCode } from "./getUserCode";
@@ -53,11 +55,27 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		return getTokensFromToken(environment, tenantId, tokenResponse);
 	}
 
-	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<TokenResponse[]> {
+	public async loginWithDeviceCode(context: IActionContext, environment: Environment, tenantId: string, cancellationToken: CancellationToken): Promise<TokenResponse[]> {
+		// Used for prematurely ending the `tokenResponseTask`.
+		let deferredTaskRegulator: Deferred<TokenResponse>;
+		const taskRegulator = new Promise<TokenResponse>((resolve, reject) => deferredTaskRegulator = { resolve, reject });
+
+		const timeout = setTimeout(() => {
+			context.errorHandling.suppressDisplay = true;
+			deferredTaskRegulator.reject(new Error(localize('azure-account.timeoutWaitingForDeviceCode', 'Timeout waiting for device code.')));
+		}, authTimeoutMs);
+
+		cancellationToken.onCancellationRequested(() => {
+			clearTimeout(timeout);
+			deferredTaskRegulator.reject(new Error(stoppedAuthTaskMessage));
+		});
+
 		const userCode: UserCodeInfo = await getUserCode(environment, tenantId);
 		const messageTask: Promise<void> = this.showDeviceCodeMessage(userCode.message, userCode.userCode, userCode.verificationUrl);
 		const tokenResponseTask: Promise<TokenResponse> = getTokenResponse(environment, tenantId, userCode);
-		const tokenResponse: TokenResponse = await Promise.race([tokenResponseTask, messageTask.then(() => Promise.race([tokenResponseTask, timeout(3 * 60 * 1000)]))]); // 3 minutes
+		const tokenResponse: TokenResponse = await Promise.race([tokenResponseTask, messageTask.then(() => Promise.race([tokenResponseTask, taskRegulator]))]);
+
+		clearTimeout(timeout);
 
 		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		await storeRefreshToken(environment, tokenResponse.refreshToken!);

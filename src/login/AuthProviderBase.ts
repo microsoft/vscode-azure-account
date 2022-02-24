@@ -52,7 +52,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		const { server, redirectPromise, codePromise, codeTimer } = createServer(context, nonce);
 
 		cancellationToken.onCancellationRequested(() => {
-			server.close();
+			server.close(error => error && ext.outputChannel.appendLog(parseError(error).message));
 			clearTimeout(codeTimer);
 			context.telemetry.properties.serverClosed = 'true';
 			ext.outputChannel.appendLog(localize('azure-account.serverClosed', 'Server closed.'));
@@ -110,7 +110,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 			}
 		} finally {
 			setTimeout(() => {
-				server.close();
+				server.close(error => error && ext.outputChannel.appendLog(parseError(error).message));
 			}, 5000);
 		}
 	}

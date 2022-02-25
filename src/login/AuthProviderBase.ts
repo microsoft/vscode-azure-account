@@ -55,7 +55,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 			server.close(error => error && ext.outputChannel.appendLog(parseError(error).message));
 			clearTimeout(codeTimer);
 			context.telemetry.properties.serverClosed = 'true';
-			ext.outputChannel.appendLog(localize('azure-account.serverClosed', 'Server closed.'));
+			ext.outputChannel.appendLog(localize('azure-account.authProcessCancelled', 'Authentication process cancelled.'));
 		});
 
 		if (isAdfs) {

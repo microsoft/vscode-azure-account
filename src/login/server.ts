@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IActionContext } from '@microsoft/vscode-azext-utils';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as https from 'https';
@@ -10,8 +11,9 @@ import * as net from 'net';
 import * as path from 'path';
 import { parse, ParsedUrlQuery } from 'querystring';
 import * as url from 'url';
-import { portADFS, redirectUrlAAD } from '../constants';
+import { authTimeoutMs, portADFS, redirectUrlAAD } from '../constants';
 import { ext } from '../extensionVariables';
+import { localize } from '../utils/localize';
 import { logErrorMessage } from '../utils/logErrorMessage';
 import { Deferred } from '../utils/promiseUtils';
 
@@ -56,10 +58,11 @@ export async function checkRedirectServer(isAdfs: boolean): Promise<boolean> {
 	return checkServerPromise;
 }
 
-export function createServer(nonce: string): {
+export function createServer(context: IActionContext, nonce: string): {
     server: http.Server;
     redirectPromise: Promise<RedirectResult>;
     codePromise: Promise<CodeResult>;
+	codeTimer: NodeJS.Timeout;
 } {
 	let deferredRedirect: Deferred<RedirectResult>;
 	const redirectPromise = new Promise<RedirectResult>((resolve, reject) => deferredRedirect = { resolve, reject });
@@ -68,8 +71,10 @@ export function createServer(nonce: string): {
 	const codePromise = new Promise<CodeResult>((resolve, reject) => deferredCode = { resolve, reject });
 
 	const codeTimer = setTimeout(() => {
-		deferredCode.reject(new Error('Timeout waiting for code'));
-	}, 5 * 60 * 1000);
+		context.errorHandling.suppressDisplay = true;
+		const message: string = localize('azure-account.timeoutWaitingForCode', 'Timeout waiting for code.');
+		deferredCode.reject(new Error(message));
+	}, authTimeoutMs);
 
 	function cancelCodeTimer() {
 		clearTimeout(codeTimer);
@@ -109,7 +114,8 @@ export function createServer(nonce: string): {
 	return {
 		server,
 		redirectPromise,
-		codePromise
+		codePromise,
+		codeTimer
 	};
 }
 

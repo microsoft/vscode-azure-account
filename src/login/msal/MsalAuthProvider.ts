@@ -6,11 +6,14 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceCodeResponse } from "@azure/msal-common";
 import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from "@azure/msal-node";
+import { IActionContext, IParsedError, parseError, UserCancelledError } from "@microsoft/vscode-azext-utils";
+import { CancellationToken } from "vscode";
 import { AzureSession } from "../../azure-account.api";
-import { clientId } from "../../constants";
+import { authTimeoutSeconds, clientId, stoppedAuthTaskMessage } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
+import { Deferred } from "../../utils/promiseUtils";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { AzureSessionInternal } from "../AzureSessionInternal";
 import { cachePlugin } from "./cachePlugin";
@@ -57,15 +60,47 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 		return authResult;
 	}
 
-	public async loginWithDeviceCode(environment: Environment, tenantId: string): Promise<AuthenticationResult> {
-		const authResult: AuthenticationResult | null = await this.publicClientApp.acquireTokenByDeviceCode({
+	public async loginWithDeviceCode(context: IActionContext, environment: Environment, tenantId: string, cancellationToken: CancellationToken): Promise<AuthenticationResult> {
+		// Used for prematurely ending the `authResultTask`.
+		let deferredTaskRegulator: Deferred<AuthenticationResult>;
+		const taskRegulator = new Promise<AuthenticationResult>((resolve, reject) => deferredTaskRegulator = { resolve, reject });
+
+		cancellationToken.onCancellationRequested(() => {
+			deferredTaskRegulator.reject(new Error(stoppedAuthTaskMessage));
+		});
+
+		const authResultTask: Promise<AuthenticationResult | null> = this.publicClientApp.acquireTokenByDeviceCode({
 			scopes: getDefaultMsalScopes(environment),
 			deviceCodeCallback: (response: DeviceCodeResponse) => this.showDeviceCodeMessage(response.message, response.userCode, response.verificationUri),
 			azureCloudOptions: {
 				azureCloudInstance: getAzureCloudInstance(environment),
 				tenant: tenantId
+			},
+			timeout: authTimeoutSeconds,
+			// This will immediately halt the promise if cancellation has already been requested.
+			// If cancellation is requested while awaiting the promise this will be ignored.
+			cancel: cancellationToken.isCancellationRequested
+		}).then(async result => {
+			if (cancellationToken.isCancellationRequested) {
+				context.telemetry.properties.authFlowCompletedAfterCancellation = 'true';
+
+				// Acquiring the token has already saved it in the cache so remove it.
+				await this.clearTokenCache();
+				throw new UserCancelledError();
 			}
+			return result;
 		});
+
+		let authResult: AuthenticationResult | null;
+		try {
+			authResult = await Promise.race([authResultTask, taskRegulator]);
+		} catch (error) {
+			const parsedError: IParsedError = parseError(error);
+			if (/user_timeout_reached/i.test(parsedError.errorType)) {
+				context.errorHandling.suppressDisplay = true;
+			}
+			throw error;
+		}
 
 		if (!authResult) {
 			throw new Error(localize('azure-account.msalDeviceCodeFailed', 'MSAL device code login failed.'));

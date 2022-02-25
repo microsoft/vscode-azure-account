@@ -5,9 +5,9 @@
 
 import { Environment } from '@azure/ms-rest-azure-env';
 import { callWithTelemetryAndErrorHandling, IActionContext, registerCommand } from '@microsoft/vscode-azext-utils';
-import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, window, workspace } from 'vscode';
+import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, ProgressLocation, window, workspace } from 'vscode';
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
-import { AuthLibrary, authLibrarySetting, cacheKey, clientId, commonTenantId, resourceFilterSetting, tenantSetting } from '../constants';
+import { AuthLibrary, authLibrarySetting, cacheKey, clientId, commonTenantId, environmentLabels, resourceFilterSetting, tenantSetting } from '../constants';
 import { AzureLoginError, getErrorMessage } from '../errors';
 import { ext } from '../extensionVariables';
 import { localize } from '../utils/localize';
@@ -95,7 +95,7 @@ export class AzureAccountLoginHelper {
 	}
 
 	public async login(context: IActionContext, trigger: LoginTrigger): Promise<void> {
-		await ext.loginHelper.logout();
+		await ext.loginHelper.logout(true /* forceLogout */);
 
 		let codePath: CodePath = 'newLogin';
 		let environmentName: string = 'uninitialized';
@@ -103,34 +103,48 @@ export class AzureAccountLoginHelper {
 		try {
 			const environment: Environment = await getSelectedEnvironment();
 			environmentName = environment.name;
-			const onlineTask: Promise<void> = waitUntilOnline(environment, 2000, cancelSource.token);
-			const timerTask: Promise<boolean | PromiseLike<boolean> | undefined> = delay(2000, true);
+			const environmentLabel: string = environmentLabels[environmentName] || localize('azure-account.unknownCloud', 'unknown cloud');
 
-			if (await Promise.race([onlineTask, timerTask])) {
-				const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel") };
-				await Promise.race([
-					onlineTask,
-					window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
-						.then(result => {
-							if (result === cancel) {
-								throw new AzureLoginError(localize('azure-account.offline', "Offline"));
-							}
-						})
-				]);
-				await onlineTask;
-			}
+			await window.withProgress({
+				title: localize('azure-account.signingIn', 'Signing in to {0}...', environmentLabel), 
+				location: ProgressLocation.Notification,
+				cancellable: true
+			}, async (_progress, cancellationToken) => {
+				cancellationToken.onCancellationRequested(async () => {
+					await this.logout(true /* forceLogout */);
+					context.telemetry.properties.signInCancelled = 'true';
+					ext.outputChannel.appendLog(localize('azure-account.signInCancelled', 'Sign in cancelled.'));
+				});
 
-			this.beginLoggingIn();
+				const onlineTask: Promise<void> = waitUntilOnline(environment, 2000, cancelSource.token);
+				const timerTask: Promise<boolean | PromiseLike<boolean> | undefined> = delay(2000, true);
 
-			const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
-			const isAdfs: boolean = isADFS(environment);
-			const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
-			codePath = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
-			const loginResult = useCodeFlow ?
-				await this.authProvider.login(clientId, environment, isAdfs, tenantId, openUri, redirectTimeout) :
-				await this.authProvider.loginWithDeviceCode(environment, tenantId);
-			await this.updateSessions(this.authProvider, environment, loginResult);
-			void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
+				if (await Promise.race([onlineTask, timerTask])) {
+					const cancel: MessageItem = { title: localize('azure-account.cancel', "Cancel") };
+					await Promise.race([
+						onlineTask,
+						window.showInformationMessage(localize('azure-account.checkNetwork', "You appear to be offline. Please check your network connection."), cancel)
+							.then(result => {
+								if (result === cancel) {
+									throw new AzureLoginError(localize('azure-account.offline', "Offline"));
+								}
+							})
+					]);
+					await onlineTask;
+				}
+
+				this.beginLoggingIn();
+
+				const tenantId: string = getSettingValue(tenantSetting) || commonTenantId;
+				const isAdfs: boolean = isADFS(environment);
+				const useCodeFlow: boolean = trigger !== 'loginWithDeviceCode' && await checkRedirectServer(isAdfs);
+				codePath = useCodeFlow ? 'newLoginCodeFlow' : 'newLoginDeviceCode';
+				const loginResult = useCodeFlow ?
+					await this.authProvider.login(context, clientId, environment, isAdfs, tenantId, openUri, redirectTimeout, cancellationToken) :
+					await this.authProvider.loginWithDeviceCode(context, environment, tenantId, cancellationToken);
+				await this.updateSessions(this.authProvider, environment, loginResult);
+				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
+			});
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
 				ext.outputChannel.appendLog(err.reason);
@@ -157,8 +171,10 @@ export class AzureAccountLoginHelper {
 		}
 	}
 
-	public async logout(): Promise<void> {
-		await this.api.waitForLogin();
+	public async logout(forceLogout?: boolean): Promise<void> {
+		if (!forceLogout) {
+			await this.api.waitForLogin();
+		}
 		await this.clearSessions();
 		this.updateLoginStatus();
 	}

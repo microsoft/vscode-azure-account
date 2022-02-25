@@ -5,10 +5,12 @@
 
 'use strict';
 
+import { parseError } from '@microsoft/vscode-azext-utils';
 import * as crypto from 'crypto';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
+import { ext } from '../extensionVariables';
 
 export async function createServer(ipcHandlePrefix: string, onRequest: http.RequestListener): Promise<Server> {
 	const buffer = await randomBytes(20);
@@ -37,7 +39,7 @@ export class Server {
 	}
 
 	dispose(): void {
-		this.server.close();
+		this.server.close(error => error && ext.outputChannel.appendLog(parseError(error).message));
 	}
 }
 

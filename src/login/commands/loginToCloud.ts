@@ -6,7 +6,7 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { IActionContext } from "@microsoft/vscode-azext-utils";
 import { QuickPickItem, window, workspace, WorkspaceConfiguration } from "vscode";
-import { azureCustomCloud, cloudSetting, commonTenantId, customCloudArmUrlSetting, environmentLabels, extensionPrefix, tenantSetting } from "../../constants";
+import { azureCustomCloud, cloudSetting, customCloudArmUrlSetting, environmentLabels, extensionPrefix, tenantSetting } from "../../constants";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
 import { getEnvironments, getSelectedEnvironment } from "../environments";
@@ -40,7 +40,7 @@ export async function loginToCloud(context: IActionContext): Promise<void> {
 			}
 			const tenantId: string | undefined = await window.showInputBox({
 				prompt: localize('azure-account.enterTenantId', "Enter the tenant id"),
-				placeHolder: localize('azure-account.tenantIdPlaceholder', "Enter your tenant id, or '{0}' for the default tenant", commonTenantId),
+				placeHolder: localize('azure-account.tenantIdPlaceholder', 'Enter your tenant id or leave it blank to use the default tenant'),
 				ignoreFocusOut: true});
 			if (tenantId !== undefined) {
 				if (armUrl) {

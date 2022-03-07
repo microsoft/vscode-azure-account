@@ -23,7 +23,7 @@ export async function selectTenant(context: IActionContext): Promise<void> {
 		}),
 		enterCustomTenant
 	];
-	const placeHolder = localize('azure-account.selectTenantPlaceHolder', 'Select a tenant. This will update the "azure.tenant" workspace setting.');
+	const placeHolder = localize('azure-account.selectTenantPlaceHolder', 'Select a tenant. This will update the "azure.tenant" setting.');
 	const result = await context.ui.showQuickPick(picks, { placeHolder });
 	if (result) {
 		let tenant: string;

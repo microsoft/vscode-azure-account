@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { parseError } from '@microsoft/vscode-azext-utils';
 import * as crypto from 'crypto';
 import * as http from 'http';
 import * as os from 'os';
@@ -39,7 +38,7 @@ export class Server {
 	}
 
 	dispose(): void {
-		this.server.close(error => error && ext.outputChannel.appendLog(parseError(error).message));
+		this.server.close(error => error && error.message && ext.outputChannel.appendLog(error.message));
 	}
 }
 

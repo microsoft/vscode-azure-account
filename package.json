@@ -154,7 +154,7 @@
                         "Azure US Government",
                         "Azure Custom Cloud"
                     ],
-                    "default": "Azure",
+                    "default": "AzureCloud",
                     "description": "The current Azure Cloud to connect to."
                 },
                 "azure.customCloud.resourceManagerEndpointUrl": {

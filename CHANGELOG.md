@@ -1,6 +1,15 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.10.1]
+
+### Added
+- A long-running notification is shown for the duration of the sign-in process which allows cancellation.
+- MSAL support for sovereign clouds
+
+### Fixed
+- The `Azure: Tenant` setting was improperly configured when running the `Azure: Sign In to Azure Cloud` command.
+
 ## [0.10.0]
 
 ### Added

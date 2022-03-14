@@ -5,8 +5,8 @@
 
 import { TokenCredential } from "@azure/core-auth";
 import { Environment } from "@azure/ms-rest-azure-env";
-import { AccountInfo } from "@azure/msal-node";
-import { IActionContext, parseError } from "@microsoft/vscode-azext-utils";
+import { AccountInfo, AuthorizationUrlRequest } from "@azure/msal-node";
+import { IActionContext, openUrl, parseError } from "@microsoft/vscode-azext-utils";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
@@ -22,6 +22,7 @@ import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { exchangeCodeForToken } from "./exchangeCodeForToken";
 import { getKey } from "./getKey";
+import { getDefaultMsalScopes } from "./msal/getDefaultMsalScopes";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 import { SubscriptionTenantCache } from "./subscriptionTypes";
 
@@ -84,10 +85,23 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const updatedPortStr: string = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
 			const updatedPort: number = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
 			const state: string = `${updatedPort},${encodeURIComponent(nonce)}`;
+			const unencodedState: string = `${updatedPort},${nonce}`;
 			const redirectUrl: string = isAdfs ? redirectUrlADFS : redirectUrlAAD;
 			const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`;
+			console.log(signInUrl);
 
-			redirectResult.res.writeHead(302, { Location: signInUrl })
+			const request: AuthorizationUrlRequest = {
+				scopes: getDefaultMsalScopes(environment),
+				redirectUri: redirectUrl,
+				state: unencodedState,
+				nonce,
+				prompt: 'select_account'
+			};
+			const authCodeUrl: string = await ext.loginHelper.msalAuthProvider.publicClientApp.getAuthCodeUrl(request);
+
+			await openUrl(authCodeUrl);
+
+			redirectResult.res.writeHead(302, { Location: authCodeUrl })
 			redirectResult.res.end();
 
 			const codeResult: CodeResult = await codePromise;

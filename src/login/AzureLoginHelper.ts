@@ -41,8 +41,8 @@ type LoginTrigger = 'activation' | 'login' | 'loginWithDeviceCode' | 'loginToClo
 type CodePath = 'tryExisting' | 'newLogin' | 'newLoginCodeFlow' | 'newLoginDeviceCode';
 
 export class AzureAccountLoginHelper {
-	private adalAuthProvider: AdalAuthProvider;
-	private msalAuthProvider: MsalAuthProvider;
+	public adalAuthProvider: AdalAuthProvider;
+	public msalAuthProvider: MsalAuthProvider;
 	private authProvider: AdalAuthProvider | MsalAuthProvider;
 
 	public oldResourceFilter: string = '';

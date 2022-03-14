@@ -22,7 +22,7 @@ import { getDefaultMsalScopes } from "./getDefaultMsalScopes";
 import { PublicClientCredential } from "./PublicClientCredential";
 
 export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
-	private publicClientApp: PublicClientApplication;
+	public publicClientApp: PublicClientApplication;
 
 	constructor(enableVerboseLogs: boolean) {
 		super();

@@ -6,7 +6,7 @@
 import { TokenCredential } from "@azure/core-auth";
 import { Environment } from "@azure/ms-rest-azure-env";
 import { AccountInfo, AuthorizationUrlRequest } from "@azure/msal-node";
-import { IActionContext, openUrl, parseError } from "@microsoft/vscode-azext-utils";
+import { IActionContext, parseError } from "@microsoft/vscode-azext-utils";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
@@ -98,8 +98,6 @@ export abstract class AuthProviderBase<TLoginResult> {
 				prompt: 'select_account'
 			};
 			const authCodeUrl: string = await ext.loginHelper.msalAuthProvider.publicClientApp.getAuthCodeUrl(request);
-
-			await openUrl(authCodeUrl);
 
 			redirectResult.res.writeHead(302, { Location: authCodeUrl })
 			redirectResult.res.end();

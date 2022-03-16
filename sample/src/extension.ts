@@ -1,7 +1,7 @@
 import { WebSiteManagementClient } from '@azure/arm-appservice';
 import { ResourceManagementClient } from '@azure/arm-resources';
 import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
-import { AzureExtensionApiProvider } from '@microsoft/vscode-azext-utils/api';
+import type { AzureExtensionApiProvider } from '@microsoft/vscode-azext-utils/api';
 import { commands, ExtensionContext, extensions, QuickPickItem, window } from 'vscode';
 import { AzureAccountExtensionApi, AzureSession } from '../../src/azure-account.api'; // Other extensions need to copy this .d.ts to their repository.
 

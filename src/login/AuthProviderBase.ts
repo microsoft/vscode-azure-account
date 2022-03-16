@@ -14,6 +14,7 @@ import { CancellationToken, env, MessageItem, UIKind, Uri, window } from "vscode
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { ext } from "../extensionVariables";
+import { logAttemptingToReachUrlMessage } from "../logAttemptingToReachUrlMessage";
 import { localize } from "../utils/localize";
 import { logErrorMessage } from "../utils/logErrorMessage";
 import { openUri } from "../utils/openUri";
@@ -87,6 +88,9 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const redirectUrl: string = isAdfs ? redirectUrlADFS : redirectUrlAAD;
 			const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`;
 
+			logAttemptingToReachUrlMessage(redirectUrl);
+			logAttemptingToReachUrlMessage(signInUrl);
+
 			redirectResult.res.writeHead(302, { Location: signInUrl })
 			redirectResult.res.end();
 
@@ -122,6 +126,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		const callbackEnvironment: string = getCallbackEnvironment(callbackUri);
 		const state: string = `${callbackEnvironment}${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
 		const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize`;
+		logAttemptingToReachUrlMessage(signInUrl);
 		let uri: Uri = Uri.parse(signInUrl);
 		uri = uri.with({
 			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}&resource=${environment.activeDirectoryResourceId}&prompt=select_account`

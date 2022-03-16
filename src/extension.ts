@@ -204,7 +204,8 @@ function createAccount() {
 }
 
 function createStatusBarItem(context: ExtensionContext, api: AzureAccountExtensionApi) {
-	const statusBarItem = window.createStatusBarItem();
+	const statusBarItem = window.createStatusBarItem('azure-account.status');
+	statusBarItem.name = localize('azure-account.status', 'Azure Account Status');
 	statusBarItem.command = "azure-account.selectSubscriptions";
 	function updateStatusBar() {
 		switch (api.status) {

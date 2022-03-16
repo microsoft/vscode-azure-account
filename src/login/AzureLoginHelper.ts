@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from '@azure/ms-rest-azure-env';
-import { callWithTelemetryAndErrorHandling, IActionContext, registerCommand } from '@microsoft/vscode-azext-utils';
+import { callWithTelemetryAndErrorHandling, DialogResponses, IActionContext, registerCommand } from '@microsoft/vscode-azext-utils';
 import { CancellationTokenSource, commands, EventEmitter, ExtensionContext, MessageItem, ProgressLocation, window, workspace } from 'vscode';
 import { AzureLoginStatus, AzureResourceFilter, AzureSession, AzureSubscription } from '../azure-account.api';
 import { AuthLibrary, authLibrarySetting, cacheKey, clientId, commonTenantId, environmentLabels, resourceFilterSetting, tenantSetting } from '../constants';
@@ -13,7 +13,7 @@ import { ext } from '../extensionVariables';
 import { localize } from '../utils/localize';
 import { logErrorMessage } from '../utils/logErrorMessage';
 import { openUri } from '../utils/openUri';
-import { getSettingValue, getSettingWithPrefix } from '../utils/settingUtils';
+import { getSettingValue, getSettingWithPrefix, updateSettingValue } from '../utils/settingUtils';
 import { delay } from '../utils/timeUtils';
 import { AdalAuthProvider } from './adal/AdalAuthProvider';
 import { authLibraryCacheKey } from './AuthLibraryCache';
@@ -84,7 +84,7 @@ export class AzureAccountLoginHelper {
 				void window.showInformationMessage(mustSignOutAndReload, signOutAndReload).then(async value => {
 					if (value === signOutAndReload) {
 						actionContext.telemetry.properties.signOutAndReload = 'true';
-						await this.logout();
+						await this.logout(true /* forceLogout */);
 						await commands.executeCommand('workbench.action.reloadWindow');
 					}
 				});
@@ -174,6 +174,7 @@ export class AzureAccountLoginHelper {
 	public async logout(forceLogout?: boolean): Promise<void> {
 		if (!forceLogout) {
 			await this.api.waitForLogin();
+			promptToClearTenant();
 		}
 		await this.clearSessions();
 		this.updateLoginStatus();
@@ -261,6 +262,22 @@ export class AzureAccountLoginHelper {
 		sessions.length = 0;
 		this.onSessionsChanged.fire();
 	}
+}
+
+function promptToClearTenant(): void {
+	void callWithTelemetryAndErrorHandling('azure-account.promptToClearTenant', (context: IActionContext) => {
+		const tenant: string | undefined = getSettingValue(tenantSetting);
+		if (tenant) {
+			const clearTenantPrompt: string = localize('azure-account.clearTenantPrompt', 'You have been successfully signed out but your tenant ID is still set to "{0}". Would you like to clear it?', tenant);
+			const clearTenant: string = localize('azure-account.clearTenant', 'Clear tenant ID');
+			void window.showInformationMessage(clearTenantPrompt, clearTenant, DialogResponses.cancel.title).then(async response => {
+				if (response === clearTenant) {
+					context.telemetry.properties.clearTenantAfterSignOut = 'true';
+					await updateSettingValue(tenantSetting, '');
+				}
+			});
+		}
+	});
 }
 
 async function redirectTimeout(): Promise<void> {

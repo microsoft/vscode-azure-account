@@ -43,7 +43,7 @@ export async function selectTenant(context: IActionContext): Promise<void> {
 			const signOut: string = localize('azure-account.signOut', 'Sign Out');
 			void window.showInformationMessage(mustSignOut, signOut).then(async value => {
 				if (value === signOut) {
-					await ext.loginHelper.logout();
+					await ext.loginHelper.logout(true /* forceLogout */);
 				}
 			});
 		}

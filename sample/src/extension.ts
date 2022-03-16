@@ -1,11 +1,13 @@
 import { WebSiteManagementClient } from '@azure/arm-appservice';
 import { ResourceManagementClient } from '@azure/arm-resources';
 import { SubscriptionClient, SubscriptionModels } from '@azure/arm-subscriptions';
+import type { AzureExtensionApiProvider } from '@microsoft/vscode-azext-utils/api';
 import { commands, ExtensionContext, extensions, QuickPickItem, window } from 'vscode';
 import { AzureAccountExtensionApi, AzureSession } from '../../src/azure-account.api'; // Other extensions need to copy this .d.ts to their repository.
 
-export function activate(context: ExtensionContext) {
-    const azureAccount = extensions.getExtension<AzureAccountExtensionApi>('ms-vscode.azure-account')!.exports;
+export function activate(context: ExtensionContext): void {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const azureAccount: AzureAccountExtensionApi = (<AzureExtensionApiProvider>extensions.getExtension('ms-vscode.azure-account')!.exports).getApi('1.0.0');
     const subscriptions = context.subscriptions;
     subscriptions.push(commands.registerCommand('azure-account-sample.showSubscriptions', showSubscriptions(azureAccount)));
     subscriptions.push(commands.registerCommand('azure-account-sample.showAppServices', showAppServices(azureAccount)));
@@ -52,6 +54,7 @@ async function loadSubscriptionItems(api: AzureAccountExtensionApi) {
 
 async function loadResourceGroupItems(subscriptionItem: SubscriptionItem) {
     const { session, subscription } = subscriptionItem;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const resources = new ResourceManagementClient(session.credentials2, subscription.subscriptionId!);
     const resourceGroups = await listAll(resources.resourceGroups, resources.resourceGroups.list());
     resourceGroups.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -76,11 +79,13 @@ async function loadWebAppItems(api: AzureAccountExtensionApi) {
     await api.waitForFilters();
     const webAppsPromises: Promise<QuickPickItem[]>[] = [];
     for (const filter of api.filters) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const client = new WebSiteManagementClient(filter.session.credentials2, filter.subscription.subscriptionId!);
         webAppsPromises.push(listAll(client.webApps, client.webApps.list())
             .then(webApps => webApps.map(webApp => {
                 return {
                     label: webApp.name || '',
+                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                     description: filter.subscription.displayName!,
                     webApp
                 };
@@ -91,7 +96,8 @@ async function loadWebAppItems(api: AzureAccountExtensionApi) {
     return webApps;
 }
 
-export function deactivate() {
+export function deactivate(): void {
+    return;
 }
 
 export interface PartialList<T> extends Array<T> {

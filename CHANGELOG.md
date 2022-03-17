@@ -1,6 +1,13 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.10.2]
+
+### Changed
+
+- The added layer of token cache security introduced in [#329](https://github.com/microsoft/vscode-azure-account/pull/329)
+has been rolled back due to SDK compatibility issues like [#443](https://github.com/microsoft/vscode-azure-account/issues/443).
+
 ## [0.10.1]
 
 ### Added

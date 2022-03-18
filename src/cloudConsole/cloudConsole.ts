@@ -19,6 +19,7 @@ import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
+import { logAttemptingToReachUrlMessage } from '../logAttemptingToReachUrlMessage';
 import { tokenFromRefreshToken } from '../login/adal/tokens';
 import { getAuthLibrary } from '../login/getAuthLibrary';
 import { localize } from '../utils/localize';
@@ -94,7 +95,9 @@ function getUploadFile(tokens: Promise<AccessTokens>, uris: Promise<ConsoleUris>
 				filename,
 				knownLength: options.contentLength
 			});
-			const uri: UrlWithStringQuery = parse(`${terminalUri}/upload`);
+			const uploadUri: string = `${terminalUri}/upload`;
+			logAttemptingToReachUrlMessage(uploadUri);
+			const uri: UrlWithStringQuery = parse(uploadUri);
 			const req: ClientRequest = form.submit(
 				{
 					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
@@ -403,6 +406,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 			const session: AzureSession = result.token.session;
 			const accessToken: string = result.token.accessToken;
 			const armEndpoint: string = session.environment.resourceManagerEndpointUrl;
+			logAttemptingToReachUrlMessage(armEndpoint);
 			const provisionTask: () => Promise<void> = async () => {
 				consoleUri = await provisionConsole(accessToken, armEndpoint, result.userSettings, OSes.Linux.id);
 				context.telemetry.properties.outcome = 'provisioned';

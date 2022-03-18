@@ -7,6 +7,7 @@ import { Environment } from "@azure/ms-rest-azure-env";
 import * as http from 'http';
 import * as https from 'https';
 import { CancellationTokenSource } from "vscode";
+import { logAttemptingToReachUrlMessage } from "../logAttemptingToReachUrlMessage";
 import { logErrorMessage } from "../utils/logErrorMessage";
 import { delay } from "../utils/timeUtils";
 
@@ -24,6 +25,7 @@ async function checkIsOnline(environment: Environment): Promise<boolean> {
 	try {
 		await new Promise<http.IncomingMessage>((resolve, reject) => {
 			const url: string = environment.activeDirectoryEndpointUrl;
+			logAttemptingToReachUrlMessage(url);
 			(url.startsWith('https:') ? https : http).get(url, resolve)
 				.on('error', reject);
 		});

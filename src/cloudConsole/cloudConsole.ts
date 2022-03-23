@@ -291,7 +291,8 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				shellArgs,
 				env: {
 					CLOUD_CONSOLE_IPC: server.ipcHandlePath,
-				}
+				},
+				isTransient: true
 			};
 
 			const cleanupCloudShell = () => {

@@ -49,6 +49,7 @@ export async function loginToCloud(context: IActionContext): Promise<void> {
 				await config.update(tenantSetting, tenantId, getCurrentTarget(config.inspect(tenantSetting)));
 				// if outside of normal range, set ppe setting
 				await config.update(cloudSetting, selected.environment.name, getCurrentTarget(config.inspect(cloudSetting)));
+				context.telemetry.properties.newCloudSetting = selected.environment.name;
 			} else {
 				return;
 			}

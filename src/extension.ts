@@ -39,6 +39,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 	await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
 		activateContext.telemetry.properties.isActivationEvent = 'true';
 		activateContext.telemetry.properties.activationTime = String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000);
+		activateContext.telemetry.properties.cloudSettingOnStartup = String(getSettingValue(cloudSetting));
 
 		ext.experimentationService = await createExperimentationService(context);
 		ext.loginHelper = new AzureAccountLoginHelper(context, activateContext);

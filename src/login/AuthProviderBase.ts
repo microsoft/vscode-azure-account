@@ -10,7 +10,7 @@ import { IActionContext, parseError } from "@microsoft/vscode-azext-utils";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { CancellationToken, env, MessageItem, UIKind, Uri, window } from "vscode";
+import { CancellationToken, env, MessageItem, Uri, window } from "vscode";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { ext } from "../extensionVariables";
@@ -22,6 +22,7 @@ import { DeviceTokenCredentials2 } from "./adal/DeviceTokenCredentials2";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { exchangeCodeForToken } from "./exchangeCodeForToken";
+import { getCallbackUrl } from "./getCallbackUrl";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 import { SubscriptionTenantCache } from "./subscriptionTypes";
@@ -41,7 +42,8 @@ export abstract class AuthProviderBase<TLoginResult> {
 	public abstract clearTokenCache(): Promise<void>;
 
 	public async login(context: IActionContext, clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>, cancellationToken: CancellationToken): Promise<TLoginResult> {
-		if (env.uiKind === UIKind.Web) {
+		const a = true;
+		if (a) {
 			return await this.loginWithoutLocalServer(clientId, environment, isAdfs, tenantId);
 		}
 
@@ -84,9 +86,8 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const host: string = redirectResult.req.headers.host || '';
 			const updatedPortStr: string = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
 			const updatedPort: number = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
-			const state: string = `${updatedPort},${encodeURIComponent(nonce)}`;
 			const redirectUrl: string = isAdfs ? redirectUrlADFS : redirectUrlAAD;
-			const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&resource=${encodeURIComponent(environment.activeDirectoryResourceId)}&prompt=select_account`;
+			const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${encodeURIComponent(getCallbackUrl(updatedPort))}?nonce=${encodeURIComponent(nonce)}`;
 
 			logAttemptingToReachUrlMessage(redirectUrl);
 			logAttemptingToReachUrlMessage(signInUrl);
@@ -121,15 +122,15 @@ export abstract class AuthProviderBase<TLoginResult> {
 
 	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult> {
 		const callbackUri: Uri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://ms-vscode.azure-account`));
-		const nonce: string = randomBytes(16).toString('base64');
+		// const nonce: string = randomBytes(16).toString('base64');
 		const port: string | number = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
 		const callbackEnvironment: string = getCallbackEnvironment(callbackUri);
-		const state: string = `${callbackEnvironment}${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+		const state: string = `${callbackEnvironment}${port}`;// ,${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
 		const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize`;
 		logAttemptingToReachUrlMessage(signInUrl);
 		let uri: Uri = Uri.parse(signInUrl);
 		uri = uri.with({
-			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}&resource=${environment.activeDirectoryResourceId}&prompt=select_account`
+			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}` // &resource=${environment.activeDirectoryResourceId}&prompt=select_account`
 		});
 		void env.openExternal(uri);
 

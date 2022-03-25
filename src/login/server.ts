@@ -16,6 +16,7 @@ import { ext } from '../extensionVariables';
 import { localize } from '../utils/localize';
 import { logErrorMessage } from '../utils/logErrorMessage';
 import { Deferred } from '../utils/promiseUtils';
+import { getCallbackUrl } from './getCallbackUrl';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RedirectResult = { req: http.IncomingMessage, res: http.ServerResponse } | { err: any; res: http.ServerResponse; };
@@ -27,15 +28,16 @@ export async function checkRedirectServer(isAdfs: boolean): Promise<boolean> {
 	if (isAdfs) {
 		return true;
 	}
+	const testCallbackUrl: string = getCallbackUrl(3333);
 	let timer: NodeJS.Timer | undefined;
 	const checkServerPromise = new Promise<boolean>(resolve => {
 		const req: http.ClientRequest = https.get({
-			...url.parse(`${redirectUrlAAD}?state=3333,cccc`),
+			...url.parse(`${redirectUrlAAD}?state=${testCallbackUrl}?nonce=cccc`),
 		}, res => {
 			const key: string | undefined = Object.keys(res.headers)
 				.find(key => key.toLowerCase() === 'location');
 			const location: string | string[] | undefined = key && res.headers[key]
-			resolve(res.statusCode === 302 && typeof location === 'string' && location.startsWith('http://127.0.0.1:3333/callback'));
+			resolve(res.statusCode === 302 && typeof location === 'string' && location.startsWith(testCallbackUrl));
 		});
 		req.on('error', error => {
 			logErrorMessage(error);
@@ -190,9 +192,7 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 		code = getQueryProp(query, 'code');
 
 		if (!error) {
-			const state: string = getQueryProp(query, 'state');
-			const receivedNonce: string = (state?.split(',')[1] || '').replace(/ /g, '+');
-
+			const receivedNonce: string = getQueryProp(query, 'nonce').replace(/ /g, '+');
 			if (receivedNonce !== nonce) {
 				error = 'Nonce does not match.';
 			}

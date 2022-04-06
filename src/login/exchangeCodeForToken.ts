@@ -6,6 +6,7 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { Disposable, EventEmitter, Uri, UriHandler } from "vscode";
 import { ext } from "../extensionVariables";
+import { localize } from "../utils/localize";
 import { AuthProviderBase } from "./AuthProviderBase";
 
 export class UriEventHandler extends EventEmitter<Uri> implements UriHandler {
@@ -14,7 +15,7 @@ export class UriEventHandler extends EventEmitter<Uri> implements UriHandler {
 	}
 }
 
-export async function exchangeCodeForToken<TLoginResult>(authProvider: AuthProviderBase<TLoginResult>, clientId: string, environment: Environment, tenantId: string, callbackUri: string, state: string): Promise<TLoginResult> {
+export async function exchangeCodeForToken<TLoginResult>(authProvider: AuthProviderBase<TLoginResult>, clientId: string, environment: Environment, tenantId: string, callbackUri: string, nonce: string): Promise<TLoginResult> {
 	let uriEventListener: Disposable;
 	return new Promise((resolve: (value: TLoginResult) => void , reject) => {
 		uriEventListener = ext.uriEventHandler.event(async (uri: Uri) => {
@@ -23,9 +24,9 @@ export async function exchangeCodeForToken<TLoginResult>(authProvider: AuthProvi
 				const query = parseQuery(uri);
 				const code = query.code;
 
-				// Workaround double encoding issues of state
-				if (query.state !== state && decodeURIComponent(query.state) !== state) {
-					throw new Error('State does not match.');
+				// Workaround double encoding issues
+				if (query.nonce !== nonce && decodeURIComponent(query.nonce) !== nonce) {
+					throw new Error(localize('azure-account.nonceDoesNotMatch', 'Nonce does not match.'));
 				}
 				/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 

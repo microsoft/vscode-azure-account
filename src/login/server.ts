@@ -16,7 +16,7 @@ import { ext } from '../extensionVariables';
 import { localize } from '../utils/localize';
 import { logErrorMessage } from '../utils/logErrorMessage';
 import { Deferred } from '../utils/promiseUtils';
-import { getCallbackUrl } from './getCallbackUrl';
+import { getLocalCallbackUrl } from './getCallbackUrl';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RedirectResult = { req: http.IncomingMessage, res: http.ServerResponse } | { err: any; res: http.ServerResponse; };
@@ -28,7 +28,7 @@ export async function checkRedirectServer(isAdfs: boolean): Promise<boolean> {
 	if (isAdfs) {
 		return true;
 	}
-	const testCallbackUrl: string = getCallbackUrl(3333);
+	const testCallbackUrl: string = getLocalCallbackUrl(3333);
 	let timer: NodeJS.Timer | undefined;
 	const checkServerPromise = new Promise<boolean>(resolve => {
 		const req: http.ClientRequest = https.get({

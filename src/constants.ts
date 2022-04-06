@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
-import { getCallbackUrl } from "./login/getCallbackUrl";
+import { getLocalCallbackUrl } from "./login/getCallbackUrl";
 import { localize } from "./utils/localize";
 
 export type AuthLibrary = 'ADAL' | 'MSAL';
@@ -28,7 +28,7 @@ export const commonTenantId: string = 'common';
 export const displayName: string = 'Azure Account';
 export const redirectUrlAAD: string = 'https://vscode.dev/redirect';
 export const portADFS: number = 19472;
-export const redirectUrlADFS: string = getCallbackUrl(portADFS);
+export const redirectUrlADFS: string = getLocalCallbackUrl(portADFS);
 export const stoppedAuthTaskMessage: string = localize('azure-account.stoppedAuthTask', 'Stopped authentication task.');
 
 export const staticEnvironments: Environment[] = [

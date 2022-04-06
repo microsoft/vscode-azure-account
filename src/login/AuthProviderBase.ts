@@ -10,7 +10,7 @@ import { IActionContext, parseError } from "@microsoft/vscode-azext-utils";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { CancellationToken, env, MessageItem, Uri, window } from "vscode";
+import { CancellationToken, env, MessageItem, UIKind, Uri, window } from "vscode";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { redirectUrlAAD, redirectUrlADFS } from "../constants";
 import { ext } from "../extensionVariables";
@@ -22,7 +22,7 @@ import { DeviceTokenCredentials2 } from "./adal/DeviceTokenCredentials2";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { exchangeCodeForToken } from "./exchangeCodeForToken";
-import { getCallbackUrl } from "./getCallbackUrl";
+import { getLocalCallbackUrl } from "./getCallbackUrl";
 import { getKey } from "./getKey";
 import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 import { SubscriptionTenantCache } from "./subscriptionTypes";
@@ -42,8 +42,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 	public abstract clearTokenCache(): Promise<void>;
 
 	public async login(context: IActionContext, clientId: string, environment: Environment, isAdfs: boolean, tenantId: string, openUri: (url: string) => Promise<void>, redirectTimeout: () => Promise<void>, cancellationToken: CancellationToken): Promise<TLoginResult> {
-		const a = true;
-		if (a) {
+		if (env.uiKind === UIKind.Web) {
 			return await this.loginWithoutLocalServer(clientId, environment, isAdfs, tenantId);
 		}
 
@@ -86,8 +85,9 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const host: string = redirectResult.req.headers.host || '';
 			const updatedPortStr: string = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
 			const updatedPort: number = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
+			const state: string = `${encodeURIComponent(getLocalCallbackUrl(updatedPort))}?nonce=${encodeURIComponent(nonce)}`;
 			const redirectUrl: string = isAdfs ? redirectUrlADFS : redirectUrlAAD;
-			const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${encodeURIComponent(getCallbackUrl(updatedPort))}?nonce=${encodeURIComponent(nonce)}`;
+			const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}`;
 
 			logAttemptingToReachUrlMessage(redirectUrl);
 			logAttemptingToReachUrlMessage(signInUrl);
@@ -121,16 +121,19 @@ export abstract class AuthProviderBase<TLoginResult> {
 	}
 
 	public async loginWithoutLocalServer(clientId: string, environment: Environment, isAdfs: boolean, tenantId: string): Promise<TLoginResult> {
-		const callbackUri: Uri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://ms-vscode.azure-account`));
-		// const nonce: string = randomBytes(16).toString('base64');
-		const port: string | number = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
-		const callbackEnvironment: string = getCallbackEnvironment(callbackUri);
-		const state: string = `${callbackEnvironment}${port}`;// ,${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
+		let callbackUri: Uri = await env.asExternalUri(Uri.parse(`${env.uriScheme}://ms-vscode.azure-account`));
+		const nonce: string = randomBytes(16).toString('base64');
+		const callbackQuery = new URLSearchParams(callbackUri.query);
+		callbackQuery.set('nonce', nonce);
+		callbackUri = callbackUri.with({
+			query: callbackQuery.toString()
+		});
+		const state = encodeURIComponent(callbackUri.toString(true));
 		const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize`;
 		logAttemptingToReachUrlMessage(signInUrl);
 		let uri: Uri = Uri.parse(signInUrl);
 		uri = uri.with({
-			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}` // &resource=${environment.activeDirectoryResourceId}&prompt=select_account`
+			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}`
 		});
 		void env.openExternal(uri);
 
@@ -141,7 +144,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 			}, 1000 * 60 * 5)
 		});
 
-		return await Promise.race([exchangeCodeForToken<TLoginResult>(this, clientId, environment, tenantId, redirectUrlAAD, state), timeoutPromise]);
+		return await Promise.race([exchangeCodeForToken<TLoginResult>(this, clientId, environment, tenantId, redirectUrlAAD, nonce), timeoutPromise]);
 	}
 
 	public async initializeSessions(cache: SubscriptionTenantCache, api: AzureAccountExtensionApi): Promise<Record<string, AzureSession>> {
@@ -175,24 +178,5 @@ export abstract class AuthProviderBase<TLoginResult> {
 			void env.clipboard.writeText(userCode);
 			await openUri(verificationUrl);
 		}
-	}
-}
-
-function getCallbackEnvironment(callbackUri: Uri): string {
-	if (callbackUri.authority.endsWith('.workspaces.github.com') || callbackUri.authority.endsWith('.github.dev')) {
-		return `${callbackUri.authority},`;
-	}
-
-	switch (callbackUri.authority) {
-		case 'online.visualstudio.com':
-			return 'vso,';
-		case 'online-ppe.core.vsengsaas.visualstudio.com':
-			return 'vsoppe,';
-		case 'online.dev.core.vsengsaas.visualstudio.com':
-			return 'vsodev,';
-		case 'canary.online.visualstudio.com':
-			return 'vsocanary,';
-		default:
-			return '';
 	}
 }

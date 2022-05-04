@@ -7,13 +7,13 @@ import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutput
 import { AzureExtensionApiProvider } from '@microsoft/vscode-azext-utils/api';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
-import { CancellationToken, commands, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { CancellationToken, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
 import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
-import { AuthLibrary, authLibrarySetting, cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
+import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
-import { AuthLibraryCache, authLibraryCacheKey } from './login/AuthLibraryCache';
 import { AzureAccountLoginHelper } from './login/AzureLoginHelper';
+import { checkSettingsOnStartup } from './login/checkSettingsOnStartup';
 import { askForLogin } from './login/commands/askForLogin';
 import { loginToCloud } from './login/commands/loginToCloud';
 import { selectSubscriptions } from './login/commands/selectSubscriptions';
@@ -39,12 +39,11 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 	await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
 		activateContext.telemetry.properties.isActivationEvent = 'true';
 		activateContext.telemetry.properties.activationTime = String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000);
-		activateContext.telemetry.properties.cloudSettingOnStartup = String(getSettingValue(cloudSetting));
 
 		ext.experimentationService = await createExperimentationService(context);
 		ext.loginHelper = new AzureAccountLoginHelper(context, activateContext);
 
-		await checkAuthLibraryOnStartup(context, activateContext, ext.loginHelper);
+		await checkSettingsOnStartup(context, activateContext, ext.loginHelper);
 
 		await migrateEnvironmentSetting();
 		if (enableLogging) {
@@ -76,46 +75,6 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 	});
 
 	return Object.assign(ext.loginHelper.legacyApi, createApiProvider([ext.loginHelper.api]));
-}
-
-async function checkAuthLibraryOnStartup(extensionContext: ExtensionContext, actionContext: IActionContext, loginHelper: AzureAccountLoginHelper): Promise<void> {
-	async function askThenSignOutAndReload(): Promise<void> {
-		const authLibraryChanged: string = localize('azure-account.authLibraryChanged', 'The authentication library has changed. Please sign out and reload the window for it to take effect.');
-		const signOutAndReload: string = localize('azure-account.signOutAndReload', 'Sign Out and Reload Window');
-		
-		// Purposefully await this message to block whatever command caused the extension to activate.
-		await window.showInformationMessage(authLibraryChanged, signOutAndReload).then(async value => {
-			if (value === signOutAndReload) {
-				actionContext.telemetry.properties.signOutAtStartup = 'true';
-				await loginHelper.logout();
-				await commands.executeCommand('workbench.action.reloadWindow');
-			}
-		});
-	}
-
-	const authLibraryOnStartup: AuthLibrary | undefined = getSettingValue(authLibrarySetting);
-	actionContext.telemetry.properties.authLibraryOnStartup = String(authLibraryOnStartup);
-
-	const authLibraryCache: AuthLibraryCache | undefined = extensionContext.globalState.get(authLibraryCacheKey);
-	const lastUsedAuthLibrary: AuthLibrary | undefined = authLibraryCache?.lastUsedAuthLibrary;
-	actionContext.telemetry.properties.lastUsedAuthLibrary = String(lastUsedAuthLibrary);
-
-	await extensionContext.globalState.update(authLibraryCacheKey, { lastUsedAuthLibrary: authLibraryOnStartup });
-
-	// Fixes https://github.com/microsoft/vscode-azure-account/issues/433
-	if (!lastUsedAuthLibrary) {
-		actionContext.telemetry.properties.firstActivationWithAuthLibrarySetting = 'true';
-
-		if (authLibraryOnStartup === 'MSAL') {
-			// The auth library has changed from ADAL to MSAL. We just haven't had a chance to track that change in the cache yet.
-			await askThenSignOutAndReload();
-		}
-		// Do nothing if the auth library is ADAL or undefined. The user's auth library hasn't changed in this case (still ADAL).
-
-	} else if (lastUsedAuthLibrary !== authLibraryOnStartup) {
-		actionContext.telemetry.properties.lastUsedAuthLibraryChanged = 'true';
-		await askThenSignOutAndReload();
-	}
 }
 
 async function migrateEnvironmentSetting() {

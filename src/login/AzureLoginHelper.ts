@@ -74,7 +74,7 @@ export class AzureAccountLoginHelper {
 			if (e.affectsConfiguration(getSettingWithPrefix(resourceFilterSetting))) {
 				actionContext.telemetry.properties.changeResourceFilter = 'true';
 				updateFilters(true);
-			} else if (e.affectsConfiguration(getSettingWithPrefix(authLibrarySetting)) || e.affectsConfiguration(getSettingWithPrefix(cloudSetting)) || e.affectsConfiguration(getSettingWithPrefix(tenantSetting))) {
+			} else if (cachedSettingKeys.some(k => e.affectsConfiguration(getSettingWithPrefix(k)))) {
 				const numSettings = cachedSettingKeys.length;
 				const settingsCacheNew: SettingsCacheVerified = { values: new Array<string | undefined>(numSettings) };
 

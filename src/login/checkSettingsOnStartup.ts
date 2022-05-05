@@ -11,40 +11,40 @@ import { AzureAccountLoginHelper } from "./AzureLoginHelper";
 import { cachedSettingKeys, SettingsCache, settingsCacheKey, SettingsCacheVerified } from "./SettingsCache";
 
 export async function checkSettingsOnStartup(extensionContext: ExtensionContext, actionContext: IActionContext, loginHelper: AzureAccountLoginHelper): Promise<void> {
-	const numSettings = cachedSettingKeys.length;
+    const numSettings = cachedSettingKeys.length;
 
-	const lastSeenSettingsCache: SettingsCache | undefined = extensionContext.globalState.get(settingsCacheKey);
+    const lastSeenSettingsCache: SettingsCache | undefined = extensionContext.globalState.get(settingsCacheKey);
     const valuesToCopy = lastSeenSettingsCache?.values?.length === numSettings ? lastSeenSettingsCache.values : [];
     const resetLastSeenSettingsCache: boolean = valuesToCopy.length === numSettings ? false : true;
     actionContext.telemetry.properties.resetLastSeenSettingsCache = String(resetLastSeenSettingsCache);
     const lastSeenSettingsCacheVerified: SettingsCacheVerified = { values: new Array<undefined>(numSettings) };
     lastSeenSettingsCacheVerified.values.splice(0, numSettings, ...valuesToCopy)
 
-	const lastSeenSettingsCacheNew: SettingsCacheVerified = { values: new Array<string | undefined>(numSettings) };
+    const lastSeenSettingsCacheNew: SettingsCacheVerified = { values: new Array<string | undefined>(numSettings) };
 
     // Ask to sign out & reload if the cache is being reset.
     let shouldSignOutAndReload: boolean = resetLastSeenSettingsCache;
 
-	for (let index = 0; index < numSettings; index++) {
-		const settingKey: string = cachedSettingKeys[index];
+    for (let index = 0; index < numSettings; index++) {
+        const settingKey: string = cachedSettingKeys[index];
 
-		const settingValueOnStartup: string | undefined = getSettingValue(settingKey);
-		sendTelemetryEvent(actionContext, settingKey, 'OnStartup', settingValueOnStartup);
+        const settingValueOnStartup: string | undefined = getSettingValue(settingKey);
+        sendTelemetryEvent(actionContext, settingKey, 'OnStartup', settingValueOnStartup);
 
-		const lastSeenSettingValue: string | undefined = lastSeenSettingsCacheVerified.values[index];
-		sendTelemetryEvent(actionContext, settingKey, 'LastSeen', lastSeenSettingValue)
+        const lastSeenSettingValue: string | undefined = lastSeenSettingsCacheVerified.values[index];
+        sendTelemetryEvent(actionContext, settingKey, 'LastSeen', lastSeenSettingValue)
 
         if (settingValueOnStartup !== lastSeenSettingValue) {
             shouldSignOutAndReload = true;
         }
 
-		lastSeenSettingsCacheNew.values[index] = settingValueOnStartup;
-	}
+        lastSeenSettingsCacheNew.values[index] = settingValueOnStartup;
+    }
 
-	await extensionContext.globalState.update(settingsCacheKey, lastSeenSettingsCacheNew);
+    await extensionContext.globalState.update(settingsCacheKey, lastSeenSettingsCacheNew);
 
-	if (shouldSignOutAndReload) {
-		await askThenSignOutAndReload(actionContext, loginHelper);
+    if (shouldSignOutAndReload) {
+        await askThenSignOutAndReload(actionContext, loginHelper);
     }
 }
 
@@ -53,7 +53,7 @@ export async function askThenSignOutAndReload(actionContext: IActionContext, log
 
     const signOutAndReloadRequired: string = localize('azure-account.signOutAndReloadRequired', 'Signing out and reloading the window is required for the modified setting(s) to take effect.');
     const signOutAndReload: string = localize('azure-account.signOutAndReload', 'Sign Out and Reload Window');
-    
+
     // Purposefully await this message to block whatever command caused the extension to activate.
     await window.showInformationMessage(signOutAndReloadRequired, signOutAndReload).then(async value => {
         if (value === signOutAndReload) {
@@ -69,7 +69,7 @@ export async function askForSignIn(actionContext: IActionContext): Promise<void>
 
     const signInAgainRequired: string = localize('azure-account.signInAgainRequired', 'Signing in again is required for the modified setting(s) to take effect.');
     const signIn: string = localize('azure-account.signIn', 'Sign In');
-    
+
     // Purposefully await this message to block whatever command caused the extension to activate.
     await window.showInformationMessage(signInAgainRequired, signIn).then(async value => {
         if (value === signIn) {

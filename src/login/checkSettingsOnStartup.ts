@@ -15,7 +15,7 @@ export async function checkSettingsOnStartup(extensionContext: ExtensionContext,
 
     const lastSeenSettingsCache: SettingsCache | undefined = extensionContext.globalState.get(settingsCacheKey);
     const valuesToCopy = lastSeenSettingsCache?.values?.length === numSettings ? lastSeenSettingsCache.values : [];
-    const resetLastSeenSettingsCache: boolean = valuesToCopy.length === numSettings ? false : true;
+    const resetLastSeenSettingsCache: boolean = valuesToCopy.length !== numSettings;
     actionContext.telemetry.properties.resetLastSeenSettingsCache = String(resetLastSeenSettingsCache);
     const lastSeenSettingsCacheVerified: SettingsCacheVerified = { values: new Array<undefined>(numSettings) };
     lastSeenSettingsCacheVerified.values.splice(0, numSettings, ...valuesToCopy)
@@ -79,6 +79,6 @@ export async function askForSignIn(actionContext: IActionContext): Promise<void>
     });
 }
 
-function sendTelemetryEvent(actionContext: IActionContext, eventPrefix: string, eventSuffix: string, value: string | undefined): void {
+function addPropertyToTelemetry(actionContext: IActionContext, eventPrefix: string, eventSuffix: string, value: string | undefined): void {
     actionContext.telemetry.properties[eventPrefix + eventSuffix] = String(value);
 }

@@ -79,6 +79,6 @@ export async function askForSignIn(actionContext: IActionContext): Promise<void>
     });
 }
 
-function sendTelemetryEvent(actionContext: IActionContext, eventPrefix: string, eventSuffix: string, value: string | undefined): void {
+function addPropertyToTelemetry(actionContext: IActionContext, eventPrefix: string, eventSuffix: string, value: string | undefined): void {
     actionContext.telemetry.properties[eventPrefix + eventSuffix] = String(value);
 }

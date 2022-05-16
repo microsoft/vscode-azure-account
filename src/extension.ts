@@ -13,7 +13,7 @@ import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudCo
 import { AuthLibrary, authLibrarySetting, cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
 import { AuthLibraryCache, authLibraryCacheKey } from './login/AuthLibraryCache';
-import { AzureAccountLoginHelper } from './login/AzureLoginHelper';
+import { AzureAccountLoginHelper } from './login/AzureAccountLoginHelper';
 import { askForLogin } from './login/commands/askForLogin';
 import { loginToCloud } from './login/commands/loginToCloud';
 import { selectSubscriptions } from './login/commands/selectSubscriptions';
@@ -82,7 +82,7 @@ async function checkAuthLibraryOnStartup(extensionContext: ExtensionContext, act
 	async function askThenSignOutAndReload(): Promise<void> {
 		const authLibraryChanged: string = localize('azure-account.authLibraryChanged', 'The authentication library has changed. Please sign out and reload the window for it to take effect.');
 		const signOutAndReload: string = localize('azure-account.signOutAndReload', 'Sign Out and Reload Window');
-		
+
 		// Purposefully await this message to block whatever command caused the extension to activate.
 		await window.showInformationMessage(authLibraryChanged, signOutAndReload).then(async value => {
 			if (value === signOutAndReload) {

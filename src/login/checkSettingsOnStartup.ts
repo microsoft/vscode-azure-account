@@ -29,10 +29,10 @@ export async function checkSettingsOnStartup(extensionContext: ExtensionContext,
         const settingKey: string = cachedSettingKeys[index];
 
         const settingValueOnStartup: string | undefined = getSettingValue(settingKey);
-        sendTelemetryEvent(actionContext, settingKey, 'OnStartup', settingValueOnStartup);
+        addPropertyToTelemetry(actionContext, settingKey, 'OnStartup', settingValueOnStartup);
 
         const lastSeenSettingValue: string | undefined = lastSeenSettingsCacheVerified.values[index];
-        sendTelemetryEvent(actionContext, settingKey, 'LastSeen', lastSeenSettingValue)
+        addPropertyToTelemetry(actionContext, settingKey, 'LastSeen', lastSeenSettingValue)
 
         if (settingValueOnStartup !== lastSeenSettingValue) {
             shouldSignOutAndReload = true;

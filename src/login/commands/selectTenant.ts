@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IActionContext } from "@microsoft/vscode-azext-utils";
-import { commands, window } from "vscode";
 import { tenantSetting } from "../../constants";
 import { ext } from "../../extensionVariables";
 import { localize } from "../../utils/localize";
@@ -37,16 +36,5 @@ export async function selectTenant(context: IActionContext): Promise<void> {
 
 		context.telemetry.properties.outcome = 'tenantSelected';
 		await updateSettingValue(tenantSetting, tenant);
-
-		if (ext.loginHelper.api.status === 'LoggedIn') {
-			const signInAgain: string = localize('azure-account.signInAgain', 'Sign in again for tenant "{0}" to take effect.', tenant);
-			const signIn: string = localize('azure-account.signIn', 'Sign In');
-			void window.showInformationMessage(signInAgain, signIn).then(async value => {
-				if (value === signIn) {
-					context.telemetry.properties.signInAgainAfterTenantChange = 'true';
-					await commands.executeCommand('azure-account.login');
-				}
-			});
-		}
 	}
 }

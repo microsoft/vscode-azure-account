@@ -43,6 +43,9 @@ export async function loginToCloud(context: IActionContext): Promise<void> {
 				placeHolder: localize('azure-account.tenantIdPlaceholder', 'Enter your tenant id or leave it blank to use the default tenant'),
 				ignoreFocusOut: true});
 			if (tenantId !== undefined) {
+				// Force a sign out before updating the configuration to prevent the config watcher from showing a notification.
+				await ext.loginHelper.logout(true /* forceLogout */);
+
 				if (armUrl) {
 					await config.update(customCloudArmUrlSetting, armUrl, getCurrentTarget(config.inspect(customCloudArmUrlSetting)));
 				}

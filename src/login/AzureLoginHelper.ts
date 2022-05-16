@@ -62,7 +62,7 @@ export class AzureAccountLoginHelper {
 	constructor(public context: ExtensionContext, actionContext: IActionContext) {
 		this.adalAuthProvider = new AdalAuthProvider(enableVerboseLogs);
 		this.msalAuthProvider = new MsalAuthProvider(enableVerboseLogs);
-		this.authProvider = getAuthLibrary() === 'ADAL' ?  this.adalAuthProvider : this.msalAuthProvider;
+		this.authProvider = getAuthLibrary() === 'ADAL' ? this.adalAuthProvider : this.msalAuthProvider;
 
 		this.api = new AzureAccountExtensionApi(this);
 		this.legacyApi = new AzureAccountExtensionLegacyApi(this.api);
@@ -113,7 +113,7 @@ export class AzureAccountLoginHelper {
 			const environmentLabel: string = environmentLabels[environmentName] || localize('azure-account.unknownCloud', 'unknown cloud');
 
 			await window.withProgress({
-				title: localize('azure-account.signingIn', 'Signing in to {0}...', environmentLabel), 
+				title: localize('azure-account.signingIn', 'Signing in to {0}...', environmentLabel),
 				location: ProgressLocation.Notification,
 				cancellable: true
 			}, async (_progress, cancellationToken) => {
@@ -150,7 +150,7 @@ export class AzureAccountLoginHelper {
 					await this.authProvider.login(context, clientId, environment, isAdfs, tenantId, openUri, redirectTimeout, cancellationToken) :
 					await this.authProvider.loginWithDeviceCode(context, environment, tenantId, cancellationToken);
 				await this.updateSessions(this.authProvider, environment, loginResult);
-				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
+				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' });
 			});
 		} catch (err) {
 			if (err instanceof AzureLoginError && err.reason) {
@@ -167,14 +167,10 @@ export class AzureAccountLoginHelper {
 		}
 	}
 
-	private async sendLoginTelemetry(context: IActionContext, properties: { trigger: LoginTrigger, codePath: CodePath, environmentName: string, outcome: string, message?: string }, includeSubscriptions?: boolean) {
+	private async sendLoginTelemetry(context: IActionContext, properties: { trigger: LoginTrigger, codePath: CodePath, environmentName: string, outcome: string, message?: string }) {
 		context.telemetry.properties = {
 			...context.telemetry.properties,
 			...properties
-		}
-		if (includeSubscriptions) {
-			await this.api.waitForSubscriptions();
-			context.telemetry.properties.subscriptions = JSON.stringify((this.api.subscriptions).map(s => s.subscription.subscriptionId));
 		}
 	}
 
@@ -200,7 +196,7 @@ export class AzureAccountLoginHelper {
 				this.beginLoggingIn();
 				const loginResult = await this.authProvider.loginSilent(environment, tenantId);
 				await this.updateSessions(this.authProvider, environment, loginResult);
-				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' }, true);
+				void this.sendLoginTelemetry(context, { trigger, codePath, environmentName, outcome: 'success' });
 			} catch (err) {
 				await this.clearSessions(); // clear out cached data
 				if (err instanceof AzureLoginError && err.reason) {

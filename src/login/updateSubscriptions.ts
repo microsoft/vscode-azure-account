@@ -22,6 +22,9 @@ export async function updateSubscriptionsAndTenants(): Promise<void> {
 		ext.loginHelper.api.subscriptions.splice(0, ext.loginHelper.api.subscriptions.length, ...await ext.loginHelper.subscriptionsTask);
 		ext.loginHelper.tenantsTask = loadTenants(context);
 
+		// This event is relied upon by the DevDiv Analytics and Growth Team
+		context.telemetry.properties.subscriptions = JSON.stringify((ext.loginHelper.api.subscriptions).map(s => s.subscription.subscriptionId));
+
 		if (ext.loginHelper.api.status !== 'LoggedIn') {
 			void ext.loginHelper.context.globalState.update(cacheKey, undefined);
 			return;
@@ -52,8 +55,8 @@ async function loadTenants(context: IActionContext): Promise<TenantIdDescription
 	for (const session of ext.loginHelper.api.sessions) {
 		const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl });
 		const environment = await getSelectedEnvironment();
-		const resourceManagerEndpointUrl: string = environment.resourceManagerEndpointUrl.endsWith('/') ? 
-			environment.resourceManagerEndpointUrl : 
+		const resourceManagerEndpointUrl: string = environment.resourceManagerEndpointUrl.endsWith('/') ?
+			environment.resourceManagerEndpointUrl :
 			`${environment.resourceManagerEndpointUrl}/`;
 		let url: string | undefined = `${resourceManagerEndpointUrl}tenants?api-version=2020-01-01`;
 

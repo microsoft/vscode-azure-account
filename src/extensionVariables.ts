@@ -5,7 +5,7 @@
 
 import { IAzExtOutputChannel, IExperimentationServiceAdapter } from "@microsoft/vscode-azext-utils";
 import { ExtensionContext } from "vscode";
-import { AzureAccountLoginHelper } from "./login/AzureLoginHelper";
+import { AzureAccountLoginHelper } from "./login/AzureAccountLoginHelper";
 import { UriEventHandler } from "./login/exchangeCodeForToken";
 
 export namespace ext {

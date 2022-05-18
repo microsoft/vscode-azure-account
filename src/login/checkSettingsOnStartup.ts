@@ -7,7 +7,7 @@ import { IActionContext } from "@microsoft/vscode-azext-utils";
 import { commands, ExtensionContext, window } from "vscode";
 import { localize } from "../utils/localize";
 import { getSettingValue } from "../utils/settingUtils";
-import { AzureAccountLoginHelper } from "./AzureLoginHelper";
+import { AzureAccountLoginHelper } from "./AzureAccountLoginHelper";
 import { cachedSettingKeys, SettingsCache, settingsCacheKey, SettingsCacheVerified } from "./SettingsCache";
 
 export async function checkSettingsOnStartup(extensionContext: ExtensionContext, actionContext: IActionContext, loginHelper: AzureAccountLoginHelper): Promise<void> {

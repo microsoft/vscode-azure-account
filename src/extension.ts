@@ -12,7 +12,7 @@ import { AzureAccountExtensionApi } from './azure-account.api';
 import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
-import { AzureAccountLoginHelper } from './login/AzureLoginHelper';
+import { AzureAccountLoginHelper } from './login/AzureAccountLoginHelper';
 import { checkSettingsOnStartup } from './login/checkSettingsOnStartup';
 import { askForLogin } from './login/commands/askForLogin';
 import { loginToCloud } from './login/commands/loginToCloud';

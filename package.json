@@ -136,7 +136,7 @@
                 "azure.tenant": {
                     "type": "string",
                     "default": "",
-                    "description": "A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants."
+                    "description": "A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants. Note: You must sign out and sign back in after modifying this setting for it to take effect."
                 },
                 "azure.cloud": {
                     "type": "string",
@@ -155,7 +155,7 @@
                         "Azure Custom Cloud"
                     ],
                     "default": "AzureCloud",
-                    "description": "The current Azure Cloud to connect to."
+                    "description": "The current Azure Cloud to connect to. Note: You must sign out and sign back in after modifying this setting for it to take effect."
                 },
                 "azure.customCloud.resourceManagerEndpointUrl": {
                     "type": "string",

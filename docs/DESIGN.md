@@ -13,21 +13,28 @@ sequenceDiagram
     participant V as VSCode
     participant E as Extension
     participant B as Browser
+    participant S as OAuth SDK
     participant P as OAuth Provider
 
-    E->>E: "Start server on localhost:{port} with nonce={nonce}"
-    E->>V: "Open browser to http://localhost:{port}/signin?nonce={nonce}"
-    V->>B: "Browse to http://localhost:{port}/signin?nonce={nonce}"
-    B->>E: "GET http://localhost:{port}/signin?nonce={nonce}"
-    E-->>B: "302: https://{endpoint}/oauth2/authorize?redirect_uri=127.0.0.1:{port}/callback?nonce={nonce}"
-    B->>P: "GET https://{endpoint}/oauth2/authorize?redirect_uri=127.0.0.1:{port}/callback?nonce={nonce}"
-    P-->>B: "302 http://127.0.0.1:{port}/callback?nonce={nonce}&code={code}"
-    B->>E: "GET https://127.0.0.1:{port}/callback?nonce={nonce}&code={code}"
-    Note over E, Browser: Authentication is complete so redirect to "can close page" page.
-    E-->>B: "302 /"
-    B->>E: "GET /"
-    E-->>B: "200 {index.html}"
-    B->>E: "GET main.css"
-    E-->>B: "200 {main.css}"
-    E->>E: "Stop server on localhost:{port}"
+    E->>E: Start server on localhost:{port} with nonce={nonce}
+    E->>V: Open browser to http://localhost:{port}/signin?nonce={nonce}
+    V->>B: Browse to http://localhost:{port}/signin?nonce={nonce}
+    B->>E: GET http://localhost:{port}/signin?nonce={nonce}
+    E-->>B: 302 (Redirect) https://{endpoint}/oauth2/authorize?redirect_uri=127.0.0.1:{port}/callback?nonce={nonce}
+    B->>P: GET https://{endpoint}/oauth2/authorize?redirect_uri=127.0.0.1:{port}/callback?nonce={nonce}
+    B->>B: User enters credentials
+    P-->>B: 302 (Redirect) http://127.0.0.1:{port}/callback?nonce={nonce}&code={code}
+    B->>E: GET https://127.0.0.1:{port}/callback?nonce={nonce}&code={code}
+    Note over E, P: Authentication code acquired so swap for access/refresh tokens.
+    E->>S: Get Access/Refresh Tokens
+    S->>P: Get Access/Refresh Tokens
+    P-->>S: Access/Refresh Tokens
+    S-->>E: Access/Refresh Tokens
+    Note over E, B: Authentication is complete so redirect to "can close page" page.
+    E-->>B: 302 (Redirect) /
+    B->>E: GET /
+    E-->>B: 200 (OK) {index.html}
+    B->>E: GET main.css
+    E-->>B: 200 (OK) {main.css}
+    E->>E: Stop server on localhost:{port}
 ```

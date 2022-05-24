@@ -1,5 +1,6 @@
 {
     "recommendations": [
+        "bierner.markdown-mermaid",
         "dbaeumer.vscode-eslint"
     ]
 }

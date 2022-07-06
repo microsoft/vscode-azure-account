@@ -1,6 +1,17 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.11.0]
+
+### Changed
+- Log all URLs that the extension tries to reach [#520](https://github.com/microsoft/vscode-azure-account/pull/520)
+- Use new redirect server [#546](https://github.com/microsoft/vscode-azure-account/pull/546)
+- Update @vscode/extension-telemetry to 0.6.2 [#588](https://github.com/microsoft/vscode-azure-account/pull/588)
+
+### Fixed
+- Errors in cloud shell when switching authentication library [#380](https://github.com/microsoft/vscode-azure-account/pull/380)
+- Show toast notification prompting to sign out/back in when changing settings [#511](https://github.com/microsoft/vscode-azure-account/pull/511)
+
 ## [0.10.1]
 
 ### Added

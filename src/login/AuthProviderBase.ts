@@ -89,7 +89,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 			const updatedPort: number = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
 			const state: string = `${encodeURIComponent(getLocalCallbackUrl(updatedPort))}?nonce=${encodeURIComponent(nonce)}`;
 			const redirectUrl: string = isAdfs ? redirectUrlADFS : redirectUrlAAD;
-			const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}`;
+			const signInUrl: string = `${environment.activeDirectoryEndpointUrl}${isAdfs ? '' : `${tenantId}/`}oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&prompt=select_account`;
 
 			logAttemptingToReachUrlMessage(redirectUrl);
 			logAttemptingToReachUrlMessage(signInUrl);
@@ -135,7 +135,7 @@ export abstract class AuthProviderBase<TLoginResult> {
 		logAttemptingToReachUrlMessage(signInUrl);
 		let uri: Uri = Uri.parse(signInUrl);
 		uri = uri.with({
-			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}`
+			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${state}&prompt=select_account`
 		});
 		void env.openExternal(uri);
 

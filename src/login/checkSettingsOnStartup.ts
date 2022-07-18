@@ -15,15 +15,13 @@ export async function checkSettingsOnStartup(extensionContext: ExtensionContext,
 
     const lastSeenSettingsCache: SettingsCache | undefined = extensionContext.globalState.get(settingsCacheKey);
     const valuesToCopy = lastSeenSettingsCache?.values?.length === numSettings ? lastSeenSettingsCache.values : [];
-    const resetLastSeenSettingsCache: boolean = valuesToCopy.length !== numSettings;
-    actionContext.telemetry.properties.resetLastSeenSettingsCache = String(resetLastSeenSettingsCache);
     const lastSeenSettingsCacheVerified: SettingsCacheVerified = { values: new Array<undefined>(numSettings) };
     lastSeenSettingsCacheVerified.values.splice(0, numSettings, ...valuesToCopy)
 
     const lastSeenSettingsCacheNew: SettingsCacheVerified = { values: new Array<string | undefined>(numSettings) };
 
     // Ask to sign out & reload if the cache is being reset.
-    let shouldSignOutAndReload: boolean = resetLastSeenSettingsCache;
+    let shouldSignOutAndReload: boolean = false;
 
     for (let index = 0; index < numSettings; index++) {
         const settingKey: string = cachedSettingKeys[index];
@@ -34,7 +32,7 @@ export async function checkSettingsOnStartup(extensionContext: ExtensionContext,
         const lastSeenSettingValue: string | undefined = lastSeenSettingsCacheVerified.values[index];
         addPropertyToTelemetry(actionContext, settingKey, 'LastSeen', lastSeenSettingValue)
 
-        if (settingValueOnStartup !== lastSeenSettingValue) {
+        if (lastSeenSettingValue && settingValueOnStartup !== lastSeenSettingValue) {
             shouldSignOutAndReload = true;
         }
 
@@ -43,6 +41,7 @@ export async function checkSettingsOnStartup(extensionContext: ExtensionContext,
 
     await extensionContext.globalState.update(settingsCacheKey, lastSeenSettingsCacheNew);
 
+    actionContext.telemetry.properties.shouldSignOutAndReload = String(shouldSignOutAndReload);
     if (shouldSignOutAndReload) {
         await askThenSignOutAndReload(actionContext, loginHelper);
     }

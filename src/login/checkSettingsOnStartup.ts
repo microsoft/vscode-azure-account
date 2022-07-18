@@ -41,7 +41,6 @@ export async function checkSettingsOnStartup(extensionContext: ExtensionContext,
 
     await extensionContext.globalState.update(settingsCacheKey, lastSeenSettingsCacheNew);
 
-    actionContext.telemetry.properties.shouldSignOutAndReload = String(shouldSignOutAndReload);
     if (shouldSignOutAndReload) {
         await askThenSignOutAndReload(actionContext, loginHelper);
     }

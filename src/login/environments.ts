@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
-import fetch, { Response } from "node-fetch";
+import fetch, { Response } from '../utils/fetchUtils';
 import * as url from 'url';
 import { commands, window, workspace, WorkspaceConfiguration } from "vscode";
 import { azureCustomCloud, azurePPE, cloudSetting, customCloudArmUrlSetting, extensionPrefix, ppeSetting, staticEnvironments } from "../constants";

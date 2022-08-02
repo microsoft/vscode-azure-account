@@ -32,7 +32,7 @@ import { TenantIdDescription } from './TenantIdDescription';
 import { updateFilters } from './updateFilters';
 import { waitUntilOnline } from './waitUntilOnline';
 
-const enableVerboseLogs: boolean = false;
+const enableVerboseLogs: boolean = true;
 
 interface IAzureAccountWriteable extends AzureAccountExtensionApi {
 	status: AzureLoginStatus;

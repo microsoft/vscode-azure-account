@@ -1,6 +1,12 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.11.1] - 2022-08-03
+
+### Fixed
+- Don't prompt to sign out and reload on first run [#603](https://github.com/microsoft/vscode-azure-account/pull/603)
+- Revert removal of prompt property in query string. [#595](https://github.com/microsoft/vscode-azure-account/pull/595)
+
 ## [0.11.0]
 
 ### Changed

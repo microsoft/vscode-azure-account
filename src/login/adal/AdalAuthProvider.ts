@@ -18,6 +18,21 @@ import { AbstractCredentials, AuthProviderBase } from "../AuthProviderBase";
 import { DeviceTokenCredentials2 } from "./DeviceTokenCredentials2";
 import { getUserCode } from "./getUserCode";
 import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
+import * as axios from 'axios';
+
+axios.default.interceptors.request.use(
+	config => {
+		ext.outputChannel.appendLine(`ADAL: ${config.method?.toUpperCase()} ${config.url}...`);
+
+		return config;
+	});
+
+axios.default.interceptors.response.use(
+	response => {
+		ext.outputChannel.appendLine(`ADAL: ${response.config.method?.toUpperCase()} ${response.config.url} response: ${response.status}`);
+
+		return response;
+	});
 
 const staticEnvironmentNames: string[] = [
 	...staticEnvironments.map(environment => environment.name),

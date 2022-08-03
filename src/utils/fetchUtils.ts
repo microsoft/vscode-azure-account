@@ -4,14 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fetch, { RequestInfo, RequestInit, Response } from 'node-fetch';
+import { ext } from '../extensionVariables';
 export { Response };
 
 export default async function fetchUrl(url: RequestInfo, init?: RequestInit): Promise<Response> {
-    console.log(`Fetching ${url}...`);
+    ext.outputChannel.append(`Fetching ${url}...`);
 
-    const response = await fetch(url, init);
+    try {
+        const response = await fetch(url, init);
+        
+        ext.outputChannel.append(`Fetching ${url} response: ${response.status}`);
+        
+        return response;
+    } catch (error) {
+        ext.outputChannel.append(`Fetching ${url} failed: ${error}`);
 
-    console.log(`Returned ${response.status}.`);
-
-    return response;
+        throw error;
+    }
 }

@@ -5,6 +5,7 @@
 
 import { SubscriptionClient, SubscriptionModels } from "@azure/arm-subscriptions";
 import { Environment } from "@azure/ms-rest-azure-env";
+import { DefaultHttpClient } from "@azure/ms-rest-js";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AuthenticationContext, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
 import { clientId, commonTenantId } from "../../constants";
@@ -14,6 +15,7 @@ import { listAll } from "../../utils/arrayUtils";
 import { localize } from "../../utils/localize";
 import { logErrorMessage } from "../../utils/logErrorMessage";
 import { isADFS } from "../environments";
+import { LoggingHttpClient } from "../LoggingHttpClient";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, import/no-internal-modules
 const CacheDriver = require('adal-node/lib/cache-driver');
@@ -102,7 +104,12 @@ export async function tokensFromToken(environment: Environment, firstTokenRespon
 	const tokenCache: MemoryCache = new MemoryCache();
 	await addTokenToCache(environment, tokenCache, firstTokenResponse);
 	const credentials: DeviceTokenCredentials2 = new DeviceTokenCredentials2(clientId, undefined, firstTokenResponse.userId, undefined, environment, tokenCache);
-	const client: SubscriptionClient = new SubscriptionClient(credentials, { baseUri: environment.resourceManagerEndpointUrl });
+	const client: SubscriptionClient = new SubscriptionClient(
+		credentials,
+		{
+			baseUri: environment.resourceManagerEndpointUrl,
+			httpClient: new LoggingHttpClient(new DefaultHttpClient())
+		});
 	const tenants: SubscriptionModels.TenantIdDescription[] = await listAll(client.tenants, client.tenants.list());
 	const responses: TokenResponse[] = <TokenResponse[]>(await Promise.all<TokenResponse | null>(tenants.map((tenant) => {
 		if (tenant.tenantId === firstTokenResponse.tenantId) {

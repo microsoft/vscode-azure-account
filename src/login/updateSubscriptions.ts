@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SubscriptionClient } from "@azure/arm-subscriptions";
-import { HttpOperationResponse, RequestPrepareOptions } from "@azure/ms-rest-js";
+import { DefaultHttpClient, HttpOperationResponse, RequestPrepareOptions } from "@azure/ms-rest-js";
 import { callWithTelemetryAndErrorHandling, IActionContext, parseError } from "@microsoft/vscode-azext-utils";
 import { AzureSubscription } from "../azure-account.api";
 import { cacheKey } from "../constants";
@@ -12,6 +12,7 @@ import { ext } from "../extensionVariables";
 import { listAll } from "../utils/arrayUtils";
 import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getSelectedEnvironment } from "./environments";
+import { LoggingHttpClient } from "./LoggingHttpClient";
 import { SubscriptionTenantCache } from "./subscriptionTypes";
 import { TenantIdDescription } from "./TenantIdDescription";
 
@@ -53,7 +54,12 @@ async function loadTenants(context: IActionContext): Promise<TenantIdDescription
 	const knownTenants: TenantIdDescription[] = [];
 
 	for (const session of ext.loginHelper.api.sessions) {
-		const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl });
+		const client: SubscriptionClient = new SubscriptionClient(
+			session.credentials2,
+			{
+				baseUri: session.environment.resourceManagerEndpointUrl,
+				httpClient: new LoggingHttpClient(new DefaultHttpClient())
+			});
 		const environment = await getSelectedEnvironment();
 		const resourceManagerEndpointUrl: string = environment.resourceManagerEndpointUrl.endsWith('/') ?
 			environment.resourceManagerEndpointUrl :
@@ -107,7 +113,12 @@ async function loadTenants(context: IActionContext): Promise<TenantIdDescription
 
 async function loadSubscriptions(context: IActionContext): Promise<AzureSubscription[]> {
 	const lists: AzureSubscription[][] = await Promise.all(ext.loginHelper.api.sessions.map(session => {
-		const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl });
+		const client: SubscriptionClient = new SubscriptionClient(
+			session.credentials2,
+			{
+				baseUri: session.environment.resourceManagerEndpointUrl,
+				httpClient: new LoggingHttpClient(new DefaultHttpClient())
+			});
 		return listAll(client.subscriptions, client.subscriptions.list())
 			.then(list => list.map(subscription => ({
 				session,

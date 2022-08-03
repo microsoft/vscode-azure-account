@@ -5029,7 +5029,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-moment 2.29.2 - MIT
+moment 2.29.4 - MIT
 https://momentjs.com/
 
 Copyright (c) JS Foundation and other contributors

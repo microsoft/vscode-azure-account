@@ -16,6 +16,7 @@ import { localize } from "../../utils/localize";
 import { Deferred } from "../../utils/promiseUtils";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { AzureSessionInternal } from "../AzureSessionInternal";
+import { AzureAccountClientApplication } from "./AzureAccountClientApplication";
 import { cachePlugin } from "./cachePlugin";
 import { getAzureCloudInstance } from "./getAzureCloudInstance";
 import { getDefaultMsalScopes } from "./getDefaultMsalScopes";
@@ -34,12 +35,12 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 					loggerCallback: (_level: LogLevel, message: string, _containsPii: boolean) => {
 						ext.outputChannel.appendLine(message);
 					},
-					piiLoggingEnabled: false,
+					piiLoggingEnabled: true,
 					logLevel: enableVerboseLogs ? LogLevel.Verbose : LogLevel.Error
 				}
 			}
 		};
-		this.publicClientApp = new PublicClientApplication(msalConfiguration);
+		this.publicClientApp = new AzureAccountClientApplication(msalConfiguration);
 	}
 
 	public async loginWithAuthCode(code: string, redirectUrl: string, _clientId: string, environment: Environment, tenantId: string): Promise<AuthenticationResult> {

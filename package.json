@@ -241,6 +241,20 @@
             }
         }
     },
+    "capabilities": {
+        "untrustedWorkspaces": {
+            "supported": "limited",
+            "description": "%azure-account.capabilities.untrustedWorkspaces.description%",
+            "restrictedConfigurations": [
+                "azure.resourceFilter",
+                "azure.tenant",
+                "azure.cloud",
+                "azure.customCloud.resourceManagerEndpointUrl",
+                "azure.ppe",
+                "azure.authenticationLibrary"
+            ]
+        }
+    },
     "scripts": {
         "vscode:prepublish": "npm run webpack-prod",
         "build": "tsc",

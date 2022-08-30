@@ -90,17 +90,23 @@
             }
         ],
         "menus": {
+            "commandPalette": [
+                {
+                  "command": "azure-account.uploadFileCloudConsole",
+                  "when": "isWorkspaceTrusted"
+                }
+            ],
             "explorer/context": [
                 {
                     "command": "azure-account.uploadFileCloudConsole",
-                    "when": "resourceScheme == file && !explorerResourceIsFolder && openCloudConsoleCount && openCloudConsoleCount != 0",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && isWorkspaceTrusted && openCloudConsoleCount && openCloudConsoleCount != 0",
                     "group": "999_cloudConsole"
                 }
             ],
             "editor/title/context": [
                 {
                     "command": "azure-account.uploadFileCloudConsole",
-                    "when": "resourceScheme == file && openCloudConsoleCount && openCloudConsoleCount != 0",
+                    "when": "resourceScheme == file && isWorkspaceTrusted && openCloudConsoleCount && openCloudConsoleCount != 0",
                     "group": "999_cloudConsole"
                 }
             ]

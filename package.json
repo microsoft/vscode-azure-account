@@ -92,8 +92,8 @@
         "menus": {
             "commandPalette": [
                 {
-                  "command": "azure-account.uploadFileCloudConsole",
-                  "when": "isWorkspaceTrusted"
+                    "command": "azure-account.uploadFileCloudConsole",
+                    "when": "isWorkspaceTrusted"
                 }
             ],
             "explorer/context": [

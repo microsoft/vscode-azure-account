@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
 import { v4 as uuid } from 'uuid';
-import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, UIKind, Uri, version, window } from 'vscode';
+import { CancellationToken, commands, Disposable, env, EventEmitter, MessageItem, QuickPickItem, Terminal, TerminalOptions, TerminalProfile, ThemeIcon, UIKind, Uri, version, window, workspace } from 'vscode';
 import { AzureAccountExtensionApi, AzureLoginStatus, AzureSession, CloudShell, CloudShellStatus, UploadOptions } from '../azure-account.api';
 import { AzureSession as AzureSessionLegacy } from '../azure-account.legacy.api';
 import { ext } from '../extensionVariables';
@@ -210,6 +210,11 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		(async function (): Promise<any> {
+			if (!workspace.isTrusted) {
+				updateStatus('Disconnected');
+				return requiresWorkspaceTrust(context);
+			}
+
 			void commands.executeCommand('setContext', 'openCloudConsoleCount', `${shells.length}`);
 
 			const isWindows: boolean = process.platform === 'win32';
@@ -523,6 +528,13 @@ async function requiresNode(context: IActionContext) {
 	} else {
 		context.telemetry.properties.outcome = 'requiresNodeCancel';
 	}
+}
+
+async function requiresWorkspaceTrust(context: IActionContext) {
+	context.telemetry.properties.outcome = 'requiresWorkspaceTrust';
+	const ok: MessageItem = { title: localize('azure-account.ok', "OK") };
+	const message: string = localize('azure-account.cloudShellRequiresTrustedWorkspace', 'Opening a Cloud Shell only works in a trusted workspace.');
+	return await window.showInformationMessage(message, ok) === ok;
 }
 
 async function deploymentConflict(context: IActionContext, os: OS) {

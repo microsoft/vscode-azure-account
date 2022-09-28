@@ -107,6 +107,9 @@ function cloudConsole(os: OSName) {
 
 function uploadFile(_context: IActionContext, uri?: Uri) {
 	(async () => {
+		if (!workspace.isTrusted) {
+			throw new Error(localize('azure-account.uploadingRequiresTrustedWorkspace', 'File upload only works in a trusted workspace.'));
+		}
 		let shell = shells[0];
 		if (!shell) {
 			const shellName = await window.showInformationMessage(localize('azure-account.uploadingRequiresOpenCloudConsole', "File upload requires an open Cloud Shell."), OSes.Linux.shellName, OSes.Windows.shellName);

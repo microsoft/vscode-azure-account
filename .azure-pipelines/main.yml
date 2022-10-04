@@ -21,9 +21,6 @@ jobs:
   - template: common/package.yml
   - template: common/sbom.yml # only generate on linux
   - template: common/lint.yml
-  variables:
-    Codeql.Enabled: true
-    Codeql.ExcludePathPatterns: "**/extension.bundle.js"
 
 - job: macOS
   pool:

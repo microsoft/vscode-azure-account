@@ -259,8 +259,13 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 function connectSocket(ipcHandle: string, url: string) {
 
 	const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
+	let agent: http.Agent | undefined = undefined;
+	if (proxy) {
+		agent = url.startsWith('ws:') || url.startsWith('http:') ? new HttpProxyAgent(proxy) : new HttpsProxyAgent(proxy);
+	}
+
 	const ws = new WS(url, {
-		agent: !!proxy && (url.startsWith('ws:') || url.startsWith('http:') ? new HttpProxyAgent(proxy) : new HttpsProxyAgent(proxy))
+		agent
 	});
 
 	ws.on('open', function () {

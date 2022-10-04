@@ -279,7 +279,6 @@
         "@types/form-data": "2.2.1",
         "@types/fs-extra": "^9.0.11",
         "@types/gulp": "^4.0.6",
-        "@types/http-proxy-agent": "2.0.1",
         "@types/node": "^14.0.0",
         "@types/node-fetch": "^2.5.10",
         "@types/request": "2.48.1",
@@ -287,7 +286,7 @@
         "@types/semver": "5.5.0",
         "@types/uuid": "^8.3.0",
         "@types/vscode": "1.65.0",
-        "@types/ws": "6.0.1",
+        "@types/ws": "^8.5.3",
         "@typescript-eslint/eslint-plugin": "^4.14.2",
         "copy-webpack-plugin": "^6.0.0",
         "eslint": "^7.19.0",
@@ -315,8 +314,8 @@
         "@microsoft/vscode-azext-utils": "^0.3.7",
         "adal-node": "^0.2.3",
         "form-data": "2.3.3",
-        "http-proxy-agent": "2.1.0",
-        "https-proxy-agent": "2.2.3",
+        "http-proxy-agent": "^5.0.0",
+        "https-proxy-agent": "^5.0.1",
         "ms-rest-azure": "^2.6.2",
         "node-fetch": "^2.6.1",
         "request": "2.88.0",
@@ -324,6 +323,6 @@
         "semver": "5.6.0",
         "uuid": "^8.3.2",
         "vscode-nls": "4.0.0",
-        "ws": "7.4.6"
+        "ws": "^8.9.0"
     }
 }

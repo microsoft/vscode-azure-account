@@ -14,7 +14,8 @@
 		],
 		"sourceMap": true,
 		"rootDir": ".",
-		"resolveJsonModule": true
+		"resolveJsonModule": true,
+		"skipLibCheck": true, // Some declarations in http-proxy-agent and https-proxy-agent have issues
 	},
 	"exclude": [
 		"node_modules",

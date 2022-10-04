@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as http from 'http';
+import { HttpProxyAgent } from 'http-proxy-agent';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import * as request from 'request-promise';
 import * as WS from 'ws';
-import * as http from 'http';
-import { sendData, readJSON } from './ipc';
-import HttpProxyAgent = require('http-proxy-agent');
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
-const HttpsProxyAgent = require('https-proxy-agent');
+import { readJSON, sendData } from './ipc';
 
 const consoleApiVersion = '2017-08-01-preview';
 
@@ -261,8 +260,7 @@ function connectSocket(ipcHandle: string, url: string) {
 
 	const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
 	const ws = new WS(url, {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-		agent: proxy && (url.startsWith('ws:') || url.startsWith('http:') ? new HttpProxyAgent(proxy) : new HttpsProxyAgent(proxy))
+		agent: !!proxy && (url.startsWith('ws:') || url.startsWith('http:') ? new HttpProxyAgent(proxy) : new HttpsProxyAgent(proxy))
 	});
 
 	ws.on('open', function () {

@@ -1,6 +1,0 @@
-variables:
-  Codeql.Enabled: true
-
-path_classifiers:
-  generated:
-    - "**/extension.bundle.js"

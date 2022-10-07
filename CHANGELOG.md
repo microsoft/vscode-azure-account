@@ -1,6 +1,14 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.11.2] - 2022-10-07
+
+### Added
+- Add Support for Workspace Trust [#624](https://github.com/microsoft/vscode-azure-account/pull/624)
+
+### Fixed
+- Update http-proxy-agent and https-proxy-agent [#640](https://github.com/microsoft/vscode-azure-account/pull/640)
+
 ## [0.11.1] - 2022-08-03
 
 ### Fixed

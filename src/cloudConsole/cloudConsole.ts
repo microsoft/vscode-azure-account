@@ -283,7 +283,8 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				shellArgs.shift();
 			}
 
-			if (!isWindows && env.uiKind === UIKind.Desktop && semver.gte(version, '1.62.1')) {
+			// Only add flag if in Electron process https://github.com/microsoft/vscode-azure-account/pull/684
+			if (!isWindows && !!process.versions['electron'] && env.uiKind === UIKind.Desktop && semver.gte(version, '1.62.1')) {
 				// https://github.com/microsoft/vscode/issues/136987
 				// This fix can't be applied to all versions of VS Code. An error is thrown in versions less than the one specified
 				shellArgs.push('--ms-enable-electron-run-as-node');

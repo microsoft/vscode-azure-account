@@ -1,6 +1,7 @@
 {
     "recommendations": [
         "bierner.markdown-mermaid",
-        "dbaeumer.vscode-eslint"
+        "dbaeumer.vscode-eslint",
+        "ms-vscode-remote.remote-containers"
     ]
 }

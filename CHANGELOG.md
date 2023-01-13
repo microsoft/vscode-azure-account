@@ -1,6 +1,21 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.11.3] - 2023-01-18
+
+### Fixed
+* Fixed issues with Azure Cloud Shell terminal when connected to a remote host @alexweininger in https://github.com/microsoft/vscode-azure-account/pull/684
+
+### Dependencies
+* Bump @xmldom/xmldom from 0.7.5 to 0.7.8 by @dependabot in [#663](https://github.com/microsoft/vscode-azure-account/pull/663)
+* Bump loader-utils from 1.4.0 to 1.4.1 by @dependabot in [#666](https://github.com/microsoft/vscode-azure-account/pull/666)
+* Bump loader-utils from 1.4.1 to 1.4.2 by @dependabot in [#670](https://github.com/microsoft/vscode-azure-account/pull/670)
+* Bump decode-uri-component from 0.2.0 to 0.2.2 by @dependabot in [#678](https://github.com/microsoft/vscode-azure-account/pull/678)
+* Bump json5 from 1.0.1 to 1.0.2 by @dependabot in [#692](https://github.com/microsoft/vscode-azure-account/pull/692)
+
+### Other
+* Fix readme badges by @bwateratmsft in [#653](https://github.com/microsoft/vscode-azure-account/pull/653)
+
 ## [0.11.2] - 2022-10-07
 
 ### Added

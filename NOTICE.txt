@@ -2390,11 +2390,11 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-@xmldom/xmldom 0.7.5 - MIT
+@xmldom/xmldom 0.7.8 - MIT
 https://github.com/xmldom/xmldom
 
-Copyright 2019 - present Christopher J. Brody
-https://github.com/xmldom/xmldom/graphs/contributors Copyright 2012 - 2017
+Copyright 2012 - 2017 jindw <jindw@xidea.org> and other contributors
+Copyright 2019 - present Christopher J. Brody and other contributors
 
 Copyright 2019 - present Christopher J. Brody and other contributors, as listed in: https://github.com/xmldom/xmldom/graphs/contributors
 Copyright 2012 - 2017 @jindw <jindw@xidea.org> and other contributors, as listed in: https://github.com/jindw/xmldom/graphs/contributors

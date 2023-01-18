@@ -12,6 +12,7 @@ All notable changes to the "ms-vscode.azure-account" extension will be documente
 * Bump loader-utils from 1.4.1 to 1.4.2 by @dependabot in [#670](https://github.com/microsoft/vscode-azure-account/pull/670)
 * Bump decode-uri-component from 0.2.0 to 0.2.2 by @dependabot in [#678](https://github.com/microsoft/vscode-azure-account/pull/678)
 * Bump json5 from 1.0.1 to 1.0.2 by @dependabot in [#692](https://github.com/microsoft/vscode-azure-account/pull/692)
+* Bump jsonwebtoken and @azure/msal-node by @dependabot in [#696](https://github.com/microsoft/vscode-azure-account/pull/696)
 
 ### Other
 * Fix readme badges by @bwateratmsft in [#653](https://github.com/microsoft/vscode-azure-account/pull/653)

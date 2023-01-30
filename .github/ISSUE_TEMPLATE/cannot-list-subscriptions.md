@@ -15,4 +15,4 @@ assignees: ''
 
 Does your account belong to more than one directory? (see your directories [here](https://aka.ms/AAevnvr)): 
 
-Any other information about your Azure account that may be useful: 
+Any other information about your Azure account that may be useful:

@@ -19,8 +19,8 @@ const LAST_SESSION_DATE_KEY = 'nps/lastSessionDate';
 const SKIP_VERSION_KEY = 'nps/skipVersion';
 const IS_CANDIDATE_KEY = 'nps/isCandidate';
 
-export async function survey({ globalState }: ExtensionContext): Promise<void> {
-	await callWithTelemetryAndErrorHandling('azure-account.nps.survey', async (context: IActionContext) => {
+export function survey({ globalState }: ExtensionContext): void {
+	void callWithTelemetryAndErrorHandling('azure-account.nps.survey', async (context: IActionContext) => {
 		if (env.language !== 'en' && !env.language.startsWith('en-')) {
 			return;
 		}

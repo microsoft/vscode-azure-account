@@ -13,6 +13,8 @@ assignees: ''
 - Azure Account Extension Version:
 - OS Version:
 
+Are you connected to a proxy server? Yes/No
+
 Steps to Reproduce:
 
 1.

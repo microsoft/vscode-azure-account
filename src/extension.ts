@@ -75,7 +75,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 			}
 		}));
 
-		await survey(context);
+		survey(context);
 	});
 
 	return Object.assign(ext.loginHelper.legacyApi, createApiProvider([ext.loginHelper.api]));

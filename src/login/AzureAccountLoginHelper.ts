@@ -32,8 +32,6 @@ import { TenantIdDescription } from './TenantIdDescription';
 import { updateFilters } from './updateFilters';
 import { waitUntilOnline } from './waitUntilOnline';
 
-const enableVerboseLogs: boolean = false;
-
 interface IAzureAccountWriteable extends AzureAccountExtensionApi {
 	status: AzureLoginStatus;
 }
@@ -60,8 +58,8 @@ export class AzureAccountLoginHelper {
 	public legacyApi: AzureAccountExtensionLegacyApi;
 
 	constructor(public context: ExtensionContext, actionContext: IActionContext) {
-		this.adalAuthProvider = new AdalAuthProvider(enableVerboseLogs);
-		this.msalAuthProvider = new MsalAuthProvider(enableVerboseLogs);
+		this.adalAuthProvider = new AdalAuthProvider();
+		this.msalAuthProvider = new MsalAuthProvider();
 		this.authProvider = getAuthLibrary() === 'ADAL' ? this.adalAuthProvider : this.msalAuthProvider;
 
 		this.api = new AzureAccountExtensionApi(this);

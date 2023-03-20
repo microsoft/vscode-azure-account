@@ -6,7 +6,7 @@
 import { Environment } from "@azure/ms-rest-azure-env";
 import { DeviceCodeResponse } from "@azure/msal-common";
 import { AccountInfo, AuthenticationResult, Configuration, LogLevel, PublicClientApplication, TokenCache } from "@azure/msal-node";
-import { IActionContext, IParsedError, parseError, UserCancelledError } from "@microsoft/vscode-azext-utils";
+import { IActionContext, IParsedError, UserCancelledError, parseError } from "@microsoft/vscode-azext-utils";
 import { CancellationToken } from "vscode";
 import { AzureSession } from "../../azure-account.api";
 import { authTimeoutSeconds, clientId, stoppedAuthTaskMessage } from "../../constants";
@@ -16,15 +16,15 @@ import { localize } from "../../utils/localize";
 import { Deferred } from "../../utils/promiseUtils";
 import { AbstractCredentials, AbstractCredentials2, AuthProviderBase } from "../AuthProviderBase";
 import { AzureSessionInternal } from "../AzureSessionInternal";
+import { PublicClientCredential } from "./PublicClientCredential";
 import { cachePlugin } from "./cachePlugin";
 import { getAzureCloudInstance } from "./getAzureCloudInstance";
 import { getDefaultMsalScopes } from "./getDefaultMsalScopes";
-import { PublicClientCredential } from "./PublicClientCredential";
 
 export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 	private publicClientApp: PublicClientApplication;
 
-	constructor(enableVerboseLogs: boolean) {
+	constructor() {
 		super();
 		const msalConfiguration: Configuration = {
 			auth: { clientId },
@@ -32,10 +32,27 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 			system: {
 				loggerOptions: {
 					loggerCallback: (_level: LogLevel, message: string, _containsPii: boolean) => {
-						ext.outputChannel.appendLine(message);
+						message = 'MSAL: ' + message;
+						switch (_level) {
+							case LogLevel.Info:
+								ext.outputChannel.info(message);
+								break;
+							case LogLevel.Warning:
+								ext.outputChannel.warn(message);
+								break;
+							case LogLevel.Error:
+								ext.outputChannel.error(message);
+								break;
+							case LogLevel.Verbose:
+								ext.outputChannel.debug(message);
+								break;
+							case LogLevel.Trace:
+								ext.outputChannel.trace(message);
+								break;
+						}
 					},
 					piiLoggingEnabled: false,
-					logLevel: enableVerboseLogs ? LogLevel.Verbose : LogLevel.Error
+					logLevel: LogLevel.Trace,
 				}
 			}
 		};

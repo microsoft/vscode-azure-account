@@ -41,6 +41,9 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 		Logging.setLoggingOptions({
 			level: ADALLogLevel.Verbose,
 			log: (level: LoggingLevel, message: string, error?: Error) => {
+				// example message:
+				// Wed, 22 Mar 2023 20:03:04 GMT:c118cca5-90ce-4fcb-b3ed-e73d32fc1eee - TokenRequest: INFO: Getting a new token from a refresh token.
+				message = message.replace(/.*-\s/, ''); // remove ADAL log timestamp and id
 				message = 'ADAL: ' + message;
 				switch (level) {
 					case ADALLogLevel.Error:
@@ -50,10 +53,10 @@ export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 						ext.outputChannel.warn(message);
 						break;
 					case ADALLogLevel.Info:
-						ext.outputChannel.info(message);
+						ext.outputChannel.debug(message);
 						break;
 					case ADALLogLevel.Verbose:
-						ext.outputChannel.debug(message);
+						ext.outputChannel.trace(message);
 				}
 			}
 		});

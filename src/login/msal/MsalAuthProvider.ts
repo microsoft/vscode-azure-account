@@ -34,14 +34,14 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 					loggerCallback: (_level: LogLevel, message: string, _containsPii: boolean) => {
 						message = 'MSAL: ' + message;
 						switch (_level) {
-							case LogLevel.Info:
-								ext.outputChannel.info(message);
+							case LogLevel.Error:
+								ext.outputChannel.error(message);
 								break;
 							case LogLevel.Warning:
 								ext.outputChannel.warn(message);
 								break;
-							case LogLevel.Error:
-								ext.outputChannel.error(message);
+							case LogLevel.Info:
+								ext.outputChannel.info(message);
 								break;
 							case LogLevel.Verbose:
 								ext.outputChannel.debug(message);
@@ -51,7 +51,7 @@ export class MsalAuthProvider extends AuthProviderBase<AuthenticationResult> {
 								break;
 						}
 					},
-					piiLoggingEnabled: false,
+					piiLoggingEnabled: true,
 					logLevel: LogLevel.Trace,
 				}
 			}

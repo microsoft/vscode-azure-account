@@ -10,7 +10,7 @@ import { IActionContext, parseError } from "@microsoft/vscode-azext-utils";
 import { randomBytes } from "crypto";
 import { ServerResponse } from "http";
 import { DeviceTokenCredentials } from "ms-rest-azure";
-import { CancellationToken, MessageItem, UIKind, Uri, env, window } from "vscode";
+import { CancellationToken, env, MessageItem, UIKind, Uri, window } from "vscode";
 import { AzureAccountExtensionApi, AzureSession } from "../azure-account.api";
 import { portADFS, redirectUrlAAD } from "../constants";
 import { ext } from "../extensionVariables";
@@ -18,13 +18,13 @@ import { logAttemptingToReachUrlMessage } from "../logAttemptingToReachUrlMessag
 import { localize } from "../utils/localize";
 import { logErrorMessage } from "../utils/logErrorMessage";
 import { openUri } from "../utils/openUri";
-import { AzureSessionInternal } from "./AzureSessionInternal";
 import { DeviceTokenCredentials2 } from "./adal/DeviceTokenCredentials2";
+import { AzureSessionInternal } from "./AzureSessionInternal";
 import { getEnvironments } from "./environments";
 import { exchangeCodeForToken } from "./exchangeCodeForToken";
 import { getLocalCallbackUrl } from "./getCallbackUrl";
 import { getKey } from "./getKey";
-import { CodeResult, RedirectResult, createServer, createTerminateServer, startServer } from './server';
+import { CodeResult, createServer, createTerminateServer, RedirectResult, startServer } from './server';
 import { SubscriptionTenantCache } from "./subscriptionTypes";
 
 export type AbstractCredentials = DeviceTokenCredentials;

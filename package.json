@@ -311,7 +311,7 @@
         "@azure/ms-rest-js": "^2.6.0",
         "@azure/ms-rest-nodeauth": "^3.0.10",
         "@azure/msal-node": "^1.14.6",
-        "@microsoft/vscode-azext-utils": "file:../vscode-azuretools/utils/microsoft-vscode-azext-utils-0.5.1.tgz",
+        "@microsoft/vscode-azext-utils": "^1.0.0",
         "adal-node": "^0.2.3",
         "form-data": "2.3.3",
         "http-proxy-agent": "^5.0.0",

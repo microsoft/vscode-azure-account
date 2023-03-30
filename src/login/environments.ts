@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Environment } from "@azure/ms-rest-azure-env";
-import fetch, { Response } from "node-fetch";
+import { Response } from "node-fetch";
 import * as url from 'url';
 import { commands, window, workspace, WorkspaceConfiguration } from "vscode";
 import { azureCustomCloud, azurePPE, cloudSetting, customCloudArmUrlSetting, extensionPrefix, ppeSetting, staticEnvironments } from "../constants";
 import { localize } from "../utils/localize";
+import { fetchWithLogging } from "../utils/logging/nodeFetch/nodeFetch";
 import { getSettingValue } from "../utils/settingUtils";
 
 interface ICloudMetadata {
@@ -56,7 +57,7 @@ export async function getEnvironments(includePartial: boolean = false): Promise<
 	const metadataDiscoveryUrl: string | undefined = process.env['ARM_CLOUD_METADATA_URL'];
 	if (metadataDiscoveryUrl) {
 		try {
-			const response: Response = await fetch(metadataDiscoveryUrl);
+			const response: Response = await fetchWithLogging(metadataDiscoveryUrl);
 			if (response.ok) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				const endpoints: ICloudMetadata[] = await response.json();
@@ -114,7 +115,7 @@ async function getCustomCloudEnvironment(config: WorkspaceConfiguration, include
 	if (armUrl) {
 		try {
 			const endpointsUrl: string = getMetadataEndpoints(armUrl);
-			const endpointsResponse: Response = await fetch(endpointsUrl);
+			const endpointsResponse: Response = await fetchWithLogging(endpointsUrl);
 			if (endpointsResponse.ok) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				const endpoints: IResourceManagerMetadata = await endpointsResponse.json();

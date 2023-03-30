@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { callWithTelemetryAndErrorHandling, createApiProvider, createAzExtOutputChannel, createExperimentationService, IActionContext, registerCommand, registerReportIssueCommand, registerUIExtensionVariables } from '@microsoft/vscode-azext-utils';
-import { AzureExtensionApiProvider } from '@microsoft/vscode-azext-utils/api';
+import { IActionContext, apiUtils, callWithTelemetryAndErrorHandling, createApiProvider, createAzExtLogOutputChannel, createExperimentationService, registerCommand, registerReportIssueCommand, registerUIExtensionVariables } from '@microsoft/vscode-azext-utils';
+import axios from 'axios';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
-import { CancellationToken, ConfigurationTarget, env, ExtensionContext, ProgressLocation, Uri, window, workspace, WorkspaceConfiguration } from 'vscode';
+import { CancellationToken, ConfigurationTarget, ExtensionContext, ProgressLocation, Uri, WorkspaceConfiguration, env, window, workspace } from 'vscode';
 import { AzureAccountExtensionApi } from './azure-account.api';
-import { createCloudConsole, OSes, OSName, shells } from './cloudConsole/cloudConsole';
+import { OSName, OSes, createCloudConsole, shells } from './cloudConsole/cloudConsole';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
 import { AzureAccountLoginHelper } from './login/AzureAccountLoginHelper';
@@ -24,17 +24,19 @@ import { updateSubscriptionsAndTenants } from './login/updateSubscriptions';
 import { survey } from './nps';
 import { localize } from './utils/localize';
 import { logErrorMessage } from './utils/logErrorMessage';
+import { setupAxiosLogging } from './utils/logging/axios/AxiosNormalizer';
 import { getSettingValue } from './utils/settingUtils';
 
 const enableLogging: boolean = false;
 
-export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<AzureExtensionApiProvider> {
+export async function activateInternal(context: ExtensionContext, perfStats: { loadStartTime: number; loadEndTime: number }): Promise<apiUtils.AzureExtensionApiProvider> {
 	ext.context = context;
-	ext.outputChannel = createAzExtOutputChannel(displayName, extensionPrefix);
+	ext.outputChannel = createAzExtLogOutputChannel(displayName);
 	ext.uriEventHandler = new UriEventHandler();
 	context.subscriptions.push(ext.outputChannel);
 	context.subscriptions.push(window.registerUriHandler(ext.uriEventHandler));
 	registerUIExtensionVariables(ext);
+	setupAxiosLogging(axios, ext.outputChannel);
 
 	await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
 		activateContext.telemetry.properties.isActivationEvent = 'true';

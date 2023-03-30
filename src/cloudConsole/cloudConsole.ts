@@ -10,7 +10,7 @@ import { ReadStream } from 'fs';
 import { ClientRequest } from 'http';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { Socket } from 'net';
-import fetch, { Response } from 'node-fetch';
+import { Response } from 'node-fetch';
 import * as path from 'path';
 import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
@@ -24,6 +24,7 @@ import { tokenFromRefreshToken } from '../login/adal/tokens';
 import { getAuthLibrary } from '../login/getAuthLibrary';
 import { localize } from '../utils/localize';
 import { logErrorMessage } from '../utils/logErrorMessage';
+import { fetchWithLogging } from '../utils/logging/nodeFetch/nodeFetch';
 import { Deferred } from '../utils/promiseUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
 import { CloudShellInternal } from './CloudShellInternal';
@@ -602,7 +603,7 @@ async function fetchTenantDetails(session: AzureSession): Promise<{ session: Azu
 
 			if (result) {
 				try {
-					const response: Response = await fetch(requestUrl, {
+					const response: Response = await fetchWithLogging(requestUrl, {
 						headers: {
 							// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 							Authorization: `Bearer ${result.accessToken}`,

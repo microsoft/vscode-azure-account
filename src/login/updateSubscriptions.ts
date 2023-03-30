@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SubscriptionClient } from "@azure/arm-subscriptions";
-import { HttpOperationResponse, RequestPrepareOptions } from "@azure/ms-rest-js";
-import { callWithTelemetryAndErrorHandling, IActionContext, parseError } from "@microsoft/vscode-azext-utils";
+import { HttpOperationResponse, RequestPolicyFactory, RequestPrepareOptions } from "@azure/ms-rest-js";
+import { IActionContext, callWithTelemetryAndErrorHandling, parseError } from "@microsoft/vscode-azext-utils";
 import { AzureSubscription } from "../azure-account.api";
 import { cacheKey } from "../constants";
 import { ext } from "../extensionVariables";
 import { listAll } from "../utils/arrayUtils";
+import { LogRequestPolicy } from "../utils/logging/msRest/LogRequestPolicy";
 import { AzureSessionInternal } from "./AzureSessionInternal";
+import { TenantIdDescription } from "./TenantIdDescription";
 import { getSelectedEnvironment } from "./environments";
 import { SubscriptionTenantCache } from "./subscriptionTypes";
-import { TenantIdDescription } from "./TenantIdDescription";
 
 export async function updateSubscriptionsAndTenants(): Promise<void> {
 	await callWithTelemetryAndErrorHandling('updateSubscriptionsAndTenants', async (context: IActionContext) => {
@@ -53,7 +54,15 @@ async function loadTenants(context: IActionContext): Promise<TenantIdDescription
 	const knownTenants: TenantIdDescription[] = [];
 
 	for (const session of ext.loginHelper.api.sessions) {
-		const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl });
+		const client: SubscriptionClient = new SubscriptionClient(session.credentials2, { baseUri: session.environment.resourceManagerEndpointUrl, 
+			requestPolicyFactories: (defaultFactories: RequestPolicyFactory[]) => {
+				return defaultFactories.concat({
+					create: (nextPolicy, options) => {
+						return new LogRequestPolicy(ext.outputChannel, 'SubscriptionsClient', nextPolicy, options);
+					}
+				});
+			}});
+
 		const environment = await getSelectedEnvironment();
 		const resourceManagerEndpointUrl: string = environment.resourceManagerEndpointUrl.endsWith('/') ?
 			environment.resourceManagerEndpointUrl :

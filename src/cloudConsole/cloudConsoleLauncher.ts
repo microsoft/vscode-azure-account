@@ -8,6 +8,9 @@ import { HttpProxyAgent } from 'http-proxy-agent';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import * as request from 'request-promise';
 import * as WS from 'ws';
+import { ext } from '../extensionVariables';
+import { HttpLogger } from '../utils/logging/HttpLogger';
+import { RequestNormalizer } from '../utils/logging/request/RequestNormalizer';
 import { readJSON, sendData } from './ipc';
 
 const consoleApiVersion = '2017-08-01-preview';
@@ -44,10 +47,21 @@ export interface Size {
 	rows: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function requestWithLogging(requestOptions: request.Options): Promise<any> {
+	const requestLogger = new HttpLogger(ext.outputChannel, 'CloudConsoleLauncher', new RequestNormalizer());
+	requestLogger.logRequest(requestOptions);
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+	const response: http.IncomingMessage & { body: unknown } = await request(requestOptions);
+	requestLogger.logResponse({ response, request: requestOptions });
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-return
+	return response;
+}
+
 export async function getUserSettings(accessToken: string, armEndpoint: string): Promise<UserSettings | undefined> {
 	const targetUri = `${armEndpoint}/providers/Microsoft.Portal/userSettings/cloudconsole?api-version=${consoleApiVersion}`;
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-	const response = await request({
+	const response = await requestWithLogging({
 		uri: targetUri,
 		method: 'GET',
 		headers: {
@@ -101,7 +115,7 @@ export async function provisionConsole(accessToken: string, armEndpoint: string,
 /* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 
 async function createTerminal(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string, initial: boolean) {
-	return request({
+	return requestWithLogging({
 		uri: getConsoleUri(armEndpoint),
 		method: initial ? 'PUT' : 'GET',
 		headers: {
@@ -124,7 +138,7 @@ async function createTerminal(accessToken: string, armEndpoint: string, userSett
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export async function resetConsole(accessToken: string, armEndpoint: string) {
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-	const response = await request({
+	const response = await requestWithLogging({
 		uri: getConsoleUri(armEndpoint),
 		method: 'DELETE',
 		headers: {
@@ -181,7 +195,7 @@ export async function connectTerminal(accessTokens: AccessTokens, consoleUri: st
 }
 
 async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string, initialSize: Size) {
-	return request({
+	return requestWithLogging({
 		// eslint-disable-next-line @typescript-eslint/restrict-plus-operands
 		uri: consoleUri + '/terminals?cols=' + initialSize.cols + '&rows=' + initialSize.rows + '&shell=' + shellType,
 		method: 'POST',
@@ -222,7 +236,7 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 
 		const { cols, rows } = getWindowSize();
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-		const response = await request({
+		const response = await requestWithLogging({
 			uri: `${terminalUri}/size?cols=${cols}&rows=${rows}`,
 			method: 'POST',
 			headers: {

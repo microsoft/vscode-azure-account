@@ -8,5 +8,5 @@ import { ext } from "../extensionVariables";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
 export function logErrorMessage(error: any): void {
-	ext.outputChannel.appendLog(parseError(error).message);
+	ext.outputChannel.error(parseError(error).message);
 }

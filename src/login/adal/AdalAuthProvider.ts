@@ -5,7 +5,7 @@
 
 import { Environment } from "@azure/ms-rest-azure-env";
 import { IActionContext } from "@microsoft/vscode-azext-utils";
-import { Logging, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
+import { Logging, LoggingLevel, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
 import { DeviceTokenCredentials } from "ms-rest-azure";
 import { CancellationToken } from "vscode";
 import { AzureSession } from "../../azure-account.api";
@@ -17,7 +17,7 @@ import { Deferred } from "../../utils/promiseUtils";
 import { AbstractCredentials, AuthProviderBase } from "../AuthProviderBase";
 import { DeviceTokenCredentials2 } from "./DeviceTokenCredentials2";
 import { getUserCode } from "./getUserCode";
-import { addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokensFromToken, getTokenWithAuthorizationCode, ProxyTokenCache, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
+import { ProxyTokenCache, addTokenToCache, clearTokenCache, deleteRefreshToken, getStoredCredentials, getTokenResponse, getTokenWithAuthorizationCode, getTokensFromToken, storeRefreshToken, tokenFromRefreshToken } from "./tokens";
 
 const staticEnvironmentNames: string[] = [
 	...staticEnvironments.map(environment => environment.name),
@@ -25,23 +25,38 @@ const staticEnvironmentNames: string[] = [
 	azurePPE
 ];
 
+const ADALLogLevel: Record<string, LoggingLevel> = {
+	Error: 0,
+	Warning: 1,
+	Info: 2,
+	Verbose: 3,
+} as const;
+
 export class AdalAuthProvider extends AuthProviderBase<TokenResponse[]> {
 	private tokenCache: MemoryCache = new MemoryCache();
 	private delayedTokenCache: ProxyTokenCache = new ProxyTokenCache(this.tokenCache);
-
-	constructor(enableVerboseLogs: boolean) {
+	
+	constructor() {
 		super();
 		Logging.setLoggingOptions({
-			level: enableVerboseLogs ?
-				3 /* Logging.LOGGING_LEVEL.VERBOSE */ :
-				0 /* Logging.LOGGING_LEVEL.ERROR */,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			log: (_level: any, message: any, error: any) => {
-				if (message) {
-					ext.outputChannel.appendLine(message);
-				}
-				if (error) {
-					ext.outputChannel.appendLine(error);
+			level: ADALLogLevel.Verbose,
+			log: (level: LoggingLevel, message: string, error?: Error) => {
+				// example message:
+				// Wed, 22 Mar 2023 20:03:04 GMT:c118cca5-90ce-4fcb-b3ed-e73d32fc1eee - TokenRequest: INFO: Getting a new token from a refresh token.
+				message = message.replace(/.*-\s/, ''); // remove ADAL log timestamp and id
+				message = 'ADAL: ' + message;
+				switch (level) {
+					case ADALLogLevel.Error:
+						ext.outputChannel.error(error ?? message);
+						break;
+					case ADALLogLevel.Warning:
+						ext.outputChannel.warn(message);
+						break;
+					case ADALLogLevel.Info:
+						ext.outputChannel.debug(message);
+						break;
+					case ADALLogLevel.Verbose:
+						ext.outputChannel.trace(message);
 				}
 			}
 		});

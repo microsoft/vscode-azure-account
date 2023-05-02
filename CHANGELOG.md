@@ -1,6 +1,19 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.11.4] - 2023-05-02
+
+### Added
+* Add detailed logging  by @alexweininger in [#750](https://github.com/microsoft/vscode-azure-account/pull/750)
+
+### Fixed
+* Don't await nps survey by @alexweininger in [#709](https://github.com/microsoft/vscode-azure-account/pull/709)
+
+### Dependencies
+* Bump version post release by @alexweininger in [#701](https://github.com/microsoft/vscode-azure-account/pull/701)
+* Bump webpack from 5.69.0 to 5.76.0 by @dependabot in [#736](https://github.com/microsoft/vscode-azure-account/pull/736)
+* Bump xml2js and @azure/ms-rest-js in /sample by @dependabot in [#778](https://github.com/microsoft/vscode-azure-account/pull/778)
+
 ## [0.11.3] - 2023-01-18
 
 ### Fixed

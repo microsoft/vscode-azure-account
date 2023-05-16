@@ -1,6 +1,11 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.11.5] - 2023-05-16
+
+### Fixed
+* Fix launching cloud console by @alexweininger in [809](https://github.com/microsoft/vscode-azure-account/pull/809)
+
 ## [0.11.4] - 2023-05-02
 
 ### Added

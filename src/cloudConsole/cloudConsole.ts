@@ -272,7 +272,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 
 			// open terminal
 			let shellPath: string = path.join(ext.context.asAbsolutePath('bin'), `node.${isWindows ? 'bat' : 'sh'}`);
-			let cloudConsoleLauncherPath: string = path.join(ext.context.asAbsolutePath('dist'), 'cloudConsoleLauncher');
+			let cloudConsoleLauncherPath: string = path.join(ext.context.asAbsolutePath('dist'), 'cloudConsoleLauncher.js');
 			if (isWindows) {
 				cloudConsoleLauncherPath = cloudConsoleLauncherPath.replace(/\\/g, '\\\\');
 			}

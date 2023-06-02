@@ -69,6 +69,11 @@
                 "category": "%azure-account.commands.azure%"
             },
             {
+                "command": "azure-account.manageAccount",
+                "title": "%azure-account.commands.manageAccount%",
+                "category": "%azure-account.commands.azure%"
+            },
+            {
                 "command": "azure-account.reportIssue",
                 "title": "%azure-account.commands.reportIssue%",
                 "category": "%azure-account.commands.azureAccount%"
@@ -91,6 +96,10 @@
         ],
         "menus": {
             "commandPalette": [
+                {
+                    "command": "azure-account.manageAccount",
+                    "when": "never"
+                },
                 {
                     "command": "azure-account.uploadFileCloudConsole",
                     "when": "isWorkspaceTrusted"

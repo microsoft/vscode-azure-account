@@ -15,6 +15,7 @@ export async function manageAccount(context: IActionContext): Promise<void> {
     const result = await context.ui.showQuickPick(
         [selectSubscriptionsPick, signOutPick],
         {
+            stepName: 'selectSubscriptionsOrSignOut',
             placeHolder: localize('signedInAs', 'Signed in as {0}', ext.loginHelper.api.sessions[0].userId),
             canPickMany: false,
         },

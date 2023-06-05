@@ -10,6 +10,7 @@ import { basename } from 'path';
 import { CancellationToken, ConfigurationTarget, ExtensionContext, ProgressLocation, Uri, WorkspaceConfiguration, env, window, workspace } from 'vscode';
 import { AzureAccountExtensionApi } from './azure-account.api';
 import { OSName, OSes, createCloudConsole, shells } from './cloudConsole/cloudConsole';
+import { manageAccount } from './commands/manageAccount';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
 import { AzureAccountLoginHelper } from './login/AzureAccountLoginHelper';
@@ -58,6 +59,7 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		registerCommand('azure-account.askForLogin', askForLogin);
 		registerCommand('azure-account.createAccount', createAccount);
 		registerCommand('azure-account.uploadFileCloudConsole', uploadFile);
+		registerCommand('azure-account.manageAccount', manageAccount);
 		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptionsAndTenants));
 		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
 		registerReportIssueCommand('azure-account.reportIssue');
@@ -171,7 +173,7 @@ function createAccount() {
 function createStatusBarItem(context: ExtensionContext, api: AzureAccountExtensionApi) {
 	const statusBarItem = window.createStatusBarItem('azure-account.status');
 	statusBarItem.name = localize('azure-account.status', 'Azure Account Status');
-	statusBarItem.command = "azure-account.selectSubscriptions";
+	statusBarItem.command = "azure-account.manageAccount";
 	function updateStatusBar() {
 		switch (api.status) {
 			case 'LoggingIn':

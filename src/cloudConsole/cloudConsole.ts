@@ -9,7 +9,6 @@ import * as FormData from 'form-data';
 import { ReadStream } from 'fs';
 import * as http from 'http';
 import { ClientRequest } from 'http';
-import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { Socket } from 'net';
 import { Response } from 'node-fetch';
 import * as path from 'path';
@@ -380,7 +379,7 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 					.then(tenantDetails => tenantDetails.map(details => {
 						// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 						const tenantDetails: TenantDetails = details!.tenantDetails;
-						const defaultDomainName: string | undefined = (tenantDetails.verifiedDomains.find(domain => domain.default))?.name;
+						const defaultDomainName: string | undefined = tenantDetails.defaultDomain;
 						return {
 							label: tenantDetails.displayName,
 							description: defaultDomainName,
@@ -388,9 +387,9 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 							session: details!.session
 						};
 					}).sort((a, b) => a.label.localeCompare(b.label))), {
-						placeHolder: localize('azure-account.selectDirectoryPlaceholder', "Select directory"),
-						ignoreFocusOut: true // The terminal opens concurrently and can steal focus (https://github.com/microsoft/vscode-azure-account/issues/77).
-					});
+					placeHolder: localize('azure-account.selectDirectoryPlaceholder', "Select directory"),
+					ignoreFocusOut: true // The terminal opens concurrently and can steal focus (https://github.com/microsoft/vscode-azure-account/issues/77).
+				});
 				if (!pick) {
 					context.telemetry.properties.outcome = 'noTenantPicked';
 					serverQueue.push({ type: 'exit' });
@@ -442,17 +441,12 @@ export function createCloudConsole(api: AzureAccountExtensionApi, osName: OSName
 				}
 			}
 
-			// Additional tokens
-			const [graphToken, keyVaultToken] = await Promise.all([
-				tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, session.environment.activeDirectoryGraphResourceId),
-				session.environment.keyVaultDnsSuffix
+			const keyVaultToken = session.environment.keyVaultDnsSuffix
 					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-					? tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
-					: Promise.resolve(undefined)
-			]);
+					? await tokenFromRefreshToken(session.environment, result.token.refreshToken, session.tenantId, `https://${session.environment.keyVaultDnsSuffix!.substr(1)}`)
+					: undefined;
 			const accessTokens: AccessTokens = {
 				resource: accessToken,
-				graph: graphToken.accessToken,
 				keyVault: keyVaultToken && keyVaultToken.accessToken
 			};
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -566,7 +560,7 @@ async function acquireToken(session: AzureSession): Promise<Token> {
 		const environment: any = session.environment;
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
 		credentials.context.acquireToken(environment.activeDirectoryResourceId, credentials.username, credentials.clientId, function (err: any, result: any) {
-		/* eslint-enable @typescript-eslint/no-explicit-any */
+			/* eslint-enable @typescript-eslint/no-explicit-any */
 			if (err) {
 				reject(err);
 			} else {
@@ -585,54 +579,27 @@ async function acquireToken(session: AzureSession): Promise<Token> {
 interface TenantDetails {
 	objectId: string;
 	displayName: string;
-	verifiedDomains: { name: string; default: boolean; }[];
+	domains: string;
+	defaultDomain: string;
 }
 
 async function fetchTenantDetails(session: AzureSession): Promise<{ session: AzureSession, tenantDetails: TenantDetails }> {
-	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-	const { username, clientId, tokenCache, domain } = <any>(<AzureSessionLegacy>session).credentials;
-	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-	const graphCredentials: DeviceTokenCredentials = new DeviceTokenCredentials({ username, clientId, tokenCache, domain, tokenAudience: 'graph' });
 
-	const apiVersion: string = '1.6';
-	const requestUrl: string = `https://graph.windows.net/${encodeURIComponent(session.tenantId)}/tenantDetails?api-version=${encodeURIComponent(apiVersion)}`;
-
-	return new Promise((resolve, reject) => {
-		// eslint-disable-next-line @typescript-eslint/no-misused-promises, @typescript-eslint/no-explicit-any
-		graphCredentials.getToken(async (err: Error, result: any) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-
-			if (result) {
-				try {
-					const response: Response = await fetchWithLogging(requestUrl, {
-						headers: {
-							// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-							Authorization: `Bearer ${result.accessToken}`,
-							"x-ms-client-request-id": uuid(),
-							"Content-Type": 'application/json; charset=utf-8'
-						}
-					});
-
-					if (response.ok) {
-						// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-						const json = await response.json();
-						resolve({
-							session,
-							// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-							tenantDetails: json.value[0]
-						});
-					} else {
-						reject(response.statusText)
-					}
-				} catch (e) {
-					reject(e);
-				}
-			}
-		});
+	const response: Response = await fetchWithLogging('https://management.azure.com/tenants?api-version=2022-12-01', {
+		headers: {
+			Authorization: `Bearer ${(await session.credentials2.getToken([]))?.token}`,
+			"x-ms-client-request-id": uuid(),
+			"Content-Type": 'application/json; charset=utf-8'
+		}
 	});
+
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+	const json = await response.json();
+	return {
+		session,
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+		tenantDetails: json.value[0]
+	};
 }
 
 export interface ExecResult {
@@ -670,7 +637,7 @@ export interface UserSettings {
 
 export interface AccessTokens {
 	resource: string;
-	graph: string;
+	// graph: string;
 	keyVault?: string;
 }
 
@@ -697,7 +664,7 @@ async function requestWithLogging(requestOptions: request.Options): Promise<any>
 		return response;
 	} catch (e) {
 		const error = parseError(e);
-		ext.outputChannel.error({...error, name: 'Request Error: CloudConsoleLauncher'});
+		ext.outputChannel.error({ ...error, name: 'Request Error: CloudConsoleLauncher' });
 	}
 }
 
@@ -734,7 +701,7 @@ export async function getUserSettings(accessToken: string, armEndpoint: string):
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 export async function provisionConsole(accessToken: string, armEndpoint: string, userSettings: UserSettings, osType: string): Promise<string> {
 	let response = await createTerminal(accessToken, armEndpoint, userSettings, osType, true);
-	for (let i = 0; i < 10; i++ , response = await createTerminal(accessToken, armEndpoint, userSettings, osType, false)) {
+	for (let i = 0; i < 10; i++, response = await createTerminal(accessToken, armEndpoint, userSettings, osType, false)) {
 		if (response.statusCode < 200 || response.statusCode > 299) {
 			if (response.statusCode === 409 && response.body && response.body.error && response.body.error.code === Errors.DeploymentOsTypeConflict) {
 				throw new Error(Errors.DeploymentOsTypeConflict);
@@ -851,7 +818,7 @@ async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string
 		resolveWithFullResponse: true,
 		json: true,
 		body: {
-			tokens: accessTokens.keyVault ? [accessTokens.graph, accessTokens.keyVault] : [accessTokens.graph]
+			tokens: accessTokens.keyVault ? [accessTokens.keyVault] : []
 		}
 	});
 }

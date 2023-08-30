@@ -8,6 +8,6 @@ export async function fetchWithLogging(url: RequestInfo, init?: RequestInit): Pr
     const request = new Request(url, init);
     nodeFetchLogger.logRequest(request);
     const response = await fetch(url, init);
-    nodeFetchLogger.logResponse({ response, request, bodyAsText: await response.text() });
+    nodeFetchLogger.logResponse({ response, request, bodyAsText: await response.clone().text() });
     return response;
 }

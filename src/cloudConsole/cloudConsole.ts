@@ -805,6 +805,7 @@ export async function connectTerminal(accessTokens: AccessTokens, consoleUri: st
 }
 
 async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string, shellType: string, initialSize: Size) {
+	const consoleUrl = new URL(consoleUri);
 	return requestWithLogging({
 		// eslint-disable-next-line @typescript-eslint/restrict-plus-operands
 		uri: consoleUri + '/terminals?cols=' + initialSize.cols + '&rows=' + initialSize.rows + '&shell=' + shellType,
@@ -812,7 +813,8 @@ async function initializeTerminal(accessTokens: AccessTokens, consoleUri: string
 		headers: {
 			'Content-Type': 'application/json',
 			'Accept': 'application/json',
-			'Authorization': `Bearer ${accessTokens.resource}`
+			'Authorization': `Bearer ${accessTokens.resource}`,
+			'Referer': consoleUrl.protocol + "//" + consoleUrl.hostname + '/$hc' + consoleUrl.pathname + '/terminals',
 		},
 		simple: false,
 		resolveWithFullResponse: true,

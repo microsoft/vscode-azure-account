@@ -63,6 +63,8 @@ async function resize(accessTokens: AccessTokens, terminalUri: string) {
 			simple: false,
 			resolveWithFullResponse: true,
 			json: true,
+			// Provide empty body so that 'Content-Type' header is set properly
+			body: {}
 		});
 
 		/* eslint-disable @typescript-eslint/no-unsafe-member-access */

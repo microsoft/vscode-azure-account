@@ -1,10 +1,19 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.11.6] - 2023-10-06
+
+### Fixed
+* Fix 500 error when launching cloud shell by setting the referer header [#866](https://github.com/microsoft/vscode-azure-account/pull/866)
+
+### Changed
+* Add manage account command to make sign out easier to find in [#820](https://github.com/microsoft/vscode-azure-account/pull/820)
+* Remove use of AAD Graph for cloud shell in [#851](https://github.com/microsoft/vscode-azure-account/pull/851)
+
 ## [0.11.5] - 2023-05-16
 
 ### Fixed
-* Fix launching cloud console by @alexweininger in [809](https://github.com/microsoft/vscode-azure-account/pull/809)
+* Fix launching cloud console by @alexweininger in [#809](https://github.com/microsoft/vscode-azure-account/pull/809)
 
 ## [0.11.4] - 2023-05-02
 

@@ -6,6 +6,8 @@
 
 <!-- endregion exclude-from-marketplace -->
 
+> Attention extension authors! The Azure Account extension is being replaced by [VS Code's built-in Microsoft authentication extension](https://github.com/microsoft/vscode/tree/main/extensions/microsoft-authentication). We've built a [wrapper SDK for Azure authentication npm package](https://www.npmjs.com/package/@microsoft/vscode-azext-azureauth). If you are creating a new extension that needs authentication to Azure, please use this instead of the Azure Account extension.
+
 The Azure Account extension provides a single Azure sign in and subscription filtering experience for all other Azure extensions. It makes Azure's Cloud Shell service available in VS Code's integrated terminal.
 
 ## Signing In/Out

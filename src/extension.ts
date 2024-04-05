@@ -23,6 +23,7 @@ import { UriEventHandler } from './login/exchangeCodeForToken';
 import { updateFilters } from './login/updateFilters';
 import { updateSubscriptionsAndTenants } from './login/updateSubscriptions';
 import { survey } from './nps';
+import { configureGlobalAgent } from './utils/configureGlobalAgent';
 import { localize } from './utils/localize';
 import { logErrorMessage } from './utils/logErrorMessage';
 import { setupAxiosLogging } from './utils/logging/axios/AxiosNormalizer';
@@ -40,6 +41,9 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 	setupAxiosLogging(axios, ext.outputChannel);
 
 	await callWithTelemetryAndErrorHandling('azure-account.activate', async (activateContext: IActionContext) => {
+
+		await configureGlobalAgent();
+
 		activateContext.telemetry.properties.isActivationEvent = 'true';
 		activateContext.telemetry.properties.activationTime = String((perfStats.loadEndTime - perfStats.loadStartTime) / 1000);
 

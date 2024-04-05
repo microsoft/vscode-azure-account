@@ -322,6 +322,7 @@
         "@azure/msal-node": "^1.14.6",
         "@microsoft/vscode-azext-utils": "^1.0.0",
         "adal-node": "^0.2.3",
+        "axios": "0.21.4",
         "form-data": "2.3.3",
         "http-proxy-agent": "^5.0.0",
         "https-proxy-agent": "^5.0.1",

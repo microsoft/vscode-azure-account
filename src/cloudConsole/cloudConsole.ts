@@ -10,7 +10,7 @@ import { ReadStream } from 'fs';
 import { ClientRequest } from 'http';
 import { DeviceTokenCredentials } from 'ms-rest-azure';
 import { Socket } from 'net';
-import fetch, { Response } from 'node-fetch';
+import fetchUrl, { Response } from '../utils/fetchUtils';
 import * as path from 'path';
 import * as semver from 'semver';
 import { parse, UrlWithStringQuery } from 'url';
@@ -603,7 +603,7 @@ async function fetchTenantDetails(session: AzureSession): Promise<{ session: Azu
 
 			if (result) {
 				try {
-					const response: Response = await fetch(requestUrl, {
+					const response: Response = await fetchUrl(requestUrl, {
 						headers: {
 							// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 							Authorization: `Bearer ${result.accessToken}`,

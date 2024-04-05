@@ -8,10 +8,11 @@ import { Environment } from "@azure/ms-rest-azure-env";
 import { RequestPolicyFactory } from "@azure/ms-rest-js";
 import { DeviceTokenCredentials as DeviceTokenCredentials2 } from '@azure/ms-rest-nodeauth';
 import { AuthenticationContext, MemoryCache, TokenResponse, UserCodeInfo } from "adal-node";
-import { clientId, commonTenantId } from "../../constants";
+import { clientId, commonTenantId, credentialsSection } from "../../constants";
 import { AzureLoginError } from "../../errors";
 import { ext } from "../../extensionVariables";
 import { listAll } from "../../utils/arrayUtils";
+import { KeyTar, tryGetKeyTar } from "../../utils/keytar";
 import { localize } from "../../utils/localize";
 import { logErrorMessage } from "../../utils/logErrorMessage";
 import { LogRequestPolicy } from "../../utils/logging/msRest/LogRequestPolicy";
@@ -21,6 +22,8 @@ import { isADFS } from "../environments";
 const CacheDriver = require('adal-node/lib/cache-driver');
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, import/no-internal-modules
 const createLogContext = require('adal-node/lib/log').createLogContext;
+
+const keytar: KeyTar | undefined = tryGetKeyTar();
 
 export class ProxyTokenCache {
 	/* eslint-disable */
@@ -49,37 +52,44 @@ export class ProxyTokenCache {
 }
 
 export async function getStoredCredentials(environment: Environment): Promise<string | undefined> {
+	if (!keytar) {
+		return undefined;
+	}
 	try {
-		const token = await ext.context.secrets.get('Refresh Token');
+		const token = await keytar.getPassword('VSCode Public Azure', 'Refresh Token');
 		if (token) {
-			if (!await ext.context.secrets.get('Azure')) {
-				await ext.context.secrets.store('Azure', token);
+			if (!await keytar.getPassword(credentialsSection, 'Azure')) {
+				await keytar.setPassword(credentialsSection, 'Azure', token);
 			}
-			await ext.context.secrets.delete('Refresh Token');
+			await keytar.deletePassword('VSCode Public Azure', 'Refresh Token');
 		}
 	} catch {
 		// ignore
 	}
 	try {
-		return await ext.context.secrets.get(environment.name);
+		return await keytar.getPassword(credentialsSection, environment.name) || undefined;
 	} catch {
 		// ignore
 	}
 }
 
 export async function storeRefreshToken(environment: Environment, token: string): Promise<void> {
-	try {
-		await ext.context.secrets.store(environment.name, token);
-	} catch {
-		// ignore
+	if (keytar) {
+		try {
+			await keytar.setPassword(credentialsSection, environment.name, token);
+		} catch {
+			// ignore
+		}
 	}
 }
 
 export async function deleteRefreshToken(environmentName: string): Promise<void> {
-	try {
-		await ext.context.secrets.delete(environmentName);
-	} catch {
-		// ignore
+	if (keytar) {
+		try {
+			await keytar.deletePassword(credentialsSection, environmentName);
+		} catch {
+			// ignore
+		}
 	}
 }
 

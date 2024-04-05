@@ -24,6 +24,7 @@ export const azurePPE: string = 'AzurePPE';
 export const cacheKey: string = 'cache';
 export const clientId: string = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 export const commonTenantId: string = 'common';
+export const credentialsSection: string = 'VS Code Azure';
 export const displayName: string = 'Azure Account';
 export const portADFS: number = 19472;
 export const redirectUrlAAD: string = 'https://vscode.dev/redirect';

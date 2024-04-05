@@ -25,6 +25,7 @@ import { getAuthLibrary } from '../login/getAuthLibrary';
 import { localize } from '../utils/localize';
 import { logErrorMessage } from '../utils/logErrorMessage';
 import { Deferred } from '../utils/promiseUtils';
+import { getAuthLibrary } from '../utils/settingUtils';
 import { AccessTokens, connectTerminal, ConsoleUris, Errors, getUserSettings, provisionConsole, resetConsole, Size, UserSettings } from './cloudConsoleLauncher';
 import { CloudShellInternal } from './CloudShellInternal';
 import { createServer, Queue, readJSON, Server } from './ipc';

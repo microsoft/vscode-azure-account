@@ -499,6 +499,7 @@ async function waitForLoginStatus(api: AzureAccountExtensionApi): Promise<AzureL
 
 async function findUserSettings(token: Token): Promise<{ userSettings: UserSettings; token: Token; } | undefined> {
 	const userSettings: UserSettings | undefined = await getUserSettings(token.accessToken, token.session.environment.resourceManagerEndpointUrl);
+	// Valid settings will have either a storage profile (mounted) or a session type of 'Ephemeral'.
 	if (userSettings && (userSettings.storageProfile || userSettings.sessionType === 'Ephemeral')) {
 		return { userSettings, token };
 	}

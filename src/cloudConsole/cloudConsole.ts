@@ -499,7 +499,8 @@ async function waitForLoginStatus(api: AzureAccountExtensionApi): Promise<AzureL
 
 async function findUserSettings(token: Token): Promise<{ userSettings: UserSettings; token: Token; } | undefined> {
 	const userSettings: UserSettings | undefined = await getUserSettings(token.accessToken, token.session.environment.resourceManagerEndpointUrl);
-	if (userSettings && userSettings.storageProfile) {
+	// Valid settings will have either a storage profile (mounted) or a session type of 'Ephemeral'.
+	if (userSettings && (userSettings.storageProfile || userSettings.sessionType === 'Ephemeral')) {
 		return { userSettings, token };
 	}
 }
@@ -618,7 +619,7 @@ async function exec(command: string): Promise<ExecResult> {
 }
 
 
-const consoleApiVersion = '2017-08-01-preview';
+const consoleApiVersion = '2023-02-01-preview';
 
 export enum Errors {
 	DeploymentOsTypeConflict = 'DeploymentOsTypeConflict'
@@ -633,6 +634,7 @@ export interface UserSettings {
 	preferredOsType: string; // The last OS chosen in the portal.
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	storageProfile: any;
+	sessionType: 'Ephemeral' | 'Mounted';
 }
 
 export interface AccessTokens {

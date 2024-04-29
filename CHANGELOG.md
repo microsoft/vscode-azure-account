@@ -1,6 +1,11 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.11.7] - 2024-04-29
+
+### Added
+* Support ephemeral cloud shell sessions [#950](https://github.com/microsoft/vscode-azure-account/pull/950)
+
 ## [0.11.6] - 2023-10-06
 
 ### Fixed

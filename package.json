@@ -281,7 +281,8 @@
         "lint-fix": "eslint --ext .ts . --fix",
         "package": "vsce package --githubBranch main",
         "which": "which tsc",
-        "prepare": "husky install"
+        "prepare": "husky install",
+        "test": " "
     },
     "devDependencies": {
         "@microsoft/eslint-config-azuretools": "^0.1.0",

@@ -7,9 +7,9 @@ import { IActionContext, apiUtils, callWithTelemetryAndErrorHandling, createApiP
 import axios from 'axios';
 import { createReadStream } from 'fs';
 import { basename } from 'path';
-import { CancellationToken, ConfigurationTarget, ExtensionContext, ProgressLocation, Uri, WorkspaceConfiguration, env, window, workspace } from 'vscode';
+import { ConfigurationTarget, ExtensionContext, ProgressLocation, Uri, WorkspaceConfiguration, env, window, workspace } from 'vscode';
 import { AzureAccountExtensionApi } from './azure-account.api';
-import { OSName, OSes, createCloudConsole, shells } from './cloudConsole/cloudConsole';
+import { OSName, OSes, shells } from './cloudConsole/cloudConsole';
 import { manageAccount } from './commands/manageAccount';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
@@ -63,17 +63,6 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptionsAndTenants));
 		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
 		registerReportIssueCommand('azure-account.reportIssue');
-
-		context.subscriptions.push(window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
-			provideTerminalProfile: (token: CancellationToken) => {
-				return createCloudConsole(ext.loginHelper.api, 'Linux', token).terminalProfile;
-			}
-		}));
-		context.subscriptions.push(window.registerTerminalProfileProvider('azure-account.cloudShellPowerShell', {
-			provideTerminalProfile: (token: CancellationToken) => {
-				return createCloudConsole(ext.loginHelper.api, 'Windows', token).terminalProfile;
-			}
-		}));
 
 		survey(context);
 	});

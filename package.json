@@ -120,20 +120,6 @@
                 }
             ]
         },
-        "terminal": {
-            "profiles": [
-                {
-                    "title": "%azure-account.cloudShellBash%",
-                    "id": "azure-account.cloudShellBash",
-                    "icon": "azure"
-                },
-                {
-                    "title": "%azure-account.cloudShellPowerShell%",
-                    "id": "azure-account.cloudShellPowerShell",
-                    "icon": "azure"
-                }
-            ]
-        },
         "configuration": {
             "type": "object",
             "title": "Azure configuration",
@@ -334,5 +320,8 @@
         "uuid": "^8.3.2",
         "vscode-nls": "4.0.0",
         "ws": "^8.9.0"
-    }
+    },
+    "extensionDependencies": [
+        "ms-azuretools.vscode-azureresourcegroups"
+    ]
 }

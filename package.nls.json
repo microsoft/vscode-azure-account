@@ -1,7 +1,5 @@
 {
     "azure-account.capabilities.untrustedWorkspaces.description": "Only global Azure configurations will be used when running in untrusted mode.",
-    "azure-account.cloudShellBash": "Azure Cloud Shell (Bash)",
-    "azure-account.cloudShellPowerShell": "Azure Cloud Shell (PowerShell)",
     "azure-account.commands.azure": "Azure",
     "azure-account.commands.azureAccount": "Azure Account",
     "azure-account.commands.createAccount": "Create an Account",

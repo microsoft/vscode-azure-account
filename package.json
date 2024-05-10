@@ -35,10 +35,7 @@
         "onCommand:azure-account.logout",
         "onCommand:azure-account.reportIssue",
         "onCommand:azure-account.selectSubscriptions",
-        "onCommand:azure-account.selectTenant",
-        "onCommand:azure-account.uploadFileCloudConsole",
-        "onTerminalProfile:azure-account.cloudShellBash",
-        "onTerminalProfile:azure-account.cloudShellPowerShell"
+        "onCommand:azure-account.selectTenant"
     ],
     "main": "./main",
     "contributes": {
@@ -87,11 +84,6 @@
                 "command": "azure-account.selectTenant",
                 "title": "%azure-account.commands.selectTenant%",
                 "category": "%azure-account.commands.azure%"
-            },
-            {
-                "command": "azure-account.uploadFileCloudConsole",
-                "title": "%azure-account.commands.uploadFileCloudConsole%",
-                "category": "%azure-account.commands.azure%"
             }
         ],
         "menus": {
@@ -99,38 +91,6 @@
                 {
                     "command": "azure-account.manageAccount",
                     "when": "never"
-                },
-                {
-                    "command": "azure-account.uploadFileCloudConsole",
-                    "when": "isWorkspaceTrusted"
-                }
-            ],
-            "explorer/context": [
-                {
-                    "command": "azure-account.uploadFileCloudConsole",
-                    "when": "resourceScheme == file && !explorerResourceIsFolder && isWorkspaceTrusted && openCloudConsoleCount && openCloudConsoleCount != 0",
-                    "group": "999_cloudConsole"
-                }
-            ],
-            "editor/title/context": [
-                {
-                    "command": "azure-account.uploadFileCloudConsole",
-                    "when": "resourceScheme == file && isWorkspaceTrusted && openCloudConsoleCount && openCloudConsoleCount != 0",
-                    "group": "999_cloudConsole"
-                }
-            ]
-        },
-        "terminal": {
-            "profiles": [
-                {
-                    "title": "%azure-account.cloudShellBash%",
-                    "id": "azure-account.cloudShellBash",
-                    "icon": "azure"
-                },
-                {
-                    "title": "%azure-account.cloudShellPowerShell%",
-                    "id": "azure-account.cloudShellPowerShell",
-                    "icon": "azure"
                 }
             ]
         },
@@ -334,5 +294,8 @@
         "uuid": "^8.3.2",
         "vscode-nls": "4.0.0",
         "ws": "^8.9.0"
-    }
+    },
+    "extensionDependencies": [
+        "ms-azuretools.vscode-azureresourcegroups"
+    ]
 }

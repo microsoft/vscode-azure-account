@@ -5,11 +5,8 @@
 
 import { IActionContext, apiUtils, callWithTelemetryAndErrorHandling, createApiProvider, createAzExtLogOutputChannel, createExperimentationService, registerCommand, registerReportIssueCommand, registerUIExtensionVariables } from '@microsoft/vscode-azext-utils';
 import axios from 'axios';
-import { createReadStream } from 'fs';
-import { basename } from 'path';
-import { CancellationToken, ConfigurationTarget, ExtensionContext, ProgressLocation, Uri, WorkspaceConfiguration, env, window, workspace } from 'vscode';
+import { ConfigurationTarget, ExtensionContext, Uri, WorkspaceConfiguration, env, window, workspace } from 'vscode';
 import { AzureAccountExtensionApi } from './azure-account.api';
-import { OSName, OSes, createCloudConsole, shells } from './cloudConsole/cloudConsole';
 import { manageAccount } from './commands/manageAccount';
 import { cloudSetting, displayName, extensionPrefix, showSignedInEmailSetting } from './constants';
 import { ext } from './extensionVariables';
@@ -58,22 +55,10 @@ export async function activateInternal(context: ExtensionContext, perfStats: { l
 		registerCommand('azure-account.selectTenant', selectTenant);
 		registerCommand('azure-account.askForLogin', askForLogin);
 		registerCommand('azure-account.createAccount', createAccount);
-		registerCommand('azure-account.uploadFileCloudConsole', uploadFile);
 		registerCommand('azure-account.manageAccount', manageAccount);
 		context.subscriptions.push(ext.loginHelper.api.onSessionsChanged(updateSubscriptionsAndTenants));
 		context.subscriptions.push(ext.loginHelper.api.onSubscriptionsChanged(() => updateFilters()));
 		registerReportIssueCommand('azure-account.reportIssue');
-
-		context.subscriptions.push(window.registerTerminalProfileProvider('azure-account.cloudShellBash', {
-			provideTerminalProfile: (token: CancellationToken) => {
-				return createCloudConsole(ext.loginHelper.api, 'Linux', token).terminalProfile;
-			}
-		}));
-		context.subscriptions.push(window.registerTerminalProfileProvider('azure-account.cloudShellPowerShell', {
-			provideTerminalProfile: (token: CancellationToken) => {
-				return createCloudConsole(ext.loginHelper.api, 'Windows', token).terminalProfile;
-			}
-		}));
 
 		survey(context);
 	});
@@ -99,46 +84,6 @@ async function migrateEnvironmentSetting() {
 
 	await migrateSetting('Azure', 'AzureCloud');
 	await migrateSetting('AzureChina', 'AzureChinaCloud');
-}
-
-function cloudConsole(os: OSName) {
-	const shell = ext.loginHelper.api.createCloudShell(os);
-	if (shell) {
-		void shell.terminal.then(terminal => terminal.show());
-		return shell;
-	}
-}
-
-function uploadFile(_context: IActionContext, uri?: Uri) {
-	(async () => {
-		if (!workspace.isTrusted) {
-			throw new Error(localize('azure-account.uploadingRequiresTrustedWorkspace', 'File upload only works in a trusted workspace.'));
-		}
-		let shell = shells[0];
-		if (!shell) {
-			const shellName = await window.showInformationMessage(localize('azure-account.uploadingRequiresOpenCloudConsole', "File upload requires an open Cloud Shell."), OSes.Linux.shellName, OSes.Windows.shellName);
-			if (!shellName) {
-				return;
-			}
-			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			shell = cloudConsole(shellName === OSes.Linux.shellName ? 'Linux' : 'Windows')!;
-		}
-		if (!uri) {
-			uri = (await window.showOpenDialog({}) || [])[0];
-		}
-		if (uri) {
-			const filename = basename(uri.fsPath);
-			return window.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize('azure-account.uploading', "Uploading '{0}'...", filename),
-				cancellable: true
-			}, (progress, token) => {
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-				return shell.uploadFile(filename, createReadStream(uri!.fsPath), { progress, token });
-			});
-		}
-	})()
-		.catch(logErrorMessage);
 }
 
 function logDiagnostics(context: ExtensionContext, api: AzureAccountExtensionApi) {

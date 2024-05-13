@@ -10,6 +10,11 @@ Additionally, we've fixed two longstanding Azure Cloud Shell bugs that caused is
 ### Changed
 * Depend on Azure Resources extension for the Azure Cloud Shell feature [#958](https://github.com/microsoft/vscode-azure-account/pull/958)
 
+### Fixed
+
+* Stop using `--ms-enable-electron-run-as-node` flag to fix launching Cloud Shell on macOS [855](https://github.com/microsoft/vscode-azureresourcegroups/pull/855)
+* Use `process.execPath` instead of `process.argv0` to fix launching Cloud Shell on Linux [854](https://github.com/microsoft/vscode-azureresourcegroups/pull/854)
+
 ## [0.11.7] - 2024-04-30
 
 ### Added

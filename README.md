@@ -22,6 +22,8 @@ Sign out of Azure using the `Azure: Sign Out` command.
 
 ## Azure Cloud Shell
 
+> Note: The Azure Cloud Shell feature has moved to the [Azure Resources extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azureresourcegroups). Apart from moving codebases, the feature is the same from a users perspective. Authentication for the Cloud Shell feature is now handled by the VS Code built-in Microsoft authentication provider, which means you may have to login upon first use of the migrated feature.
+
 Azure Cloud Shell instances can be started via the terminal view in VS Code. To begin, click the
 dropdown arrow in the terminal view and select from either `Azure Cloud Shell (Bash)` or
 `Azure Cloud Shell (PowerShell)`.

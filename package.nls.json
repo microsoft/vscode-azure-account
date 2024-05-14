@@ -9,6 +9,6 @@
     "azure-account.commands.logout": "Sign Out",
     "azure-account.commands.manageAccount": "Manage Azure Account",
     "azure-account.commands.reportIssue": "Report Issue...",
-    "azure-account.commands.selectSubscriptions": "Select Subscriptions",
+    "azure-account.commands.selectSubscriptions": "Select Subscriptions...",
     "azure-account.commands.selectTenant": "Select Tenant"
 }

@@ -8,12 +8,12 @@ In preparation of the Azure Account extension being deprecated at the end of the
 Additionally, we've fixed two longstanding Azure Cloud Shell bugs that caused issues launching the feature on Linux and macOS: [#719](https://github.com/microsoft/vscode-azure-account/issues/719) and [#959](https://github.com/microsoft/vscode-azure-account/issues/959).
 
 ### Changed
-* Depend on Azure Resources extension for the Azure Cloud Shell feature [#958](https://github.com/microsoft/vscode-azure-account/pull/958)
+* [[#958]](https://github.com/microsoft/vscode-azure-account/pull/958) Depend on Azure Resources extension for the Azure Cloud Shell feature 
 
 ### Fixed
 
-* Stop using `--ms-enable-electron-run-as-node` flag to fix launching Cloud Shell on macOS [855](https://github.com/microsoft/vscode-azureresourcegroups/pull/855)
-* Use `process.execPath` instead of `process.argv0` to fix launching Cloud Shell on Linux [854](https://github.com/microsoft/vscode-azureresourcegroups/pull/854)
+* [[855]](https://github.com/microsoft/vscode-azureresourcegroups/pull/855) Stop using `--ms-enable-electron-run-as-node` flag to fix launching Cloud Shell on macOS
+* [[854]](https://github.com/microsoft/vscode-azureresourcegroups/pull/854) Use `process.execPath` instead of `process.argv0` to fix launching Cloud Shell on Linux
 
 ## [0.11.7] - 2024-04-30
 

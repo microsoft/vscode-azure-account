@@ -1,6 +1,20 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.12.0] - 2024-05-14
+
+In preparation of the [Azure Account extension being deprecated](https://github.com/microsoft/vscode-azure-account/issues/964) at the end of the year, we've moved the Azure Cloud Shell feature to the [Azure Resources extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azureresourcegroups). Apart from moving codebases, the feature is the same from a users perspective. Authentication for the Cloud Shell feature is now handled by the VS Code built-in Microsoft authentication provider, which means you may have to login upon first use of the migrated feature.
+
+Additionally, we've fixed two longstanding Azure Cloud Shell bugs that caused issues launching the feature on Linux and macOS: [#719](https://github.com/microsoft/vscode-azure-account/issues/719) and [#959](https://github.com/microsoft/vscode-azure-account/issues/959).
+
+### Changed
+* [[958]](https://github.com/microsoft/vscode-azure-account/pull/958) Depend on Azure Resources extension for the Azure Cloud Shell feature 
+
+### Fixed
+
+* [[855]](https://github.com/microsoft/vscode-azureresourcegroups/pull/855) Stop using `--ms-enable-electron-run-as-node` flag to fix launching Cloud Shell on macOS
+* [[854]](https://github.com/microsoft/vscode-azureresourcegroups/pull/854) Use `process.execPath` instead of `process.argv0` to fix launching Cloud Shell on Linux
+
 ## [0.11.7] - 2024-04-30
 
 ### Added

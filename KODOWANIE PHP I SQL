@@ -1,0 +1,260 @@
+CREATE TABLE Książki (
+    id_książki INT PRIMARY KEY AUTO_INCREMENT,
+    tytuł VARCHAR(255) NOT NULL,
+    id_autora INT,
+    id_kategorii INT,
+    rok_wydania YEAR,
+    liczba_stron INT,
+    ISBN VARCHAR(13) UNIQUE,
+    FOREIGN KEY (id_autora) REFERENCES Autorzy(id_autora),
+    FOREIGN KEY (id_kategorii) REFERENCES Kategorie(id_kategorii)
+);
+
+CREATE TABLE Autorzy (
+    id_autora INT PRIMARY KEY AUTO_INCREMENT,
+    imię VARCHAR(100),
+    nazwisko VARCHAR(100),
+    data_urodzenia DATE
+);
+
+CREATE TABLE Czytelnicy (
+    id_czytelnika INT PRIMARY KEY AUTO_INCREMENT,
+    imię VARCHAR(100),
+    nazwisko VARCHAR(100),
+    adres VARCHAR(255),
+    telefon VARCHAR(15),
+    email VARCHAR(100)
+);
+CREATE TABLE Wypożyczenia (
+    id_wypożyczenia INT PRIMARY KEY AUTO_INCREMENT,
+    id_czytelnika INT,
+    id_książki INT,
+    data_wypożyczenia DATE,
+    data_zwrotu DATE,
+    data_oddania DATE,
+    FOREIGN KEY (id_czytelnika) REFERENCES Czytelnicy(id_czytelnika),
+    FOREIGN KEY (id_książki) REFERENCES Książki(id_książki)
+);
+CREATE TABLE Pracownicy (
+    id_pracownika INT PRIMARY KEY AUTO_INCREMENT,
+    imię VARCHAR(100),
+    nazwisko VARCHAR(100),
+    stanowisko VARCHAR(100),
+    data_zatrudnienia DATE,
+    pensja DECIMAL(10, 2)
+);
+
+INSERT INTO Książki (tytuł, id_autora, id_kategorii, rok_wydania, liczba_stron, ISBN)
+VALUES ('Tytuł Książki', 1, 2, 2020, 350, '9781234567890');
+
+/biblioteka
+│
+├── /includes
+│   ├── db_connect.php      (pliki do połączenia z bazą danych)
+├── /views
+│   ├── books.php           (widok listy książek)
+│   ├── add_book.php        (formularz dodawania książki)
+│   ├── edit_book.php       (formularz edytowania książki)
+│
+├── index.php               (strona główna)
+└── .htaccess               (opcjonalne, dla ładnych URL-i)
+
+<?php
+$host = 'localhost';
+$db   = 'biblioteka';
+$user = 'root';
+$pass = '';
+
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    echo 'Błąd połączenia: ' . $e->getMessage();
+    die();
+}
+?>
+
+<?php
+include 'includes/db_connect.php';
+
+$query = "SELECT Książki.id_książki, Książki.tytuł, Autorzy.imię, Autorzy.nazwisko 
+          FROM Książki 
+          JOIN Autorzy ON Książki.id_autora = Autorzy.id_autora";
+$stmt = $pdo->prepare($query);
+$stmt->execute();
+$books = $stmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Biblioteka</title>
+</head>
+<body>
+    <h1>Lista Książek</h1>
+    <a href="views/add_book.php">Dodaj nową książkę</a>
+    <table border="1">
+        <tr>
+            <th>Tytuł</th>
+            <th>Autor</th>
+            <th>Akcje</th>
+        </tr>
+        <?php foreach ($books as $book): ?>
+            <tr>
+                <td><?= htmlspecialchars($book['tytuł']) ?></td>
+                <td><?= htmlspecialchars($book['imię']) . ' ' . htmlspecialchars($book['nazwisko']) ?></td>
+                <td>
+                    <a href="views/edit_book.php?id=<?= $book['id_książki'] ?>">Edytuj</a>
+                    <a href="delete_book.php?id=<?= $book['id_książki'] ?>" onclick="return confirm('Na pewno usunąć?')">Usuń</a>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+    </table>
+</body>
+</html>
+
+<?php
+include '../includes/db_connect.php';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $tytul = $_POST['tytul'];
+    $id_autora = $_POST['id_autora'];
+    $id_kategorii = $_POST['id_kategorii'];
+    $rok_wydania = $_POST['rok_wydania'];
+    $liczba_stron = $_POST['liczba_stron'];
+    $isbn = $_POST['isbn'];
+
+    $query = "INSERT INTO Książki (tytuł, id_autora, id_kategorii, rok_wydania, liczba_stron, ISBN) 
+              VALUES (:tytul, :id_autora, :id_kategorii, :rok_wydania, :liczba_stron, :isbn)";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([
+        ':tytul' => $tytul,
+        ':id_autora' => $id_autora,
+        ':id_kategorii' => $id_kategorii,
+        ':rok_wydania' => $rok_wydania,
+        ':liczba_stron' => $liczba_stron,
+        ':isbn' => $isbn,
+    ]);
+
+    header('Location: ../index.php');
+    exit;
+}
+?>
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Dodaj Książkę</title>
+</head>
+<body>
+    <h1>Dodaj Książkę</h1>
+    <form method="POST">
+        <label for="tytul">Tytuł:</label>
+        <input type="text" id="tytul" name="tytul" required><br>
+
+        <label for="id_autora">Autor:</label>
+        <select id="id_autora" name="id_autora" required>
+            <?php
+            $authors = $pdo->query("SELECT id_autora, imię, nazwisko FROM Autorzy")->fetchAll();
+            foreach ($authors as $author) {
+                echo "<option value=\"{$author['id_autora']}\">{$author['imię']} {$author['nazwisko']}</option>";
+            }
+            ?>
+        </select><br>
+
+        <label for="id_kategorii">Kategoria:</label>
+        <select id="id_kategorii" name="id_kategorii" required>
+            <?php
+            $categories = $pdo->query("SELECT id_kategorii, nazwa FROM Kategorie")->fetchAll();
+            foreach ($categories as $category) {
+                echo "<option value=\"{$category['id_kategorii']}\">{$category['nazwa']}</option>";
+            }
+            ?>
+        </select><br>
+
+        <label for="rok_wydania">Rok Wydania:</label>
+        <input type="number" id="rok_wydania" name="rok_wydania" required><br>
+
+        <label for="liczba_stron">Liczba Stron:</label>
+        <input type="number" id="liczba_stron" name="liczba_stron" required><br>
+
+        <label for="isbn">ISBN:</label>
+        <input type="text" id="isbn" name="isbn" required><br>
+
+        <input type="submit" value="Dodaj Książkę">
+    </form>
+    <a href="../index.php">Powrót</a>
+</body>
+</html>
+
+<?php
+include '../includes/db_connect.php';
+
+$id_książki = $_GET
+          ?>
+        </select><br>
+
+        <label for="rok_wydania">Rok Wydania:</label>
+        <input type="number" id="rok_wydania" name="rok_wydania" required><br>
+
+        <label for="liczba_stron">Liczba Stron:</label>
+        <input type="number" id="liczba_stron" name="liczba_stron" required><br>
+
+        <label for="isbn">ISBN:</label>
+        <input type="text" id="isbn" name="isbn" required><br>
+
+        <input type="submit" value="Dodaj Książkę">
+    </form>
+    <a href="../index.php">Powrót</a>
+</body>
+</html>
+
+<?php
+include '../includes/db_connect.php';
+
+$id_książki = $_GET['id'];
+$query = "SELECT * FROM Książki WHERE id_książki = :id";
+$stmt = $pdo->prepare($query);
+$stmt->execute([':id' => $id_książki]);
+$book = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $tytul = $_POST['tytul'];
+    $id_autora = $_POST['id_autora'];
+    $id_kategorii = $_POST['id_kategorii'];
+    $rok_wydania = $_POST['rok_wydania'];
+    $liczba_stron = $_POST['liczba_stron'];
+    $isbn = $_POST['isbn'];
+
+    $query = "UPDATE Książki 
+              SET tytuł = :tytul, id_autora = :id_autora, id_kategorii = :id_kategorii, 
+                  rok_wydania = :rok_wydania, liczba_stron = :liczba_stron, ISBN = :isbn
+              WHERE id_książki = :id";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([
+        ':tytul' => $tytul,
+        ':id_autora' => $id_autora,
+        ':id_kategorii' => $id_kategorii,
+        ':rok_wydania' => $rok_wydania,
+        ':liczba_stron' => $liczba_stron,
+        ':isbn' => $isbn,
+        ':id' => $id_książki,
+    ]);
+
+    header('Location: ../index.php');
+    exit;
+}
+?>
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Edytuj Książkę</title>
+</head>
+<body>
+    <h1>Edytuj Książkę</h1>
+    <form method="POST">
+        <label for="tytul">Tytu

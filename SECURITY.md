@@ -1,4 +1,6 @@
 <!-- BEGIN MICROSOFT SECURITY.MD V0.0.5 BLOCK -->
+https://github.com/microsoft/vscode-azure-account/blob/main/SUPPORT.md
+https://github.com/microsoft/vscode-azure-account/security/policy
 
 ## Security
 

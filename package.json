@@ -89,6 +89,10 @@
         "menus": {
             "commandPalette": [
                 {
+                    "command": "azure-account.createAccount",
+                    "when": "never"
+                },
+                {
                     "command": "azure-account.manageAccount",
                     "when": "never"
                 }
@@ -101,17 +105,17 @@
                 "azure.resourceFilter": {
                     "type": "array",
                     "default": null,
-                    "description": "The resource filter, each element is a tenant id and a subscription id separated by a slash."
+                    "description": "(Deprecated) The resource filter, each element is a tenant id and a subscription id separated by a slash."
                 },
                 "azure.showSignedInEmail": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Whether to show the email address (e.g., in the status bar) of the signed in account."
+                    "description": "(Deprecated) Whether to show the email address (e.g., in the status bar) of the signed in account."
                 },
                 "azure.tenant": {
                     "type": "string",
                     "default": "",
-                    "description": "A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants. Note: You must sign out and sign back in after modifying this setting for it to take effect."
+                    "description": "(Deprecated) A specific tenant to sign in to. The default is to sign in to the common tenant and use all known tenants. Note: You must sign out and sign back in after modifying this setting for it to take effect."
                 },
                 "azure.cloud": {
                     "type": "string",
@@ -130,11 +134,11 @@
                         "Azure Custom Cloud"
                     ],
                     "default": "AzureCloud",
-                    "description": "The current Azure Cloud to connect to. Note: You must sign out and sign back in after modifying this setting for it to take effect."
+                    "description": "(Deprecated) The current Azure Cloud to connect to. Note: You must sign out and sign back in after modifying this setting for it to take effect."
                 },
                 "azure.customCloud.resourceManagerEndpointUrl": {
                     "type": "string",
-                    "description": "The management endpoint for your Azure Custom Cloud environment.",
+                    "description": "(Deprecated) The management endpoint for your Azure Custom Cloud environment.",
                     "scope": "application"
                 },
                 "azure.ppe": {
@@ -193,7 +197,7 @@
                         }
                     },
                     "default": null,
-                    "description": "Development setting: The PPE environment for testing.",
+                    "description": "(Deprecated) Development setting: The PPE environment for testing.",
                     "scope": "application"
                 },
                 "azure.authenticationLibrary": {
@@ -206,7 +210,7 @@
                         "Azure Active Directory Authentication Library",
                         "Microsoft Authentication Library (Preview)"
                     ],
-                    "description": "The authentication library to use. Note: You must sign out and reload the window after modifying this setting for it to take effect.",
+                    "description": "(Deprecated) The authentication library to use. Note: You must sign out and reload the window after modifying this setting for it to take effect.",
                     "default": "ADAL",
                     "tags": [
                         "experimental"

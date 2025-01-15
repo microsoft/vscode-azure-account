@@ -120,6 +120,13 @@ function createStatusBarItem(context: ExtensionContext, api: AzureAccountExtensi
 	statusBarItem.name = localize('azure-account.status', 'Azure Account Status');
 	statusBarItem.command = "azure-account.manageAccount";
 	function updateStatusBar() {
+		// Since Azure Account is deprecated, we only show the status bar item when the user has explicitly enabled it
+		const showStatusBar = getSettingValue<boolean>('azure-account.showStatusBar');
+		if (!showStatusBar) {
+			statusBarItem.hide();
+			return;
+		}
+
 		switch (api.status) {
 			case 'LoggingIn':
 				statusBarItem.text = localize('azure-account.loggingIn', "Azure: Signing in...");

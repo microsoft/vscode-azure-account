@@ -102,6 +102,11 @@
             "type": "object",
             "title": "Azure configuration",
             "properties": {
+                "azure.azure-account.showStatusBar": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to show the Azure Account status bar item. For use with extensions that aren't updated to use the new built in authentication APIs."
+                },
                 "azure.resourceFilter": {
                     "type": "array",
                     "default": null,

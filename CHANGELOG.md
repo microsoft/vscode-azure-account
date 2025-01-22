@@ -1,6 +1,14 @@
 # Change Log
 All notable changes to the "ms-vscode.azure-account" extension will be documented in this file.
 
+## [0.13.0] - 2025-01-22
+
+The Azure Account extension is deprecated (January 2025). The extension will still be available on the marketplace to support extensions that haven't moved to the built-in Microsoft authentication extension. Please see the [Azure Resources README](https://github.com/microsoft/vscode-azureresourcegroups?tab=readme-ov-file#move-to-built-in-vs-code-authentication) for how to manage Azure accounts in VS Code using the new built-in Microsoft authentication extension.
+
+To avoid confusion among users, we've hidden the status bar item that shows the signed-in account email address. The extension will no longer show the email address in the status bar by default. If you want to show the status bar item, you can enable it by enabling the `azure.azure-account.showStatusBar` setting.
+
+If you own an Azure extension that relies on Azure Account, or are creating a new extension that needs authentication to Azure, please see the [deprecation announcement](https://github.com/microsoft/vscode-azure-account/issues/964) for guidance.
+
 ## [0.12.0] - 2024-05-14
 
 In preparation of the [Azure Account extension being deprecated](https://github.com/microsoft/vscode-azure-account/issues/964) at the end of the year, we've moved the Azure Cloud Shell feature to the [Azure Resources extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azureresourcegroups). Apart from moving codebases, the feature is the same from a users perspective. Authentication for the Cloud Shell feature is now handled by the VS Code built-in Microsoft authentication provider, which means you may have to login upon first use of the migrated feature.

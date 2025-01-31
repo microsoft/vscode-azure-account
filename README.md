@@ -6,6 +6,8 @@
 
 <!-- endregion exclude-from-marketplace -->
 
+Please see the [Azure Resources README](https://github.com/microsoft/vscode-azureresourcegroups?tab=readme-ov-file#move-to-built-in-vs-code-authentication) for how to manage Azure accounts in VS Code using the new built-in Microsoft authentication extension.
+
 ⚠️ Attention extension authors! The Azure Account extension is deprecated (January 2025). If you own an Azure extension that relies on Azure Account, or are creating a new extension that needs authentication to Azure, please see the [deprecation announcement](https://github.com/microsoft/vscode-azure-account/issues/964) for guidance.
 
 The Azure Account extension provides a single Azure sign in and subscription filtering experience for all other Azure extensions. It makes Azure's Cloud Shell service available in VS Code's integrated terminal.
